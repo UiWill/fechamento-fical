@@ -1,0 +1,161 @@
+# Produção — VPS dedicada deste projeto. Sem depender de rede/Traefik de
+# nenhum outro projeto seu: este compose sobe o próprio Traefik.
+#
+#   docker compose -f infra/docker-compose.prod.yml --env-file ../.env up -d
+#
+# Pré-requisitos na VPS: Docker + Docker Compose, DNS dos domínios
+# (ADMIN_DOMAIN, API_DOMAIN) apontando para o IP da VPS. Ver docs/SETUP_VPS.md.
+
+services:
+  traefik:
+    image: traefik:v3.2
+    restart: unless-stopped
+    command:
+      - "--configFile=/etc/traefik/traefik.yml"
+      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:?defina TRAEFIK_ACME_EMAIL}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - letsencrypt:/letsencrypt
+    networks:
+      - public
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    networks:
+      - internal
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?}
+    volumes:
+      - miniodata:/data
+    networks:
+      - internal
+
+  fiscal-engine:
+    build:
+      context: ..
+      dockerfile: apps/fiscal-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      FISCAL_ENGINE_PORT: 3100
+      ACBR_AMBIENTE: ${ACBR_AMBIENTE:-1}
+      FISCAL_ENGINE_INTERNAL_KEY: ${FISCAL_ENGINE_INTERNAL_KEY:?}
+    networks:
+      - internal
+    # Nunca exposto ao Traefik/público — só core-api fala com ele, na rede interna.
+
+  core-api:
+    build:
+      context: ..
+      dockerfile: apps/core-api/Dockerfile
+    restart: unless-stopped
+    environment:
+      CORE_API_PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      FISCAL_ENGINE_URL: http://fiscal-engine:3100
+      FISCAL_ENGINE_INTERNAL_KEY: ${FISCAL_ENGINE_INTERNAL_KEY:?}
+      CERT_MASTER_KEY: ${CERT_MASTER_KEY:?}
+      JWT_SECRET: ${JWT_SECRET:?}
+    networks:
+      - internal
+      - public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=afe_public"
+      - "traefik.http.routers.afe-api.rule=Host(`${API_DOMAIN:?}`)"
+      - "traefik.http.routers.afe-api.entrypoints=websecure"
+      - "traefik.http.routers.afe-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.afe-api.loadbalancer.server.port=3000"
+
+  core-worker:
+    build:
+      context: ..
+      dockerfile: apps/core-api/Dockerfile
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      FISCAL_ENGINE_URL: http://fiscal-engine:3100
+      FISCAL_ENGINE_INTERNAL_KEY: ${FISCAL_ENGINE_INTERNAL_KEY:?}
+      CERT_MASTER_KEY: ${CERT_MASTER_KEY:?}
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  admin-web:
+    build:
+      context: ..
+      dockerfile: apps/admin-web/Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?}
+      PORT: 3000
+    networks:
+      - public
+    depends_on:
+      - core-api
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=afe_public"
+      - "traefik.http.routers.afe-admin.rule=Host(`${ADMIN_DOMAIN:?}`)"
+      - "traefik.http.routers.afe-admin.entrypoints=websecure"
+      - "traefik.http.routers.afe-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.services.afe-admin.loadbalancer.server.port=3000"
+
+networks:
+  public:
+    name: afe_public
+  internal:
+    internal: true
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  letsencrypt:

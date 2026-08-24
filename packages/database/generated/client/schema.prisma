@@ -1,0 +1,311 @@
+// Schema Prisma — plataforma multi-tenant de automação do fechamento fiscal.
+// Tenant raiz = Organizacao (escritório contábil, ex: CAPTAL).
+// Cada Organizacao possui várias Empresas (CNPJs dos clientes dela).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Tenant e usuários ──────────────────────────────────────────────────────
+
+model Organizacao {
+  id           String   @id @default(cuid())
+  razaoSocial  String
+  cnpj         String   @unique
+  emailContato String
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  empresas      Empresa[]
+  regrasFiscais RegraFiscal[]
+  usuarios      Usuario[]
+  faturas       Fatura[]
+  auditLogs     AuditLog[]
+
+  @@map("organizacoes")
+}
+
+enum PapelUsuario {
+  ADMIN_PLATAFORMA
+  ADMIN_ORGANIZACAO
+  OPERADOR
+}
+
+model Usuario {
+  id            String       @id @default(cuid())
+  organizacaoId String?
+  nome          String
+  email         String       @unique
+  senhaHash     String
+  papel         PapelUsuario @default(OPERADOR)
+  ativo         Boolean      @default(true)
+  criadoEm      DateTime     @default(now())
+  atualizadoEm  DateTime     @updatedAt
+
+  organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
+
+  @@index([organizacaoId])
+  @@map("usuarios")
+}
+
+// ── Empresas (CNPJs) e certificados ────────────────────────────────────────
+
+enum StatusEmpresa {
+  ATIVA
+  INATIVA
+}
+
+enum AmbienteFiscal {
+  PRODUCAO
+  HOMOLOGACAO
+}
+
+model Empresa {
+  id            String         @id @default(cuid())
+  organizacaoId String
+  cnpj          String         @unique
+  razaoSocial   String
+  uf            String // sigla, ex: MG
+  codigoUf      Int // código IBGE, ex: 31
+  ambiente      AmbienteFiscal @default(HOMOLOGACAO)
+  status        StatusEmpresa  @default(ATIVA)
+  ativadaEm     DateTime       @default(now())
+  desativadaEm  DateTime?
+  criadoEm      DateTime       @default(now())
+  atualizadoEm  DateTime       @updatedAt
+
+  organizacao           Organizacao          @relation(fields: [organizacaoId], references: [id])
+  certificado           Certificado?
+  documentosFiscais     DocumentoFiscal[]
+  manifestacoes         ManifestacaoEvento[]
+  exportacoesTxt        ExportacaoTxt[]
+  itensFatura           ItemFatura[]
+  nsuControle           NsuControle?
+  regrasFiscaisOverride RegraFiscal[]
+
+  @@index([organizacaoId])
+  @@index([status])
+  @@map("empresas")
+}
+
+// Controle de paginação da Distribuição DFe (substitui data/nsu/{cnpj}.json do nfe_marketplace)
+model NsuControle {
+  id           String   @id @default(cuid())
+  empresaId    String   @unique
+  ultimoNsu    BigInt   @default(0)
+  atualizadoEm DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@map("nsu_controle")
+}
+
+// PFX nunca fica em disco fora do MinIO, e nunca em texto puro:
+// - conteudoCriptografado: caminho do objeto no bucket afe-certificados (arquivo já cifrado)
+// - senhaCriptografada: senha do PFX cifrada com a mesma chave de envelope (CERT_MASTER_KEY)
+model Certificado {
+  id                      String   @id @default(cuid())
+  empresaId               String   @unique
+  nomeArquivoOriginal     String
+  objetoStorage           String // chave do objeto no MinIO (bucket afe-certificados)
+  senhaCriptografada      String
+  ivCriptografia          String // IV usado na cifra AES-GCM (envelope encryption)
+  validoAte               DateTime
+  alertaVencimentoEnviado Boolean  @default(false)
+  criadoEm                DateTime @default(now())
+  atualizadoEm            DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@index([validoAte])
+  @@map("certificados")
+}
+
+// ── Documentos fiscais ──────────────────────────────────────────────────────
+
+enum TipoDocumentoFiscal {
+  NFE
+  NFCE
+}
+
+enum DirecaoDocumento {
+  ENTRADA
+  SAIDA
+}
+
+enum StatusDocumentoFiscal {
+  RECEBIDO
+  MANIFESTADO
+  CLASSIFICADO
+  EXPORTADO
+  ERRO
+}
+
+model DocumentoFiscal {
+  id               String                @id @default(cuid())
+  empresaId        String
+  chaveAcesso      String                @unique // 44 dígitos
+  tipo             TipoDocumentoFiscal
+  direcao          DirecaoDocumento
+  nsu              BigInt?
+  status           StatusDocumentoFiscal @default(RECEBIDO)
+  cfop             String?
+  objetoStorageXml String // chave do objeto no MinIO (bucket afe-documentos-fiscais)
+  emitidoEm        DateTime?
+  recebidoEm       DateTime              @default(now())
+  atualizadoEm     DateTime              @updatedAt
+
+  empresa       Empresa              @relation(fields: [empresaId], references: [id])
+  manifestacoes ManifestacaoEvento[]
+
+  @@index([empresaId, direcao, status])
+  @@index([empresaId, tipo])
+  @@map("documentos_fiscais")
+}
+
+// ── Manifestação do destinatário ────────────────────────────────────────────
+
+enum TipoEventoManifestacao {
+  CIENCIA_OPERACAO // 210210
+  CONFIRMACAO_OPERACAO // 210200
+  DESCONHECIMENTO_OPERACAO // 210220
+  OPERACAO_NAO_REALIZADA // 210240
+}
+
+enum StatusManifestacao {
+  PENDENTE
+  ENVIADA
+  AUTORIZADA
+  REJEITADA
+}
+
+model ManifestacaoEvento {
+  id                String                 @id @default(cuid())
+  empresaId         String
+  documentoFiscalId String
+  tipoEvento        TipoEventoManifestacao
+  status            StatusManifestacao     @default(PENDENTE)
+  protocoloSefaz    String?
+  motivoSefaz       String?
+  enviadoEm         DateTime?
+  criadoEm          DateTime               @default(now())
+
+  empresa         Empresa         @relation(fields: [empresaId], references: [id])
+  documentoFiscal DocumentoFiscal @relation(fields: [documentoFiscalId], references: [id])
+
+  @@index([empresaId, status])
+  @@map("manifestacao_eventos")
+}
+
+// ── Motor de regras fiscais ─────────────────────────────────────────────────
+
+// Regra pertence à Organizacao (padrão) e pode ter override por Empresa específica.
+model RegraFiscal {
+  id            String   @id @default(cuid())
+  organizacaoId String
+  empresaId     String? // null = regra padrão da organização; preenchido = override por CNPJ
+  cfopEntrada   String
+  descricao     String
+  observacao    String?
+  acumulador    String?
+  ativa         Boolean  @default(true)
+  criadoEm      DateTime @default(now())
+  atualizadoEm  DateTime @updatedAt
+
+  organizacao Organizacao @relation(fields: [organizacaoId], references: [id])
+  empresa     Empresa?    @relation(fields: [empresaId], references: [id])
+
+  @@index([organizacaoId, cfopEntrada])
+  @@index([empresaId, cfopEntrada])
+  @@map("regras_fiscais")
+}
+
+// ── Exportação para o Domínio Sistemas ──────────────────────────────────────
+
+enum StatusExportacaoTxt {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDA
+  ERRO
+}
+
+model ExportacaoTxt {
+  id               String              @id @default(cuid())
+  empresaId        String
+  periodoInicio    DateTime
+  periodoFim       DateTime
+  status           StatusExportacaoTxt @default(PENDENTE)
+  objetoStorageTxt String?
+  totalDocumentos  Int                 @default(0)
+  erro             String?
+  criadoEm         DateTime            @default(now())
+  concluidoEm      DateTime?
+
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@index([empresaId, status])
+  @@map("exportacoes_txt")
+}
+
+// ── Faturamento (R$49,90 por CNPJ ativo/mês) ────────────────────────────────
+
+enum StatusFatura {
+  ABERTA
+  PAGA
+  ATRASADA
+  CANCELADA
+}
+
+model Fatura {
+  id            String       @id @default(cuid())
+  organizacaoId String
+  referenciaMes Int // 1-12
+  referenciaAno Int
+  valorTotal    Decimal      @db.Decimal(10, 2)
+  status        StatusFatura @default(ABERTA)
+  geradaEm      DateTime     @default(now())
+  pagaEm        DateTime?
+
+  organizacao Organizacao  @relation(fields: [organizacaoId], references: [id])
+  itens       ItemFatura[]
+
+  @@unique([organizacaoId, referenciaAno, referenciaMes])
+  @@map("faturas")
+}
+
+model ItemFatura {
+  id        String  @id @default(cuid())
+  faturaId  String
+  empresaId String
+  valor     Decimal @db.Decimal(10, 2)
+
+  fatura  Fatura  @relation(fields: [faturaId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
+
+  @@index([faturaId])
+  @@map("itens_fatura")
+}
+
+// ── Auditoria (obrigatório dado o caráter fiscal do sistema) ───────────────
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  organizacaoId String?
+  usuarioId     String?
+  acao          String
+  entidade      String
+  entidadeId    String?
+  detalhes      Json?
+  criadoEm      DateTime @default(now())
+
+  organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
+
+  @@index([organizacaoId, criadoEm])
+  @@map("audit_logs")
+}

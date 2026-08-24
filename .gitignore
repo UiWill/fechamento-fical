@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# certificates — nunca versionar certificado digital de cliente
+*.pfx
+*.pem
+*.p12
+
+# ACBrLibNFe (binário nativo, baixado à parte — ver apps/fiscal-engine/lib/README.md)
+apps/fiscal-engine/lib/*.so
+apps/fiscal-engine/lib/Schemas/
+
+# dados locais / uploads
+apps/fiscal-engine/data/
+infra/volumes/
+
+# editor / os
+.vscode/
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# prisma
+packages/database/prisma/dev.db
