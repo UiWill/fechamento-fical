@@ -37,5 +37,6 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 
-# prisma
+# prisma — client gerado (binário nativo, específico da plataforma; regenerar com `pnpm db:generate`)
 packages/database/prisma/dev.db
+packages/database/generated/
