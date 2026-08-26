@@ -8,25 +8,36 @@ futuro.
 ## Visão geral
 
 ```
-                         ┌──────────────┐
-                         │  admin-web   │  Next.js — painel da CAPTAL
-                         │ (Next.js)    │
-                         └──────┬───────┘
-                                │ HTTPS
-                                ▼
-                         ┌──────────────┐        ┌─────────────┐
-                         │   core-api   │───────▶│ fiscal-engine│
-                         │  (NestJS)    │ HTTP    │ (koffi+ACBr) │──▶ SEFAZ
-                         │              │ interno │              │
-                         └──────┬───────┘        └─────────────┘
-                                │
-                ┌───────────────┼────────────────┐
-                ▼               ▼                ▼
-           ┌─────────┐    ┌─────────┐      ┌───────────┐
-           │ Postgres │    │  Redis  │      │  MinIO    │
-           │ (Prisma) │    │(BullMQ) │      │(XML/PFX)  │
-           └─────────┘    └─────────┘      └───────────┘
+                    Caddy (reverse proxy + HTTPS automático)
+                    api.dominio.com.br    app.dominio.com.br
+                          │                      │
+                          ▼                      ▼
+                   ┌──────────────┐      ┌──────────────┐
+                   │   core-api   │      │  admin-web   │
+                   │  (NestJS)    │      │  (Next.js)   │
+                   │  :3000       │      │  :3200       │
+                   └──────┬───────┘      └──────────────┘
+                          │ HTTP interno (localhost)
+                          ▼
+                   ┌──────────────┐
+                   │ fiscal-engine │──▶ SEFAZ
+                   │ (koffi+ACBr)  │
+                   │  :3100        │
+                   └──────────────┘
+                          ▲
+                          │ (core-api também fala com:)
+                ┌─────────┴─────────┐
+                ▼                   ▼
+           ┌─────────┐        ┌───────────┐
+           │ Postgres │        │  MinIO    │
+           │ (Prisma) │        │(XML/PFX)  │
+           └─────────┘        └───────────┘
 ```
+
+Todos os serviços rodam **nativamente no Windows Server** (Serviços do
+Windows via NSSM, sem Docker/WSL2 — ver `docs/SETUP_SERVIDOR_WINDOWS.md`).
+Só o Caddy fica exposto nas portas 80/443; os demais escutam em
+`127.0.0.1`, alcançáveis de fora só através do reverse proxy.
 
 - **admin-web**: painel onde a CAPTAL cadastra CNPJs, acompanha documentos
   fiscais, configura regras e baixa exportações. Consome só a API HTTP do
@@ -35,12 +46,11 @@ futuro.
 - **core-api**: dono de toda a lógica de negócio e do banco. Orquestra o
   `fiscal-engine` para falar com a SEFAZ, mas não tem acesso direto à
   ACBrLib.
-- **fiscal-engine**: único processo com o binário nativo `libacbrnfe64.so`
-  carregado via FFI (`koffi`). Isolado em container próprio por dois
-  motivos: (1) um crash na lib nativa não deve derrubar a API principal, (2)
-  precisa de dependências de sistema específicas (OpenSSL bundlado pela
-  ACBr) que não devem se misturar com o resto do sistema. Fica só na rede
-  Docker interna, nunca exposto ao Traefik.
+- **fiscal-engine**: único processo com o binário nativo `ACBrNFe64.dll`
+  carregado via FFI (`koffi`). Roda como serviço próprio (não dentro do
+  core-api) por dois motivos: (1) um crash na lib nativa não deve derrubar a
+  API principal, (2) mantém a única superfície que fala com a SEFAZ isolada
+  e auditável. Escuta só em localhost, nunca exposto pelo Caddy.
 
 ## Por que essas escolhas
 
@@ -60,10 +70,22 @@ futuro.
   `fiscal-engine` recebe o conteúdo já decifrado por chamada, grava num
   arquivo temporário só durante a chamada à ACBrLib, e apaga em seguida —
   nunca persiste certificado em disco.
-- **Isolamento total de outros projetos seus**: banco, filas, storage e VPS
+- **Isolamento total de outros projetos seus**: banco, storage e servidor
   são exclusivos deste projeto — nada compartilhado com `nfe_marketplace`
   ou qualquer outro sistema seu, por causa do sigilo exigido nas Cláusulas
   12ª/14ª do contrato com a CAPTAL.
+- **Windows Server nativo, sem Docker/WSL2**: o servidor provisionado saiu
+  Windows Server 2025. Chegamos a montar Docker dentro de WSL2 (documentado
+  no histórico do deploy), mas o WSL2 exige uma sessão de desktop real pra
+  inicializar — sem Docker Desktop instalado, isso força auto-logon com
+  senha do Administrator gravada no registro, uma concessão de segurança
+  ruim pra um servidor com dados fiscais sob sigilo contratual. Decidimos
+  reescrever para rodar tudo como Serviço do Windows de verdade (via NSSM):
+  sobe sozinho no boot, sem sessão nenhuma aberta, sem esse trade-off.
+- **Sem Redis/BullMQ por enquanto**: nenhum processador de fila real existe
+  ainda (jobs agendados — polling de NSU, faturamento mensal — são fase 2).
+  Adicionar quando houver job de verdade a rodar, em vez de manter
+  infraestrutura ociosa.
 
 ## Modelo de dados (resumo)
 
@@ -91,7 +113,7 @@ Ver `packages/database/prisma/schema.prisma` para o detalhe completo.
 | Geração de TXT Domínio Sistemas | ❌ Bloqueado — aguarda leiaute da CAPTAL (Cláusula 3ª, item I) |
 | Faturamento | ⚠️ Cálculo mensal (R$49,90 × CNPJs ativos) implementado; cobrança em si (Pix/boleto/gateway) não definida |
 | Autenticação | ⚠️ Login + JWT funcionam; guard existe mas não está aplicado às rotas ainda |
-| Deploy VPS dedicada | ✅ docker-compose.prod.yml + Traefik prontos, ver `docs/SETUP_VPS.md` |
+| Deploy servidor dedicado | ✅ Scripts NSSM/Caddy/Postgres/MinIO nativos Windows prontos, ver `docs/SETUP_SERVIDOR_WINDOWS.md` |
 
 ## Convenções
 

@@ -21,6 +21,7 @@ build/
 
 # ACBrLibNFe (binário nativo, baixado à parte — ver apps/fiscal-engine/lib/README.md)
 apps/fiscal-engine/lib/*.so
+apps/fiscal-engine/lib/*.dll
 apps/fiscal-engine/lib/Schemas/
 
 # dados locais / uploads

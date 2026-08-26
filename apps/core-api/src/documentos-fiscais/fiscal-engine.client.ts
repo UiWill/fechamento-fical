@@ -22,7 +22,8 @@ export interface DistribuicaoDFeResponse {
  */
 @Injectable()
 export class FiscalEngineClient {
-  private readonly baseUrl = process.env.FISCAL_ENGINE_URL ?? "http://fiscal-engine:3100";
+  // Serviços Windows nativos, ambos em localhost — não há rede Docker aqui.
+  private readonly baseUrl = process.env.FISCAL_ENGINE_URL ?? "http://localhost:3100";
   private readonly internalKey = process.env.FISCAL_ENGINE_INTERNAL_KEY;
 
   async distribuicaoDFe(input: DistribuicaoDFeRequest): Promise<DistribuicaoDFeResponse> {

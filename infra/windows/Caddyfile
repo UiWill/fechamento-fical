@@ -1,0 +1,11 @@
+# Reverse proxy + HTTPS automatico (Let's Encrypt) para os dois dominios
+# publicos do projeto. Substitua os dominios abaixo pelos reais antes do
+# deploy (ver docs/SETUP_SERVIDOR_WINDOWS.md).
+
+api.SEUDOMINIO.com.br {
+	reverse_proxy 127.0.0.1:3000
+}
+
+app.SEUDOMINIO.com.br {
+	reverse_proxy 127.0.0.1:3200
+}

@@ -6,7 +6,6 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
-    "start:worker": "node dist/worker.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"(lint a configurar)\""
   },
@@ -17,9 +16,7 @@
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.6",
     "@nestjs/platform-fastify": "^11.0.6",
-    "@nestjs/bullmq": "^11.0.1",
     "bcryptjs": "^2.4.3",
-    "bullmq": "^5.34.5",
     "jsonwebtoken": "^9.0.2",
     "minio": "^8.0.4",
     "reflect-metadata": "^0.2.2",

@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Deploy nativo Windows via NSSM (node_modules completo instalado no
+  // servidor) — sem output "standalone", que é pensado para imagens Docker
+  // mínimas.
   reactStrictMode: true,
 };
 

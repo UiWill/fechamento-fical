@@ -3,14 +3,20 @@ import koffi from "koffi";
 import { config } from "../config";
 
 /**
- * Binding koffi para a ACBrLibNFe (libacbrnfe64.so).
+ * Binding koffi para a ACBrLibNFe — em produção usa ACBrNFe64.dll (Windows
+ * Server nativo, sem Docker/WSL2); em Linux (se algum dia necessário) usa
+ * libacbrnfe64.so. Ver config.ts para a escolha do arquivo por plataforma.
  *
  * `distribuicaoDFePorUltNSU` tem assinatura confirmada e validada em produção
- * (portado de outro projeto seu que já usa exatamente esta chamada com sucesso
- * contra a SEFAZ real). As demais funções seguem a mesma convenção documentada
- * pelo projeto ACBr, mas NÃO foram exercitadas ainda neste código — revalide a
- * assinatura contra o manual da ACBrLib (`ACBrLib - Manual de programação.pdf`,
- * distribuído junto ao SDK) antes do primeiro uso real em homologação.
+ * em outro projeto seu (Linux) que já usa exatamente esta chamada com sucesso
+ * contra a SEFAZ real. A API C da ACBrLib é a mesma nas duas plataformas
+ * (mesmos nomes de função, mesma convenção de chamada cdecl documentada pelo
+ * projeto ACBr), mas a build Windows especificamente NÃO foi exercitada ainda
+ * neste código — revalide contra o manual da ACBrLib (`ACBrLib - Manual de
+ * programação.pdf`, distribuído junto ao SDK) e teste em homologação antes de
+ * confiar em produção. Se o retorno vier sempre zerado/corrompido, o
+ * suspeito nº 1 é a convenção de chamada (cdecl vs stdcall) — koffi assume
+ * cdecl por padrão nas assinaturas abaixo.
  */
 export interface AcbrFunctions {
   inicializar: (arqConfig: string, chaveCrypt: string) => number;

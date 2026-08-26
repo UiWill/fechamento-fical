@@ -1,45 +1,44 @@
-# ACBrLibNFe (dependência nativa)
+# ACBrNFe64.dll (dependência nativa)
 
-Esta pasta recebe, em tempo de build da imagem Docker, o binário Linux da
-ACBrLibNFe — biblioteca open source (LGPL) do projeto ACBr que fala
-diretamente com os webservices SOAP da SEFAZ (Distribuição DFe, eventos,
-consultas). É carregada via FFI pelo `koffi` em `src/acbr/binding.ts`.
+Esta pasta recebe, no servidor, os binários Windows da ACBrLibNFe —
+biblioteca open source (LGPL) do projeto ACBr que fala diretamente com os
+webservices SOAP da SEFAZ (Distribuição DFe, eventos, consultas). É
+carregada via FFI pelo `koffi` em `src/acbr/binding.ts`.
 
-Este projeto usa sua **própria cópia**, baixada diretamente do projeto ACBr —
-não depende de nenhum outro projeto ou cliente seu.
+Deploy alvo é **Windows Server nativo** (sem Docker/WSL2) — ver
+`docs/SETUP_SERVIDOR_WINDOWS.md` na raiz do projeto para o passo a passo
+completo de instalação como serviço.
 
-## Versão de referência
-
-`ACBrLibNFe-Linux-1.5.0.441` — mesma versão já validada em produção em outro
-projeto seu (comunicação SOAP/mTLS com a SEFAZ funcionando corretamente),
-usada aqui como baseline conhecida. Pode ser atualizada para uma versão mais
-recente do ACBr desde que os testes de integração (`status-servico`,
-`distribuicao-dfe`) sejam revalidados em homologação antes de subir para
-produção.
-
-## Como obter
-
-1. Baixe o pacote Linux (`ACBrLibNFe-Linux-*.tar.gz` ou `.zip`) em
-   https://github.com/ACBr/ACBrLib/releases (ou https://projetoacbr.com.br/).
-2. Extraia de forma que esta pasta fique assim:
+## Arquivos necessários nesta pasta
 
 ```
 lib/
-├── libacbrnfe64.so
-├── libcrypto-1_1-x64.so   (ou versão OpenSSL equivalente ao build escolhido)
-├── libssl-1_1-x64.so
-├── libxml2.so / libxslt.so / libiconv.so (conforme exigido pelo build)
+├── ACBrNFe64.dll
+├── libcrypto-1_1-x64.dll   (ou versão OpenSSL equivalente ao build escolhido)
+├── libssl-1_1-x64.dll
+├── libxml2.dll
+├── libxslt.dll
+├── libiconv.dll
+├── libexslt.dll
 └── Schemas/
     └── NFe/                # XSDs de validação, distribuídos junto no pacote
 ```
 
-3. Confirme o caminho real no arquivo baixado — o binário CONSOLE-MT
-   (multi-thread, sem interface gráfica) é o indicado para rodar em
-   container/servidor.
+## Como obter
+
+Você já tem uma cópia funcional testada em `c:\ERP_SISTEMAS\API_ACBR\Dmais\ACBrLibNFe.Demo1\dist\`
+(usada pelo app de demonstração Java/JNA que comprovadamente conversa com a
+SEFAZ). Copie esses arquivos de lá para cá.
+
+Alternativa (versão mais nova ou ambiente sem essa pasta): baixe o pacote
+Windows (`ACBrLibNFe-Windows-*.zip`) em
+https://github.com/ACBr/ACBrLib/releases (ou https://projetoacbr.com.br/) e
+extraia o build **x64** — o `ACBrNFe64.dll` e as DLLs de dependência ficam
+juntos no mesmo pacote.
 
 ## Por que não fica versionado no git
 
-Binários nativos não pertencem ao controle de versão do código-fonte. O
-`Dockerfile` deste app copia esta pasta durante o build (`COPY lib/ ./lib/`);
-localmente, baixe uma vez e mantenha fora do commit (`.gitignore` já cobre
-`apps/fiscal-engine/lib/*.so`).
+Binários nativos não pertencem ao controle de versão do código-fonte. Copie
+esses arquivos manualmente no servidor de produção (e no ambiente de
+desenvolvimento local, se for testar chamadas reais à ACBr) — o
+`.gitignore` já ignora `apps/fiscal-engine/lib/*.dll`.
