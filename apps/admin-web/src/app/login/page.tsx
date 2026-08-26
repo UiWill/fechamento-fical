@@ -21,58 +21,107 @@ export default function LoginPage() {
       localStorage.setItem("afe_organizacao_id", resultado.usuario.organizacaoId ?? "");
       router.push("/dashboard");
     } catch {
-      setErro("E-mail ou senha inválidos.");
+      setErro("E-mail ou senha não conferem. Confira e tente de novo.");
     } finally {
       setCarregando(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 p-8 shadow-sm dark:border-slate-800"
-      >
-        <h1 className="text-xl font-semibold">Automação do Fechamento Fiscal</h1>
-
-        <div className="space-y-1">
-          <label htmlFor="email" className="text-sm font-medium">
-            E-mail
-          </label>
-          <input
-            id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
-          />
+    <main className="textura-chave relative flex min-h-screen items-center justify-center overflow-hidden p-6">
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <p
+            className="font-display text-2xl italic"
+            style={{ color: "var(--paper)" }}
+          >
+            Fechamento Fiscal
+          </p>
+          <p
+            className="mt-1 font-mono text-[0.6875rem] uppercase tracking-[0.2em]"
+            style={{ color: "var(--paper-mut)" }}
+          >
+            Acesso da equipe
+          </p>
         </div>
 
-        <div className="space-y-1">
-          <label htmlFor="senha" className="text-sm font-medium">
-            Senha
-          </label>
-          <input
-            id="senha"
-            type="password"
-            required
-            value={senha}
-            onChange={(event) => setSenha(event.target.value)}
-            className="w-full rounded border border-slate-300 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
-          />
-        </div>
-
-        {erro && <p className="text-sm text-red-600">{erro}</p>}
-
-        <button
-          type="submit"
-          disabled={carregando}
-          className="w-full rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5 rounded-lg border p-8"
+          style={{
+            background: "var(--ink-900)",
+            borderColor: "var(--ink-border)",
+          }}
         >
-          {carregando ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
+          <div className="space-y-1.5">
+            <label
+              htmlFor="email"
+              className="block font-mono text-[0.6875rem] uppercase tracking-[0.12em]"
+              style={{ color: "var(--paper-mut)" }}
+            >
+              E-mail
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              autoComplete="username"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="w-full rounded border bg-transparent px-3 py-2 text-sm outline-none transition-colors focus:ring-2 focus:ring-[var(--selo)]"
+              style={{
+                borderColor: "var(--ink-border)",
+                color: "var(--paper)",
+              }}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              htmlFor="senha"
+              className="block font-mono text-[0.6875rem] uppercase tracking-[0.12em]"
+              style={{ color: "var(--paper-mut)" }}
+            >
+              Senha
+            </label>
+            <input
+              id="senha"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={senha}
+              onChange={(event) => setSenha(event.target.value)}
+              className="w-full rounded border bg-transparent px-3 py-2 text-sm outline-none transition-colors focus:ring-2 focus:ring-[var(--selo)]"
+              style={{
+                borderColor: "var(--ink-border)",
+                color: "var(--paper)",
+              }}
+            />
+          </div>
+
+          {erro && (
+            <p className="text-sm" style={{ color: "var(--alerta)" }}>
+              {erro}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={carregando}
+            className="w-full rounded py-2.5 text-sm font-medium tracking-wide transition-opacity disabled:opacity-50"
+            style={{ background: "var(--selo)", color: "var(--ink-950)" }}
+          >
+            {carregando ? "Entrando…" : "Entrar"}
+          </button>
+        </form>
+
+        <p
+          className="mt-6 text-center text-xs"
+          style={{ color: "var(--paper-mut)" }}
+        >
+          Acesso restrito à equipe autorizada.
+        </p>
+      </div>
     </main>
   );
 }
