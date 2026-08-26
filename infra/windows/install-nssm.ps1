@@ -1,4 +1,4 @@
-# Instala o NSSM (Non-Sucking Service Manager) — usado para rodar os apps
+# Instala o NSSM (Non-Sucking Service Manager) - usado para rodar os apps
 # Node.js (core-api, fiscal-engine, admin-web) como Servicos do Windows de
 # verdade (sobem sozinhos no boot, reiniciam sozinhos se o processo cair).
 $ErrorActionPreference = 'Stop'

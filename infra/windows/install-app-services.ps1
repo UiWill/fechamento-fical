@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 
 $nssm = 'C:\tools\nssm\nssm.exe'
 if (-not (Test-Path $nssm)) {
-    throw "NSSM nao encontrado em $nssm — rode install-nssm.ps1 primeiro."
+    throw "NSSM nao encontrado em $nssm - rode install-nssm.ps1 primeiro."
 }
 if (-not (Test-Path $EnvFile)) {
     throw "Arquivo .env nao encontrado em $EnvFile"
@@ -33,8 +33,10 @@ function Install-AfeService {
         [string]$ExtraEnvLine = $null
     )
 
-    & $nssm stop $ServiceName 2>$null
-    & $nssm remove $ServiceName confirm 2>$null
+    if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+        & $nssm stop $ServiceName
+        & $nssm remove $ServiceName confirm
+    }
 
     & $nssm install $ServiceName $nodeExe $Arguments
     & $nssm set $ServiceName AppDirectory $WorkingDirectory

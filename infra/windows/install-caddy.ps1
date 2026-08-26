@@ -5,7 +5,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $nssm = 'C:\tools\nssm\nssm.exe'
 if (-not (Test-Path $nssm)) {
-    throw "NSSM nao encontrado em $nssm — rode install-nssm.ps1 primeiro."
+    throw "NSSM nao encontrado em $nssm - rode install-nssm.ps1 primeiro."
 }
 
 $installDir = 'C:\tools\caddy'
@@ -22,8 +22,10 @@ $caddyfileSource = Join-Path $PSScriptRoot 'Caddyfile'
 $caddyfileDest = Join-Path $installDir 'Caddyfile'
 Copy-Item -Path $caddyfileSource -Destination $caddyfileDest -Force
 
-& $nssm stop AfeCaddy 2>$null
-& $nssm remove AfeCaddy confirm 2>$null
+if (Get-Service -Name AfeCaddy -ErrorAction SilentlyContinue) {
+    & $nssm stop AfeCaddy
+    & $nssm remove AfeCaddy confirm
+}
 
 & $nssm install AfeCaddy $exePath run "--config" $caddyfileDest
 & $nssm set AfeCaddy AppDirectory $installDir

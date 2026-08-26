@@ -12,7 +12,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $nssm = 'C:\tools\nssm\nssm.exe'
 if (-not (Test-Path $nssm)) {
-    throw "NSSM nao encontrado em $nssm — rode install-nssm.ps1 primeiro."
+    throw "NSSM nao encontrado em $nssm - rode install-nssm.ps1 primeiro."
 }
 
 $installDir = 'C:\tools\minio'
@@ -24,8 +24,10 @@ if (-not (Test-Path $exePath)) {
     Invoke-WebRequest -Uri 'https://dl.min.io/server/minio/release/windows-amd64/minio.exe' -OutFile $exePath
 }
 
-& $nssm stop AfeMinio 2>$null
-& $nssm remove AfeMinio confirm 2>$null
+if (Get-Service -Name AfeMinio -ErrorAction SilentlyContinue) {
+    & $nssm stop AfeMinio
+    & $nssm remove AfeMinio confirm
+}
 
 & $nssm install AfeMinio $exePath server $DataDir "--address" ":$ApiPort" "--console-address" ":$ConsolePort"
 # AppEnvironmentExtra espera UMA string com as variaveis separadas por
