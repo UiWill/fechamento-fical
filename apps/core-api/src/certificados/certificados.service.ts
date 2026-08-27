@@ -95,6 +95,19 @@ export class CertificadosService {
     return { pfxBase64: pfxBuffer.toString("base64"), senha };
   }
 
+  /**
+   * Só os metadados não-sensíveis — nunca o PFX cifrado nem a senha. Usado
+   * pela tela de detalhe da empresa para mostrar "certificado cadastrado,
+   * válido até X" sem expor nada que precise de descriptografia.
+   */
+  async buscarResumoPorEmpresa(empresaId: string) {
+    const cert = await this.prisma.client.certificado.findUnique({
+      where: { empresaId },
+      select: { id: true, nomeArquivoOriginal: true, validoAte: true, criadoEm: true },
+    });
+    return cert;
+  }
+
   listarVencendoEm(dias: number) {
     const limite = new Date();
     limite.setDate(limite.getDate() + dias);

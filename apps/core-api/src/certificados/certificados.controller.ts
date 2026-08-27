@@ -31,4 +31,10 @@ export class CertificadosController {
   listarVencendo(@Param("dias") dias: string) {
     return this.service.listarVencendoEm(Number(dias));
   }
+
+  @Get("por-empresa/:empresaId")
+  async buscarPorEmpresa(@Param("empresaId") empresaId: string) {
+    const cert = await this.service.buscarResumoPorEmpresa(empresaId);
+    return cert ?? null;
+  }
 }

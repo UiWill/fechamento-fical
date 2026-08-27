@@ -124,7 +124,8 @@ export default function DashboardPage() {
                 empresas.map((empresa, i) => (
                   <tr
                     key={empresa.id}
-                    className="entra-suave border-t"
+                    onClick={() => router.push(`/empresas/${empresa.id}`)}
+                    className="entra-suave cursor-pointer border-t transition-colors hover:bg-[var(--surface)]"
                     style={{ borderColor: "var(--border)", animationDelay: `${i * 45}ms` }}
                   >
                     <td className="chave-mascarada px-4 py-3" style={{ color: "var(--paper)" }}>
