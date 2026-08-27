@@ -7,14 +7,19 @@
   hairlines finas, transições deliberadas em vez de decoração parada.
 */
 
+/*
+  Escuro é o padrão fixo do produto (não segue mais o tema do sistema —
+  decisão explícita, ver ThemeToggle.tsx). O claro só aparece se a pessoa
+  escolher manualmente pelo botão sol/lua, e a escolha fica salva.
+*/
 :root {
-  --void: #fafaf8;
-  --surface: #ffffff;
-  --surface-2: #f2f1ed;
-  --border: #e4e2dc;
-  --paper: #111110;
-  --muted: #6b6b66;
-  --muted-2: #9a9994;
+  --void: #0a0a0a;
+  --surface: #141414;
+  --surface-2: #1b1b1a;
+  --border: #2a2a28;
+  --paper: #f5f5f3;
+  --muted: #8a8a85;
+  --muted-2: #56564f;
 
   --font-display: "Fraunces", ui-serif, serif;
   --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
@@ -26,30 +31,6 @@
      date picker, scrollbar) sempre no chrome claro do SO, mesmo com o
      resto da página escuro — texto claro em cima de fundo claro nativo
      fica ilegível. */
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --void: #0a0a0a;
-    --surface: #141414;
-    --surface-2: #1b1b1a;
-    --border: #2a2a28;
-    --paper: #f5f5f3;
-    --muted: #8a8a85;
-    --muted-2: #56564f;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --void: #0a0a0a;
-  --surface: #141414;
-  --surface-2: #1b1b1a;
-  --border: #2a2a28;
-  --paper: #f5f5f3;
-  --muted: #8a8a85;
-  --muted-2: #56564f;
   color-scheme: dark;
 }
 
@@ -322,4 +303,50 @@ select.campo option {
 .botao-principal:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* ---------- Alternador de tema (sol/lua) ---------- */
+
+.tema-toggle {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  width: 3.25rem;
+  height: 1.75rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition: background-color 0.4s var(--ease-out), border-color 0.4s var(--ease-out);
+}
+
+.tema-toggle:hover {
+  border-color: var(--muted);
+}
+
+.tema-toggle-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--void);
+  transform: translateX(0);
+  transition: transform 0.4s var(--ease-out), background-color 0.4s var(--ease-out);
+}
+
+.tema-toggle[data-ativo="light"] .tema-toggle-thumb {
+  transform: translateX(1.5rem);
+}
+
+.tema-toggle-thumb svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  animation: aparecer 0.3s var(--ease-out);
 }
