@@ -91,6 +91,35 @@ export async function criarEmpresa(
   return response.json();
 }
 
+export interface DadosCnpjConsultado {
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  uf: string;
+  codigoUf: number;
+  situacaoCadastral: string | null;
+}
+
+export class CnpjNaoEncontradoError extends Error {}
+
+export async function consultarCnpj(
+  cnpj: string,
+  token: string
+): Promise<DadosCnpjConsultado> {
+  const response = await fetch(`${API_URL}/empresas/consulta-cnpj/${cnpj}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  if (response.status === 404) {
+    throw new CnpjNaoEncontradoError();
+  }
+  if (!response.ok) {
+    throw new Error("Consulta de CNPJ indisponível no momento.");
+  }
+
+  return response.json();
+}
+
 export interface EmpresaDetalhe extends EmpresaResumo {
   organizacaoId: string;
   codigoUf: number;

@@ -4,6 +4,22 @@ export function mascararCnpj(cnpj: string): string {
   return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
 }
 
+/** Formata progressivamente enquanto o usuário digita (funciona com string parcial). */
+export function mascararCnpjParcial(valor: string): string {
+  const digits = valor.replace(/\D/g, "").slice(0, 14);
+  let resultado = digits;
+  if (digits.length > 12) {
+    resultado = digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5");
+  } else if (digits.length > 8) {
+    resultado = digits.replace(/(\d{2})(\d{3})(\d{3})(\d{0,4})/, "$1.$2.$3/$4");
+  } else if (digits.length > 5) {
+    resultado = digits.replace(/(\d{2})(\d{3})(\d{0,3})/, "$1.$2.$3");
+  } else if (digits.length > 2) {
+    resultado = digits.replace(/(\d{2})(\d{0,3})/, "$1.$2");
+  }
+  return resultado;
+}
+
 export function mascararChave(chave: string): string {
   return chave.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
 }

@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { criarEmpresa } from "@/lib/api";
+import { validarDigitosCnpj } from "@afe/shared";
+import { criarEmpresa, consultarCnpj, CnpjNaoEncontradoError } from "@/lib/api";
 import { UFS } from "@/lib/uf";
+import { mascararCnpjParcial } from "@/lib/format";
 
 export default function NovaEmpresaPage() {
   const router = useRouter();
@@ -15,19 +17,56 @@ export default function NovaEmpresaPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
+  const [consultando, setConsultando] = useState(false);
+  const [statusConsulta, setStatusConsulta] = useState<string | null>(null);
+
   useEffect(() => {
     if (!localStorage.getItem("afe_token")) {
       router.push("/login");
     }
   }, [router]);
 
+  async function handleCnpjBlur() {
+    const cnpjLimpo = cnpj.replace(/\D/g, "");
+    if (cnpjLimpo.length !== 14) return;
+
+    if (!validarDigitosCnpj(cnpjLimpo)) {
+      setStatusConsulta("CNPJ inválido — confira os dígitos.");
+      return;
+    }
+
+    const token = localStorage.getItem("afe_token");
+    if (!token) return;
+
+    setConsultando(true);
+    setStatusConsulta("Buscando dados na Receita Federal…");
+    try {
+      const dados = await consultarCnpj(cnpjLimpo, token);
+      setRazaoSocial(dados.razaoSocial);
+      setUf(dados.uf);
+      setStatusConsulta(
+        `Encontrado: ${dados.razaoSocial}${
+          dados.situacaoCadastral ? ` (${dados.situacaoCadastral})` : ""
+        }. Confira antes de salvar.`
+      );
+    } catch (err) {
+      setStatusConsulta(
+        err instanceof CnpjNaoEncontradoError
+          ? "CNPJ não encontrado na Receita Federal — preencha os dados manualmente."
+          : "Não foi possível buscar os dados agora — preencha manualmente."
+      );
+    } finally {
+      setConsultando(false);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setErro(null);
 
     const cnpjLimpo = cnpj.replace(/\D/g, "");
-    if (cnpjLimpo.length !== 14) {
-      setErro("O CNPJ precisa ter 14 dígitos.");
+    if (!validarDigitosCnpj(cnpjLimpo)) {
+      setErro("CNPJ inválido — confira os dígitos digitados.");
       return;
     }
 
@@ -86,6 +125,35 @@ export default function NovaEmpresaPage() {
       >
         <div className="space-y-1.5">
           <label
+            htmlFor="cnpj"
+            className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+            style={{ color: "var(--muted)" }}
+          >
+            CNPJ
+          </label>
+          <input
+            id="cnpj"
+            required
+            inputMode="numeric"
+            value={cnpj}
+            onChange={(event) => setCnpj(mascararCnpjParcial(event.target.value))}
+            onBlur={handleCnpjBlur}
+            className="campo chave-mascarada"
+            placeholder="00.000.000/0000-00"
+          />
+          {statusConsulta && (
+            <p
+              className="entra-suave flex items-center gap-2 text-xs"
+              style={{ color: "var(--muted)" }}
+            >
+              {consultando && <span className="spinner" />}
+              {statusConsulta}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <label
             htmlFor="razaoSocial"
             className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
             style={{ color: "var(--muted)" }}
@@ -98,26 +166,7 @@ export default function NovaEmpresaPage() {
             value={razaoSocial}
             onChange={(event) => setRazaoSocial(event.target.value)}
             className="campo"
-            placeholder="Nome da empresa"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label
-            htmlFor="cnpj"
-            className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
-            style={{ color: "var(--muted)" }}
-          >
-            CNPJ
-          </label>
-          <input
-            id="cnpj"
-            required
-            inputMode="numeric"
-            value={cnpj}
-            onChange={(event) => setCnpj(event.target.value)}
-            className="campo chave-mascarada"
-            placeholder="00.000.000/0000-00"
+            placeholder="Preenchido automaticamente após o CNPJ, se encontrado"
           />
         </div>
 

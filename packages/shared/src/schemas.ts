@@ -6,11 +6,15 @@ import {
   STATUS_EMPRESA,
   TIPO_DOCUMENTO_FISCAL,
 } from "./enums";
+import { validarDigitosCnpj } from "./cnpj";
 
-// CNPJ: 14 dígitos numéricos, sem máscara — normalização acontece na borda (DTO -> domínio).
+// CNPJ: 14 dígitos numéricos, sem máscara — normalização acontece na borda
+// (DTO -> domínio) — e com dígito verificador válido (não é só contagem de
+// caracteres, rejeita números com 14 dígitos mas checksum errado).
 export const cnpjSchema = z
   .string()
-  .regex(/^\d{14}$/, "CNPJ deve conter 14 dígitos numéricos, sem máscara");
+  .regex(/^\d{14}$/, "CNPJ deve conter 14 dígitos numéricos, sem máscara")
+  .refine(validarDigitosCnpj, "CNPJ inválido (dígito verificador não confere)");
 
 export const chaveAcessoSchema = z
   .string()

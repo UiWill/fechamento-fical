@@ -16,6 +16,11 @@ export class EmpresasController {
     return this.service.buscarPorId(id);
   }
 
+  @Get("consulta-cnpj/:cnpj")
+  consultarCnpj(@Param("cnpj") cnpj: string) {
+    return this.service.consultarCnpj(cnpj);
+  }
+
   @Post()
   criar(@Body() body: unknown) {
     const input = criarEmpresaSchema.parse(body);
