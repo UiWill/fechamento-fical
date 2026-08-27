@@ -28,24 +28,20 @@ export default function LoginPage() {
       } else {
         setErro("Algo deu errado ao entrar. Tente de novo em instantes.");
       }
-    } finally {
       setCarregando(false);
     }
   }
 
   return (
-    <main className="textura-chave relative flex min-h-screen items-center justify-center overflow-hidden p-6">
-      <div className="relative z-10 w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <p
-            className="font-display text-2xl italic"
-            style={{ color: "var(--paper)" }}
-          >
+    <main className="fundo-editorial relative flex min-h-screen items-center justify-center p-6">
+      <div className="relative z-10 w-full max-w-[23rem]">
+        <div className="entra mb-10 text-center" style={{ animationDelay: "0ms" }}>
+          <p className="font-display text-[2.25rem] italic leading-none" style={{ color: "var(--paper)" }}>
             Fechamento Fiscal
           </p>
           <p
-            className="mt-1 font-mono text-[0.6875rem] uppercase tracking-[0.2em]"
-            style={{ color: "var(--paper-mut)" }}
+            className="mt-3 font-mono text-[0.6875rem] uppercase tracking-[0.25em]"
+            style={{ color: "var(--muted)" }}
           >
             Acesso da equipe
           </p>
@@ -53,17 +49,14 @@ export default function LoginPage() {
 
         <form
           onSubmit={handleSubmit}
-          className="space-y-5 rounded-lg border p-8"
-          style={{
-            background: "var(--ink-900)",
-            borderColor: "var(--ink-border)",
-          }}
+          className="entra space-y-7"
+          style={{ animationDelay: "90ms" }}
         >
           <div className="space-y-1.5">
             <label
               htmlFor="email"
-              className="block font-mono text-[0.6875rem] uppercase tracking-[0.12em]"
-              style={{ color: "var(--paper-mut)" }}
+              className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+              style={{ color: "var(--muted)" }}
             >
               E-mail
             </label>
@@ -74,19 +67,15 @@ export default function LoginPage() {
               autoComplete="username"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded border bg-transparent px-3 py-2 text-sm outline-none transition-colors focus:ring-2 focus:ring-[var(--selo)]"
-              style={{
-                borderColor: "var(--ink-border)",
-                color: "var(--paper)",
-              }}
+              className="campo"
             />
           </div>
 
           <div className="space-y-1.5">
             <label
               htmlFor="senha"
-              className="block font-mono text-[0.6875rem] uppercase tracking-[0.12em]"
-              style={{ color: "var(--paper-mut)" }}
+              className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+              style={{ color: "var(--muted)" }}
             >
               Senha
             </label>
@@ -97,33 +86,25 @@ export default function LoginPage() {
               autoComplete="current-password"
               value={senha}
               onChange={(event) => setSenha(event.target.value)}
-              className="w-full rounded border bg-transparent px-3 py-2 text-sm outline-none transition-colors focus:ring-2 focus:ring-[var(--selo)]"
-              style={{
-                borderColor: "var(--ink-border)",
-                color: "var(--paper)",
-              }}
+              className="campo"
             />
           </div>
 
           {erro && (
-            <p className="text-sm" style={{ color: "var(--alerta)" }}>
+            <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
               {erro}
             </p>
           )}
 
-          <button
-            type="submit"
-            disabled={carregando}
-            className="w-full rounded py-2.5 text-sm font-medium tracking-wide transition-opacity disabled:opacity-50"
-            style={{ background: "var(--selo)", color: "var(--ink-950)" }}
-          >
-            {carregando ? "Entrando…" : "Entrar"}
+          <button type="submit" disabled={carregando} className="botao-principal">
+            {carregando && <span className="spinner" />}
+            {carregando ? "Entrando" : "Entrar"}
           </button>
         </form>
 
         <p
-          className="mt-6 text-center text-xs"
-          style={{ color: "var(--paper-mut)" }}
+          className="entra-suave mt-10 text-center text-xs"
+          style={{ color: "var(--muted-2)", animationDelay: "300ms" }}
         >
           Acesso restrito à equipe autorizada.
         </p>

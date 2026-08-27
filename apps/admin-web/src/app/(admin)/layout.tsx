@@ -1,20 +1,17 @@
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen" style={{ background: "var(--ink-950)" }}>
+    <div className="min-h-screen" style={{ background: "var(--void)" }}>
       <header
-        className="flex items-center justify-between border-b px-6 py-4"
-        style={{ borderColor: "var(--ink-border)" }}
+        className="entra-suave flex items-center justify-between border-b px-6 py-4"
+        style={{ borderColor: "var(--border)" }}
       >
         <div className="flex items-baseline gap-2">
-          <span
-            className="font-display text-lg italic"
-            style={{ color: "var(--paper)" }}
-          >
+          <span className="font-display text-lg italic" style={{ color: "var(--paper)" }}>
             Fechamento Fiscal
           </span>
           <span
             className="font-mono text-[0.625rem] uppercase tracking-[0.15em]"
-            style={{ color: "var(--paper-mut)" }}
+            style={{ color: "var(--muted)" }}
           >
             · CAPTAL
           </span>
