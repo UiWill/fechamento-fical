@@ -36,12 +36,20 @@ futuro.
 
 Todos os serviços rodam **nativamente no Windows Server** (Serviços do
 Windows via NSSM, sem Docker/WSL2 — ver `docs/SETUP_SERVIDOR_WINDOWS.md`).
-Desenho final: só o Caddy fica exposto nas portas 80/443, os demais
-escutam em `127.0.0.1`, alcançáveis de fora só através do reverse proxy.
+Só o Caddy fica exposto publicamente; os demais escutam em `127.0.0.1`,
+alcançáveis de fora só através do reverse proxy.
 
-**Estado atual (sem domínio definido ainda):** o Caddy não foi instalado
-— `core-api` (porta 3000) e `admin-web` (porta 3200) estão expostos
-direto por IP:porta via regra de firewall, sem HTTPS. `fiscal-engine`
+**Estado atual — HTTP na porta 8080, não 80/443:** o mesmo servidor já
+roda o **TSplus** (portal de acesso remoto da equipe), que ocupa as
+portas 80 e 443 para o próprio portal web dele — descoberto ao testar
+`app.dnotas.com.br` e cair na tela de login do TSplus em vez do
+admin-web. Como o Let's Encrypt sempre valida domínio batendo nas portas
+80/443 reais (não dá pra redirecionar essa validação pra uma porta
+alternativa), o Caddy roda em HTTP puro na porta 8080, sem HTTPS
+automático, até decidirmos entre mover as portas do TSplus (afeta quem
+usa o acesso remoto) ou migrar para uma VPS dedicada. Domínios reais:
+`http://fiscal.dnotas.com.br:8080` (admin-web) e
+`http://fiscal-api.dnotas.com.br:8080` (core-api). `fiscal-engine`
 (porta 3100) nunca teve firewall aberto, é inacessível de fora desde o
 início. Instalar o Caddy é o primeiro passo assim que houver um domínio
 (`infra/windows/install-caddy.ps1`, já pronto).

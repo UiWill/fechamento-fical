@@ -17,16 +17,24 @@ ocorreram.
 |---|---|---|
 | PostgreSQL 16 | Serviço via NSSM, sob conta local sem privilégios (`pgservice`) | 5432 (só localhost) |
 | MinIO | Serviço via NSSM | 9000 (API), 9001 (console) |
-| Caddy | Serviço via NSSM — reverse proxy + HTTPS automático (pendente até ter domínio) | 80, 443 |
-| fiscal-engine | Serviço via NSSM (Node + `ACBrNFe64.dll` via koffi) | 3100 |
-| core-api | Serviço via NSSM (NestJS) | 3000 |
-| admin-web | Serviço via NSSM (Next.js) | 3200 |
+| Caddy | Serviço via NSSM — reverse proxy, **HTTP puro na porta 8080** | 8080 |
+| fiscal-engine | Serviço via NSSM (Node + `ACBrNFe64.dll` via koffi) | 3100 (só localhost, sem firewall) |
+| core-api | Serviço via NSSM (NestJS) | 3000 (só localhost) |
+| admin-web | Serviço via NSSM (Next.js) | 3200 (só localhost) |
 
-Enquanto não há domínio configurado, core-api e admin-web ficam expostos
-direto nas portas 3000/3200 via regra de firewall (`AFE-CoreApi`,
-`AFE-AdminWeb`). Quando o domínio existir, instalar o Caddy
-(`install-caddy.ps1`) e fechar essas portas no firewall, deixando só 80/443
-públicas.
+**Por que 8080 e não 80/443:** este servidor já roda o **TSplus**
+(portal de acesso remoto da equipe), que ocupa as portas 80 e 443 nativas
+para o próprio portal web dele. Como o Let's Encrypt sempre valida posse
+do domínio batendo nas portas 80/443 reais — não tem como pedir pra ele
+validar numa porta alternativa — o Caddy roda em HTTP puro (sem TLS) na
+porta 8080 até decidirmos mover as portas do TSplus (exige avisar quem
+usa o acesso remoto) ou migrar este projeto para uma VPS dedicada. Ver
+`infra/windows/Caddyfile`. Domínios em uso:
+`http://fiscal.dnotas.com.br:8080` (admin-web) e
+`http://fiscal-api.dnotas.com.br:8080` (core-api).
+
+`core-api` e `admin-web` só ficam acessíveis de fora através do Caddy —
+não há mais regra de firewall abrindo as portas 3000/3200 diretamente.
 
 ## ⚠️ Cuidado ao rodar estes scripts via SSH a partir de Windows/Linux/Mac
 
@@ -62,9 +70,12 @@ funcionam normalmente — o problema é só na travessia via SSH não-interativo
   instaladores oficiais direto (nodejs.org, git-for-windows) em vez de
   depender do winget.
 - pnpm (`npm install -g pnpm`).
-- DNS de dois domínios apontando pro IP do servidor, quando existirem: um
-  para o `core-api` (ex: `api.seudominio.com.br`) e outro para o `admin-web`
-  (ex: `app.seudominio.com.br`).
+- DNS de dois (sub)domínios apontando pro IP do servidor: um para o
+  `core-api` e outro para o `admin-web`. Neste projeto:
+  `fiscal-api.dnotas.com.br` e `fiscal.dnotas.com.br` — confira se as
+  portas 80/443 do servidor alvo já estão ocupadas por outra coisa (aqui
+  estavam, pelo TSplus) antes de assumir que vai dar HTTPS automático de
+  primeira; ver seção "Por que 8080 e não 80/443" acima.
 
 ## 2. Instalar as dependências de infraestrutura
 
@@ -84,8 +95,9 @@ Windows local sem privilégios (`pgservice` por padrão) porque **o
 `postgres.exe` se recusa a rodar sob uma conta de administrador** — é uma
 proteção de segurança do próprio PostgreSQL, não específica deste ambiente.
 
-Quando tiver um domínio, edite `infra/windows/Caddyfile` com os domínios
-reais antes de instalar:
+Edite `infra/windows/Caddyfile` com os domínios reais (e a porta certa —
+8080 se 80/443 já estiverem ocupados, como neste servidor) antes de
+instalar:
 
 ```powershell
 .\install-caddy.ps1
@@ -183,11 +195,15 @@ Invoke-WebRequest http://localhost:3100/health
 `fiscal-engine` deve responder `"acbrLibPresente":true` — se vier `false`,
 os arquivos do passo 4 não chegaram no lugar certo.
 
-## 7. Verificar HTTPS (quando houver domínio)
+## 7. Verificar o acesso pelo domínio
 
-Depois do DNS propagar e o Caddy instalado, `https://api.seudominio.com.br/health`
-e `https://app.seudominio.com.br` devem responder com certificado válido
-(Caddy emite via Let's Encrypt automaticamente no primeiro acesso).
+Depois do DNS propagar e o Caddy instalado (`install-caddy.ps1`),
+`http://fiscal-api.dnotas.com.br:8080/health` e
+`http://fiscal.dnotas.com.br:8080` devem responder normalmente — **sem
+HTTPS por enquanto** (ver "Por que 8080 e não 80/443"). Quando decidir
+mover o TSplus de porta ou migrar para uma VPS dedicada, trocar o
+Caddyfile para `https://` nas portas 80/443 dá HTTPS automático via Let's
+Encrypt sem mudar mais nada.
 
 ## Logs
 

@@ -16,8 +16,17 @@ $exePath = Join-Path $installDir 'caddy.exe'
 New-Item -ItemType Directory -Force -Path $installDir | Out-Null
 
 if (-not (Test-Path $exePath)) {
+    # O nome do arquivo de release do Caddy inclui a versao (ex:
+    # caddy_2.8.4_windows_amd64.zip) - nao existe um link fixo "sem
+    # versao", entao descobre a versao atual via API do GitHub primeiro.
+    $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/caddyserver/caddy/releases/latest'
+    $asset = $release.assets | Where-Object { $_.name -like '*windows_amd64.zip' } | Select-Object -First 1
+    if (-not $asset) {
+        throw "Nao encontrei o asset windows_amd64.zip na release mais recente do Caddy."
+    }
+
     $zipPath = Join-Path $env:TEMP 'caddy.zip'
-    Invoke-WebRequest -Uri 'https://github.com/caddyserver/caddy/releases/latest/download/caddy_windows_amd64.zip' -OutFile $zipPath
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
     Expand-Archive -Path $zipPath -DestinationPath $installDir -Force
 }
 
