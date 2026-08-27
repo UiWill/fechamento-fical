@@ -205,3 +205,43 @@ export async function sincronizarDocumentos(
   }
   return response.json();
 }
+
+export type TipoEventoManifestacao =
+  | "CONFIRMACAO_OPERACAO"
+  | "CIENCIA_OPERACAO"
+  | "DESCONHECIMENTO_OPERACAO"
+  | "OPERACAO_NAO_REALIZADA";
+
+export const ROTULO_EVENTO_MANIFESTACAO: Record<TipoEventoManifestacao, string> = {
+  CIENCIA_OPERACAO: "Ciência da Operação",
+  CONFIRMACAO_OPERACAO: "Confirmação da Operação",
+  DESCONHECIMENTO_OPERACAO: "Desconhecimento da Operação",
+  OPERACAO_NAO_REALIZADA: "Operação não Realizada",
+};
+
+export interface ManifestacaoResultado {
+  id: string;
+  status: "PENDENTE" | "ENVIADA" | "AUTORIZADA" | "REJEITADA";
+  protocoloSefaz: string | null;
+  motivoSefaz: string | null;
+}
+
+export async function enviarManifestacao(
+  empresaId: string,
+  input: { documentoFiscalId: string; tipo: TipoEventoManifestacao; justificativa?: string },
+  token: string
+): Promise<ManifestacaoResultado> {
+  const response = await fetch(`${API_URL}/empresas/${empresaId}/manifestacoes`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
+  return response.json();
+}

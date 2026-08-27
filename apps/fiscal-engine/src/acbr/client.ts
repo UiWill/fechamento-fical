@@ -5,6 +5,7 @@ import crypto from "node:crypto";
 import { loadAcbr } from "./binding";
 import { parseIniResponse, readField } from "./ini-parser";
 import { siglaUf } from "./uf";
+import { construirIniEvento } from "./eventos";
 import { config } from "../config";
 import type {
   DistribuicaoDFeInput,
@@ -12,6 +13,8 @@ import type {
   DocumentoDistribuido,
   StatusServicoInput,
   StatusServicoResultado,
+  EnviarEventoInput,
+  EnviarEventoResultado,
 } from "./types";
 
 async function writeTempIni(): Promise<string> {
@@ -162,5 +165,66 @@ export async function statusServico(
     }
   } finally {
     await fs.rm(iniPath, { force: true });
+  }
+}
+
+/**
+ * Envia um evento de Manifestação do Destinatário (Ciência, Confirmação,
+ * Desconhecimento ou Operação não Realizada).
+ *
+ * ⚠️ Primeira implementação — sem precedente validado em nenhum projeto
+ * seu. Tanto a assinatura de `NFE_EnviarEvento` (binding.ts) quanto o
+ * layout do INI de evento (eventos.ts) seguem a convenção documentada
+ * pela ACBrLib, mas precisam ser testados contra a SEFAZ de homologação
+ * antes de qualquer uso em produção. Se o retorno vier com erro de
+ * schema/parse, o suspeito nº 1 é o layout do INI — comparar com um
+ * exemplo real do manual da ACBrLib.
+ */
+export async function enviarEventoManifestacao(
+  input: EnviarEventoInput
+): Promise<EnviarEventoResultado> {
+  const acbr = loadAcbr();
+  const iniPathConfig = await writeTempIni();
+  const uf = siglaUf(input.codigoUf);
+
+  const iniEventoPath = path.join(
+    os.tmpdir(),
+    `acbr-evento-${crypto.randomUUID()}.ini`
+  );
+  await fs.writeFile(iniEventoPath, construirIniEvento(input), "utf8");
+
+  try {
+    return await withCertificadoTemporario(input.certificado.pfxBase64, async (pfxPath) => {
+      const retInit = acbr.inicializar(iniPathConfig, "");
+      if (retInit !== 1) {
+        throw new Error(`NFE_Inicializar falhou (${retInit}): ${acbr.ultimoRetorno()}`);
+      }
+
+      try {
+        acbr.configGravarValor("DFe", "ArquivoPFX", pfxPath);
+        acbr.configGravarValor("DFe", "Senha", input.certificado.senha);
+        acbr.configGravarValor("NFe", "Ambiente", String(input.ambiente));
+        acbr.configGravarValor("NFe", "UF", uf);
+
+        const { retorno, resposta } = acbr.enviarEvento(1, iniEventoPath);
+        if (retorno !== 1) {
+          throw new Error(`NFE_EnviarEvento falhou (${retorno}): ${acbr.ultimoRetorno()}`);
+        }
+
+        const parsed = parseIniResponse(resposta);
+        const root = parsed.__root__;
+
+        return {
+          cStat: readField(root, "cStat", "CStat"),
+          xMotivo: readField(root, "xMotivo", "XMotivo"),
+          protocolo: readField(root, "nProt", "protocolo") || undefined,
+        };
+      } finally {
+        acbr.finalizar();
+      }
+    });
+  } finally {
+    await fs.rm(iniPathConfig, { force: true });
+    await fs.rm(iniEventoPath, { force: true });
   }
 }

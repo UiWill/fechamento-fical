@@ -14,8 +14,13 @@ export class ManifestacaoController {
   @Post()
   enviar(
     @Param("empresaId") empresaId: string,
-    @Body() body: { documentoFiscalId: string; tipo: TipoEventoManifestacao }
+    @Body()
+    body: {
+      documentoFiscalId: string;
+      tipo: TipoEventoManifestacao;
+      justificativa?: string;
+    }
   ) {
-    return this.service.enviar(empresaId, body.documentoFiscalId, body.tipo);
+    return this.service.enviar(empresaId, body.documentoFiscalId, body.tipo, body.justificativa);
   }
 }

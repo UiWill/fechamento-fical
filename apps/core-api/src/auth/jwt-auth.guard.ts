@@ -1,17 +1,29 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 import jwt from "jsonwebtoken";
+import { IS_PUBLIC_KEY } from "./public.decorator";
 
 export interface AuthenticatedRequest {
   headers: Record<string, string | string[] | undefined>;
   usuario?: { sub: string; organizacaoId: string | null; papel: string };
 }
 
-// FASE 2: ainda não aplicado a nenhum controller (@UseGuards(JwtAuthGuard)) —
-// as rotas hoje estão abertas de propósito, enquanto o scaffold é validado
-// ponta a ponta. Aplicar antes de expor o core-api publicamente.
+/**
+ * Guard global (registrado via APP_GUARD em app.module.ts) — toda rota
+ * exige Bearer token válido, exceto as marcadas com @Public() (login,
+ * health-check).
+ */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector) {}
+
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const authHeader = request.headers.authorization;
     const token = Array.isArray(authHeader) ? authHeader[0] : authHeader;

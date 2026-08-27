@@ -30,6 +30,15 @@ export interface AcbrFunctions {
   ) => { retorno: number; resposta: string };
   // ⚠️ assinatura a confirmar antes do primeiro uso — ver comentário acima.
   statusServico: () => { retorno: number; resposta: string };
+  // ⚠️ Primeira implementação de evento neste projeto — não existe
+  // precedente validado (nem aqui, nem no outro projeto seu) para
+  // NFE_EnviarEvento. A assinatura abaixo segue o padrão documentado pela
+  // ACBrLib (idLote + caminho de um INI descrevendo o evento), mas
+  // PRECISA ser confirmada contra o manual antes de confiar em produção.
+  enviarEvento: (idLote: number, arquivoIniEvento: string) => {
+    retorno: number;
+    resposta: string;
+  };
 }
 
 const RESPONSE_BUFFER_SIZE = 1024 * 1024; // 1 MB — suficiente para lotes de DFe
@@ -65,6 +74,10 @@ export function loadAcbr(): AcbrFunctions {
     ),
     NFE_StatusServico: lib.func(
       "int NFE_StatusServico(char *sResposta, int32_t *esTamanho)"
+    ),
+    NFE_EnviarEvento: lib.func(
+      "int NFE_EnviarEvento(int32_t aIdLote, const char *eArquivoOuXML, " +
+        "char *sResposta, int32_t *esTamanho)"
     ),
   };
 
@@ -103,6 +116,10 @@ export function loadAcbr(): AcbrFunctions {
       ),
     statusServico: () =>
       callWithResponseBuffer((buf, len) => fn.NFE_StatusServico(buf, len)),
+    enviarEvento: (idLote, arquivoIniEvento) =>
+      callWithResponseBuffer((buf, len) =>
+        fn.NFE_EnviarEvento(idLote, arquivoIniEvento, buf, len)
+      ),
   };
 
   return cached;

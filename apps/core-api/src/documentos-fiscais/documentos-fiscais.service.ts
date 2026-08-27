@@ -5,7 +5,7 @@ import {
   ObjectStorageService,
 } from "../common/storage/object-storage.service";
 import { CertificadosService } from "../certificados/certificados.service";
-import { FiscalEngineClient } from "./fiscal-engine.client";
+import { FiscalEngineClient } from "../common/fiscal-engine/fiscal-engine.client";
 import { extrairDadosBasicos } from "./xml-utils";
 
 @Injectable()

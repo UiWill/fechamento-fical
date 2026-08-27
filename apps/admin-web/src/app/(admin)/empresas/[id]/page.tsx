@@ -9,9 +9,12 @@ import {
   uploadCertificado,
   listarDocumentosFiscais,
   sincronizarDocumentos,
+  enviarManifestacao,
+  ROTULO_EVENTO_MANIFESTACAO,
   type EmpresaDetalhe,
   type CertificadoResumo,
   type DocumentoFiscal,
+  type TipoEventoManifestacao,
 } from "@/lib/api";
 import { mascararCnpj, mascararChave, formatarData, arquivoParaBase64 } from "@/lib/format";
 
@@ -182,6 +185,139 @@ function SecaoCertificado({
         )}
       </div>
     </form>
+  );
+}
+
+const EXIGE_JUSTIFICATIVA: TipoEventoManifestacao[] = [
+  "DESCONHECIMENTO_OPERACAO",
+  "OPERACAO_NAO_REALIZADA",
+];
+
+function ManifestacaoAcao({
+  empresaId,
+  documento,
+  token,
+  onAtualizado,
+}: {
+  empresaId: string;
+  documento: DocumentoFiscal;
+  token: string;
+  onAtualizado: () => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [tipo, setTipo] = useState<TipoEventoManifestacao>("CIENCIA_OPERACAO");
+  const [justificativa, setJustificativa] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [resultado, setResultado] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+
+  if (documento.direcao !== "ENTRADA") {
+    return <span style={{ color: "var(--muted-2)" }}>—</span>;
+  }
+
+  if (documento.status === "MANIFESTADO") {
+    return <span style={{ color: "var(--muted)" }}>já manifestado</span>;
+  }
+
+  if (!aberto) {
+    return (
+      <button
+        onClick={() => setAberto(true)}
+        className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+        style={{ color: "var(--paper)" }}
+      >
+        Manifestar
+      </button>
+    );
+  }
+
+  async function handleEnviar() {
+    const precisaJustificativa = EXIGE_JUSTIFICATIVA.includes(tipo);
+    if (precisaJustificativa && justificativa.trim().length < 15) {
+      setErro("A justificativa precisa ter pelo menos 15 caracteres.");
+      return;
+    }
+
+    setEnviando(true);
+    setErro(null);
+    setResultado(null);
+    try {
+      const evento = await enviarManifestacao(
+        empresaId,
+        {
+          documentoFiscalId: documento.id,
+          tipo,
+          justificativa: precisaJustificativa ? justificativa.trim() : undefined,
+        },
+        token
+      );
+      if (evento.status === "AUTORIZADA") {
+        setResultado("Manifestação autorizada pela SEFAZ.");
+        onAtualizado();
+      } else {
+        setErro(evento.motivoSefaz ?? "A SEFAZ rejeitou a manifestação.");
+      }
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Não foi possível enviar a manifestação.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <div className="entra-suave space-y-2 py-1" style={{ minWidth: "14rem" }}>
+      <select
+        value={tipo}
+        onChange={(event) => setTipo(event.target.value as TipoEventoManifestacao)}
+        className="campo text-xs"
+      >
+        {Object.entries(ROTULO_EVENTO_MANIFESTACAO).map(([valor, rotulo]) => (
+          <option key={valor} value={valor}>
+            {rotulo}
+          </option>
+        ))}
+      </select>
+
+      {EXIGE_JUSTIFICATIVA.includes(tipo) && (
+        <textarea
+          value={justificativa}
+          onChange={(event) => setJustificativa(event.target.value)}
+          placeholder="Justificativa (mín. 15 caracteres)"
+          className="campo text-xs"
+          rows={2}
+        />
+      )}
+
+      {resultado && (
+        <p className="text-xs" style={{ color: "var(--paper)" }}>
+          {resultado}
+        </p>
+      )}
+      {erro && (
+        <p className="text-xs" style={{ color: "var(--paper)" }}>
+          {erro}
+        </p>
+      )}
+
+      <div className="flex gap-3">
+        <button
+          onClick={handleEnviar}
+          disabled={enviando}
+          className="botao-principal"
+          style={{ width: "auto", paddingInline: "1rem", paddingBlock: "0.4rem", fontSize: "0.75rem" }}
+        >
+          {enviando && <span className="spinner" />}
+          {enviando ? "Enviando" : "Confirmar"}
+        </button>
+        <button
+          onClick={() => setAberto(false)}
+          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]"
+          style={{ color: "var(--muted)" }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -357,13 +493,14 @@ export default function EmpresaDetalhePage() {
                   <th className="px-4 py-3 font-medium">Tipo</th>
                   <th className="px-4 py-3 font-medium">Direção</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Manifestação</th>
                 </tr>
               </thead>
               <tbody>
                 {documentos.map((doc, i) => (
                   <tr
                     key={doc.id}
-                    className="entra-suave border-t"
+                    className="entra-suave border-t align-top"
                     style={{ borderColor: "var(--border)", animationDelay: `${i * 40}ms` }}
                   >
                     <td className="chave-mascarada px-4 py-3 text-xs" style={{ color: "var(--paper)" }}>
@@ -377,6 +514,14 @@ export default function EmpresaDetalhePage() {
                     </td>
                     <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
                       {doc.status}
+                    </td>
+                    <td className="px-4 py-3">
+                      <ManifestacaoAcao
+                        empresaId={empresa.id}
+                        documento={doc}
+                        token={token!}
+                        onAtualizado={() => void carregarTudo(token!)}
+                      />
                     </td>
                   </tr>
                 ))}
