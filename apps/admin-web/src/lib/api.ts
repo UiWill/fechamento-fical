@@ -11,15 +11,27 @@ export interface LoginResponse {
   };
 }
 
-export async function login(email: string, senha: string): Promise<LoginResponse> {
-  const response = await fetch(`${API_URL}/auth/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, senha }),
-  });
+export class CredenciaisInvalidasError extends Error {}
+export class ApiInalcancavelError extends Error {}
 
+export async function login(email: string, senha: string): Promise<LoginResponse> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, senha }),
+    });
+  } catch {
+    // fetch só lança aqui por falha de rede/DNS/CORS — nunca por senha errada
+    throw new ApiInalcancavelError(`Não foi possível contatar ${API_URL}`);
+  }
+
+  if (response.status === 401) {
+    throw new CredenciaisInvalidasError();
+  }
   if (!response.ok) {
-    throw new Error("Credenciais inválidas");
+    throw new Error(`API respondeu ${response.status}`);
   }
 
   return response.json();

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/api";
+import { login, CredenciaisInvalidasError, ApiInalcancavelError } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,8 +20,14 @@ export default function LoginPage() {
       localStorage.setItem("afe_token", resultado.token);
       localStorage.setItem("afe_organizacao_id", resultado.usuario.organizacaoId ?? "");
       router.push("/dashboard");
-    } catch {
-      setErro("E-mail ou senha não conferem. Confira e tente de novo.");
+    } catch (err) {
+      if (err instanceof CredenciaisInvalidasError) {
+        setErro("E-mail ou senha não conferem. Confira e tente de novo.");
+      } else if (err instanceof ApiInalcancavelError) {
+        setErro("Não foi possível contatar o servidor. Verifique sua conexão.");
+      } else {
+        setErro("Algo deu errado ao entrar. Tente de novo em instantes.");
+      }
     } finally {
       setCarregando(false);
     }

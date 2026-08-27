@@ -151,6 +151,18 @@ $env:PGPASSWORD = "SENHA_SUPERUSUARIO"
 Copie `packages/database/prisma/migrations/` de volta pro repositório local
 e commite — é histórico de schema, precisa estar versionado.
 
+**Antes de buildar o admin-web**, crie `apps/admin-web/.env.production` com
+a URL pública do core-api. O Next.js só carrega `.env`/`.env.production` de
+dentro da própria pasta do app, **não** do `.env` da raiz do monorepo — se
+pular esse passo, o build embute o valor padrão (`http://localhost:3000`,
+que aponta pro navegador de quem estiver acessando, não pro servidor) e o
+login falha com uma mensagem enganosa de "credenciais inválidas" quando na
+verdade é a API inalcançável:
+
+```powershell
+"NEXT_PUBLIC_API_URL=http://SEU_IP_OU_DOMINIO:3000" | Set-Content apps\admin-web\.env.production
+```
+
 Depois disso, `pnpm build` builda tudo (fiscal-engine, core-api, admin-web).
 
 ## 6. Registrar os apps como serviços
