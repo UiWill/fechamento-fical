@@ -60,3 +60,33 @@ export async function listarEmpresas(
 
   return response.json();
 }
+
+export interface CriarEmpresaInput {
+  organizacaoId: string;
+  cnpj: string;
+  razaoSocial: string;
+  uf: string;
+  codigoUf: number;
+  ambiente: "PRODUCAO" | "HOMOLOGACAO";
+}
+
+export async function criarEmpresa(
+  input: CriarEmpresaInput,
+  token: string
+): Promise<EmpresaResumo> {
+  const response = await fetch(`${API_URL}/empresas`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
+
+  return response.json();
+}

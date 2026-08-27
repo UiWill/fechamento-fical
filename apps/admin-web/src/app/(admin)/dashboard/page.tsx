@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { listarEmpresas, type EmpresaResumo } from "@/lib/api";
 import { mascararCnpj } from "@/lib/format";
 
@@ -51,16 +52,25 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="entra">
-        <p
-          className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
-          style={{ color: "var(--muted)" }}
+      <div className="entra flex items-end justify-between">
+        <div>
+          <p
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
+            style={{ color: "var(--muted)" }}
+          >
+            Carteira de clientes
+          </p>
+          <h1 className="font-display text-2xl" style={{ color: "var(--paper)" }}>
+            CNPJs sob gestão
+          </h1>
+        </div>
+        <Link
+          href="/empresas/nova"
+          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
+          style={{ color: "var(--paper)" }}
         >
-          Carteira de clientes
-        </p>
-        <h1 className="font-display text-2xl" style={{ color: "var(--paper)" }}>
-          CNPJs sob gestão
-        </h1>
+          + Nova empresa
+        </Link>
       </div>
 
       {erro && (
@@ -81,6 +91,13 @@ export default function DashboardPage() {
             Cadastre o primeiro CNPJ da carteira para começar a acompanhar
             documentos fiscais e certificados por aqui.
           </p>
+          <Link
+            href="/empresas/nova"
+            className="mt-5 inline-block font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+            style={{ color: "var(--paper)" }}
+          >
+            Cadastrar CNPJ
+          </Link>
         </div>
       )}
 
