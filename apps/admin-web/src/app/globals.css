@@ -21,6 +21,12 @@
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Sem isso, o navegador desenha os controles nativos (select aberto,
+     date picker, scrollbar) sempre no chrome claro do SO, mesmo com o
+     resto da página escuro — texto claro em cima de fundo claro nativo
+     fica ilegível. */
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +38,7 @@
     --paper: #f5f5f3;
     --muted: #8a8a85;
     --muted-2: #56564f;
+    color-scheme: dark;
   }
 }
 
@@ -43,6 +50,7 @@
   --paper: #f5f5f3;
   --muted: #8a8a85;
   --muted-2: #56564f;
+  color-scheme: dark;
 }
 
 :root[data-theme="light"] {
@@ -53,6 +61,7 @@
   --paper: #111110;
   --muted: #6b6b66;
   --muted-2: #9a9994;
+  color-scheme: light;
 }
 
 * {
@@ -270,6 +279,13 @@ code,
   color: var(--paper);
   outline: none;
   transition: border-color 0.3s var(--ease-out);
+}
+
+/* Reforço explícito para <select> — color-scheme já resolve a maioria dos
+   navegadores, mas alguns ainda ignoram estilo de <option> sem isto. */
+select.campo option {
+  background-color: var(--surface);
+  color: var(--paper);
 }
 
 .campo:focus {
