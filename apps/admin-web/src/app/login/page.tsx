@@ -37,7 +37,7 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-[23rem]">
         <div className="entra mb-10 text-center" style={{ animationDelay: "0ms" }}>
           <p className="font-display text-[2.25rem] italic leading-none" style={{ color: "var(--paper)" }}>
-            Fechamento Fiscal
+            Fechamento Fiscal Fácil
           </p>
           <p
             className="mt-3 font-mono text-[0.6875rem] uppercase tracking-[0.25em]"

@@ -1,5 +1,8 @@
-# Instala o Caddy (reverse proxy com HTTPS automatico via Let's Encrypt)
-# como Servico do Windows via NSSM.
+# Instala o Caddy (reverse proxy) como Servico do Windows via NSSM.
+#
+# Roda em HTTP puro na porta 8080 (ver Caddyfile) porque o TSplus ja usa
+# 80/443 neste servidor para o portal remoto da equipe - por isso o
+# firewall abaixo libera 8080, nao 80/443.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -36,8 +39,7 @@ if (Get-Service -Name AfeCaddy -ErrorAction SilentlyContinue) {
 
 New-Item -ItemType Directory -Force -Path 'C:\afe\logs' | Out-Null
 
-New-NetFirewallRule -DisplayName 'AFE-HTTP' -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -ErrorAction SilentlyContinue | Out-Null
-New-NetFirewallRule -DisplayName 'AFE-HTTPS' -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow -ErrorAction SilentlyContinue | Out-Null
+New-NetFirewallRule -DisplayName 'AFE-Caddy-8080' -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -ErrorAction SilentlyContinue | Out-Null
 
 & $nssm start AfeCaddy
 

@@ -22,7 +22,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Automação do Fechamento Fiscal",
+  title: "Fechamento Fiscal Fácil",
   description: "Painel de gestão fiscal multi-empresa",
 };
 

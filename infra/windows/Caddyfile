@@ -1,11 +1,19 @@
-# Reverse proxy + HTTPS automatico (Let's Encrypt) para os dois dominios
-# publicos do projeto. Substitua os dominios abaixo pelos reais antes do
-# deploy (ver docs/SETUP_SERVIDOR_WINDOWS.md).
+# Reverse proxy para o projeto de Automacao do Fechamento Fiscal (CAPTAL).
+#
+# Rodando em HTTP puro na porta 8080 (nao 80/443) porque o TSplus ja usa
+# essas portas padrao neste mesmo servidor para o portal remoto da equipe.
+# O prefixo "http://" desliga o HTTPS automatico do Caddy (sem isso, ele
+# tentaria emitir certificado Let's Encrypt, o que falharia mesmo assim
+# porque a validacao do Let's Encrypt sempre bate nas portas 80/443 reais,
+# nao na porta alternativa).
+#
+# TODO (fase 2): trocar por HTTPS de verdade quando decidir entre mover as
+# portas do TSplus ou usar uma VPS dedicada soh para este projeto.
 
-api.SEUDOMINIO.com.br {
-	reverse_proxy 127.0.0.1:3000
+http://fiscal.dnotas.com.br:8080 {
+	reverse_proxy 127.0.0.1:3200
 }
 
-app.SEUDOMINIO.com.br {
-	reverse_proxy 127.0.0.1:3200
+http://fiscal-api.dnotas.com.br:8080 {
+	reverse_proxy 127.0.0.1:3000
 }
