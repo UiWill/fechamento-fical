@@ -70,6 +70,12 @@ export class EmpresasService {
       const timeout = setTimeout(() => controller.abort(), 8000);
       response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
         signal: controller.signal,
+        headers: {
+          // Sem User-Agent de navegador, a proteção anti-bot da BrasilAPI
+          // (Vercel) responde 403 pro user-agent padrao do fetch do Node.
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          Accept: "application/json",
+        },
       });
       clearTimeout(timeout);
     } catch {
