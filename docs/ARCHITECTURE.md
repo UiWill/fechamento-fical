@@ -36,8 +36,15 @@ futuro.
 
 Todos os serviços rodam **nativamente no Windows Server** (Serviços do
 Windows via NSSM, sem Docker/WSL2 — ver `docs/SETUP_SERVIDOR_WINDOWS.md`).
-Só o Caddy fica exposto nas portas 80/443; os demais escutam em
-`127.0.0.1`, alcançáveis de fora só através do reverse proxy.
+Desenho final: só o Caddy fica exposto nas portas 80/443, os demais
+escutam em `127.0.0.1`, alcançáveis de fora só através do reverse proxy.
+
+**Estado atual (sem domínio definido ainda):** o Caddy não foi instalado
+— `core-api` (porta 3000) e `admin-web` (porta 3200) estão expostos
+direto por IP:porta via regra de firewall, sem HTTPS. `fiscal-engine`
+(porta 3100) nunca teve firewall aberto, é inacessível de fora desde o
+início. Instalar o Caddy é o primeiro passo assim que houver um domínio
+(`infra/windows/install-caddy.ps1`, já pronto).
 
 - **admin-web**: painel onde a CAPTAL cadastra CNPJs, acompanha documentos
   fiscais, configura regras e baixa exportações. Consome só a API HTTP do
@@ -107,13 +114,14 @@ Ver `packages/database/prisma/schema.prisma` para o detalhe completo.
 | Estrutura do monorepo, schema do banco | ✅ Feito |
 | Distribuição DFe (busca/download de XML via SEFAZ) | ✅ Portado e funcional (`fiscal-engine`), falta validar em homologação real |
 | Status do serviço SEFAZ | ⚠️ Implementado mas não validado — assinatura da função precisa confirmação no manual da ACBrLib |
-| Certificado digital (upload, criptografia, alerta de vencimento) | ✅ Lógica de criptografia pronta; upload ainda é base64 em JSON (trocar por multipart) |
-| Manifestação do Destinatário | ❌ Não implementado — não existe precedente em nenhum projeto seu, ver `manifestacao.service.ts` |
+| Certificado digital (upload, criptografia, alerta de vencimento) | ✅ Cifra/armazena/usa corretamente; upload ainda é base64 em JSON (trocar por multipart) |
+| Manifestação do Destinatário | ⚠️ Implementada de ponta a ponta (fiscal-engine → core-api → tela), mas é a primeira vez — sem precedente pra comparar. `NFE_EnviarEvento` e o layout do INI de evento não foram validados contra a SEFAZ real ainda |
 | Motor de classificação fiscal (CFOP → regra) | ⚠️ Resolução de regra isolada existe; aplicação em lote sobre documentos recebidos, não |
 | Geração de TXT Domínio Sistemas | ❌ Bloqueado — aguarda leiaute da CAPTAL (Cláusula 3ª, item I) |
 | Faturamento | ⚠️ Cálculo mensal (R$49,90 × CNPJs ativos) implementado; cobrança em si (Pix/boleto/gateway) não definida |
-| Autenticação | ⚠️ Login + JWT funcionam; guard existe mas não está aplicado às rotas ainda |
-| Deploy servidor dedicado | ✅ Scripts NSSM/Caddy/Postgres/MinIO nativos Windows prontos, ver `docs/SETUP_SERVIDOR_WINDOWS.md` |
+| Autenticação | ✅ Login + JWT funcionam; `JwtAuthGuard` aplicado globalmente (`APP_GUARD`) — toda rota exige token, exceto `/auth/login` e `/health` |
+| Painel admin-web | ⚠️ Login, listagem/cadastro de empresa, cadastro de certificado, sincronização SEFAZ e manifestação por documento — todos funcionais. Sem tela de regras fiscais, exportação TXT ou faturamento ainda |
+| Deploy servidor dedicado | ✅ Rodando de verdade em produção (Postgres/MinIO/fiscal-engine/core-api/admin-web via NSSM); Caddy/HTTPS pendente de domínio |
 
 ## Convenções
 
