@@ -172,13 +172,21 @@ export async function statusServico(
  * Envia um evento de Manifestação do Destinatário (Ciência, Confirmação,
  * Desconhecimento ou Operação não Realizada).
  *
- * ⚠️ Primeira implementação — sem precedente validado em nenhum projeto
- * seu. Tanto a assinatura de `NFE_EnviarEvento` (binding.ts) quanto o
- * layout do INI de evento (eventos.ts) seguem a convenção documentada
- * pela ACBrLib, mas precisam ser testados contra a SEFAZ de homologação
- * antes de qualquer uso em produção. Se o retorno vier com erro de
- * schema/parse, o suspeito nº 1 é o layout do INI — comparar com um
- * exemplo real do manual da ACBrLib.
+ * Fluxo em duas etapas conforme a API oficial (conferido contra
+ * `ACBrLibNFe/src/com/acbr/nfe/ACBrNFe.java` — ver aviso em binding.ts):
+ * primeiro carrega o INI do evento na lista interna da lib
+ * (`NFE_CarregarEventoINI`), só depois manda enviar o que foi carregado
+ * (`NFE_EnviarEvento(idLote)`, sem conteúdo — ele não aceita o evento
+ * como parâmetro direto).
+ *
+ * ⚠️ O layout exato das chaves dentro do INI (eventos.ts) segue os nomes
+ * de campo do XML oficial da SEFAZ (chNFe, CNPJ, tpEvento, dhEvento,
+ * descEvento, xJust — confirmados contra
+ * nfe_marketplace/src/nfe/eventSender.js, que monta o XML cru de
+ * cancelamento/CC-e), mas a forma exata como a ACBrLib espera essas
+ * chaves dentro do INI (nomes de seção, prefixo tipo "detEvento.xxx")
+ * ainda não foi validada contra a SEFAZ real — é o primeiro teste disso
+ * neste projeto.
  */
 export async function enviarEventoManifestacao(
   input: EnviarEventoInput
@@ -206,7 +214,16 @@ export async function enviarEventoManifestacao(
         acbr.configGravarValor("NFe", "Ambiente", String(input.ambiente));
         acbr.configGravarValor("NFe", "UF", uf);
 
-        const { retorno, resposta } = acbr.enviarEvento(1, iniEventoPath);
+        acbr.limparListaEventos();
+
+        const retCarregar = acbr.carregarEventoIni(iniEventoPath);
+        if (retCarregar !== 1) {
+          throw new Error(
+            `NFE_CarregarEventoINI falhou (${retCarregar}): ${acbr.ultimoRetorno()}`
+          );
+        }
+
+        const { retorno, resposta } = acbr.enviarEvento(1);
         if (retorno !== 1) {
           throw new Error(`NFE_EnviarEvento falhou (${retorno}): ${acbr.ultimoRetorno()}`);
         }

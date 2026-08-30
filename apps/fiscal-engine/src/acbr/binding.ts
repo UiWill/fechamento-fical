@@ -11,12 +11,19 @@ import { config } from "../config";
  * em outro projeto seu (Linux) que já usa exatamente esta chamada com sucesso
  * contra a SEFAZ real. A API C da ACBrLib é a mesma nas duas plataformas
  * (mesmos nomes de função, mesma convenção de chamada cdecl documentada pelo
- * projeto ACBr), mas a build Windows especificamente NÃO foi exercitada ainda
- * neste código — revalide contra o manual da ACBrLib (`ACBrLib - Manual de
- * programação.pdf`, distribuído junto ao SDK) e teste em homologação antes de
- * confiar em produção. Se o retorno vier sempre zerado/corrompido, o
- * suspeito nº 1 é a convenção de chamada (cdecl vs stdcall) — koffi assume
- * cdecl por padrão nas assinaturas abaixo.
+ * projeto ACBr).
+ *
+ * Todas as assinaturas abaixo foram conferidas contra o binding Java/JNA
+ * oficial do projeto ACBr (`ACBrLibNFe/src/com/acbr/nfe/ACBrNFe.java`, em
+ * c:\ERP_SISTEMAS\API_ACBR\Dmais\ACBrLibNFe\src\com\acbr\nfe\ACBrNFe.java —
+ * é a fonte de verdade dos nomes/ordem de parâmetro da API C, já que essa
+ * lib não distribui um manual em PDF neste ambiente). Uma descoberta
+ * importante nessa conferência: `NFE_EnviarEvento` **não recebe o
+ * conteúdo do evento como parâmetro** — é preciso chamar
+ * `NFE_CarregarEventoINI` (ou `...XML`) antes para carregar o evento na
+ * lista interna da lib, só depois `NFE_EnviarEvento(idLote)` envia o que
+ * foi carregado. A implementação anterior deste arquivo tentava passar o
+ * INI direto pro EnviarEvento, o que está errado.
  */
 export interface AcbrFunctions {
   inicializar: (arqConfig: string, chaveCrypt: string) => number;
@@ -28,17 +35,12 @@ export interface AcbrFunctions {
     cnpj: string,
     ultNsu: string
   ) => { retorno: number; resposta: string };
-  // ⚠️ assinatura a confirmar antes do primeiro uso — ver comentário acima.
   statusServico: () => { retorno: number; resposta: string };
-  // ⚠️ Primeira implementação de evento neste projeto — não existe
-  // precedente validado (nem aqui, nem no outro projeto seu) para
-  // NFE_EnviarEvento. A assinatura abaixo segue o padrão documentado pela
-  // ACBrLib (idLote + caminho de um INI descrevendo o evento), mas
-  // PRECISA ser confirmada contra o manual antes de confiar em produção.
-  enviarEvento: (idLote: number, arquivoIniEvento: string) => {
-    retorno: number;
-    resposta: string;
-  };
+  limparListaEventos: () => number;
+  /** eArquivoOuIni: caminho de um arquivo .ini OU o conteúdo INI direto. */
+  carregarEventoIni: (eArquivoOuIni: string) => number;
+  /** Envia o(s) evento(s) já carregados via carregarEventoIni. */
+  enviarEvento: (idLote: number) => { retorno: number; resposta: string };
 }
 
 const RESPONSE_BUFFER_SIZE = 1024 * 1024; // 1 MB — suficiente para lotes de DFe
@@ -75,9 +77,12 @@ export function loadAcbr(): AcbrFunctions {
     NFE_StatusServico: lib.func(
       "int NFE_StatusServico(char *sResposta, int32_t *esTamanho)"
     ),
+    NFE_LimparListaEventos: lib.func("int NFE_LimparListaEventos()"),
+    NFE_CarregarEventoINI: lib.func(
+      "int NFE_CarregarEventoINI(const char *eArquivoOuIni)"
+    ),
     NFE_EnviarEvento: lib.func(
-      "int NFE_EnviarEvento(int32_t aIdLote, const char *eArquivoOuXML, " +
-        "char *sResposta, int32_t *esTamanho)"
+      "int NFE_EnviarEvento(int32_t aIdLote, char *sResposta, int32_t *esTamanho)"
     ),
   };
 
@@ -116,10 +121,10 @@ export function loadAcbr(): AcbrFunctions {
       ),
     statusServico: () =>
       callWithResponseBuffer((buf, len) => fn.NFE_StatusServico(buf, len)),
-    enviarEvento: (idLote, arquivoIniEvento) =>
-      callWithResponseBuffer((buf, len) =>
-        fn.NFE_EnviarEvento(idLote, arquivoIniEvento, buf, len)
-      ),
+    limparListaEventos: () => fn.NFE_LimparListaEventos(),
+    carregarEventoIni: (eArquivoOuIni) => fn.NFE_CarregarEventoINI(eArquivoOuIni),
+    enviarEvento: (idLote) =>
+      callWithResponseBuffer((buf, len) => fn.NFE_EnviarEvento(idLote, buf, len)),
   };
 
   return cached;
