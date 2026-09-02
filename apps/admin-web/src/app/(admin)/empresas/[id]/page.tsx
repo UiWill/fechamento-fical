@@ -9,6 +9,7 @@ import {
   uploadCertificado,
   listarDocumentosFiscais,
   sincronizarDocumentos,
+  classificarPendentes,
   enviarManifestacao,
   ROTULO_EVENTO_MANIFESTACAO,
   type EmpresaDetalhe,
@@ -16,7 +17,12 @@ import {
   type DocumentoFiscal,
   type TipoEventoManifestacao,
 } from "@/lib/api";
-import { mascararCnpj, mascararChave, formatarData, arquivoParaBase64 } from "@/lib/format";
+import {
+  mascararCnpj,
+  numeroNotaDaChave,
+  formatarData,
+  arquivoParaBase64,
+} from "@/lib/format";
 
 function useToken() {
   const router = useRouter();
@@ -265,59 +271,83 @@ function ManifestacaoAcao({
   }
 
   return (
-    <div className="entra-suave space-y-2 py-1" style={{ minWidth: "14rem" }}>
-      <select
-        value={tipo}
-        onChange={(event) => setTipo(event.target.value as TipoEventoManifestacao)}
-        className="campo text-xs"
+    <>
+      {/* position: fixed escapa do scroll/overflow da tabela — o formulário
+          nunca deve alterar a largura das colunas, senão a tabela ganha um
+          scroll horizontal próprio. */}
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-6"
+        style={{ background: "rgba(0,0,0,0.8)" }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setAberto(false);
+        }}
       >
-        {Object.entries(ROTULO_EVENTO_MANIFESTACAO).map(([valor, rotulo]) => (
-          <option key={valor} value={valor}>
-            {rotulo}
-          </option>
-        ))}
-      </select>
-
-      {EXIGE_JUSTIFICATIVA.includes(tipo) && (
-        <textarea
-          value={justificativa}
-          onChange={(event) => setJustificativa(event.target.value)}
-          placeholder="Justificativa (mín. 15 caracteres)"
-          className="campo text-xs"
-          rows={2}
-        />
-      )}
-
-      {resultado && (
-        <p className="text-xs" style={{ color: "var(--paper)" }}>
-          {resultado}
-        </p>
-      )}
-      {erro && (
-        <p className="text-xs" style={{ color: "var(--paper)" }}>
-          {erro}
-        </p>
-      )}
-
-      <div className="flex gap-3">
-        <button
-          onClick={handleEnviar}
-          disabled={enviando}
-          className="botao-principal"
-          style={{ width: "auto", paddingInline: "1rem", paddingBlock: "0.4rem", fontSize: "0.75rem" }}
+        <div
+          className="entra w-full max-w-[22rem] space-y-3 rounded-lg border p-5"
+          style={{
+            background: "var(--surface-2)",
+            borderColor: "var(--muted-2)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.7)",
+          }}
         >
-          {enviando && <span className="spinner" />}
-          {enviando ? "Enviando" : "Confirmar"}
-        </button>
-        <button
-          onClick={() => setAberto(false)}
-          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]"
-          style={{ color: "var(--muted)" }}
-        >
-          Cancelar
-        </button>
+          <p className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+            Manifestação do destinatário
+          </p>
+
+          <select
+            value={tipo}
+            onChange={(event) => setTipo(event.target.value as TipoEventoManifestacao)}
+            className="campo text-xs"
+          >
+            {Object.entries(ROTULO_EVENTO_MANIFESTACAO).map(([valor, rotulo]) => (
+              <option key={valor} value={valor}>
+                {rotulo}
+              </option>
+            ))}
+          </select>
+
+          {EXIGE_JUSTIFICATIVA.includes(tipo) && (
+            <textarea
+              value={justificativa}
+              onChange={(event) => setJustificativa(event.target.value)}
+              placeholder="Justificativa (mín. 15 caracteres)"
+              className="campo text-xs"
+              rows={2}
+            />
+          )}
+
+          {resultado && (
+            <p className="text-xs" style={{ color: "var(--paper)" }}>
+              {resultado}
+            </p>
+          )}
+          {erro && (
+            <p className="text-xs" style={{ color: "var(--paper)" }}>
+              {erro}
+            </p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleEnviar}
+              disabled={enviando}
+              className="botao-principal"
+              style={{ width: "auto", paddingInline: "1rem", paddingBlock: "0.4rem", fontSize: "0.75rem" }}
+            >
+              {enviando && <span className="spinner" />}
+              {enviando ? "Enviando" : "Confirmar"}
+            </button>
+            <button
+              onClick={() => setAberto(false)}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]"
+              style={{ color: "var(--muted)" }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -334,6 +364,10 @@ export default function EmpresaDetalhePage() {
   const [sincronizando, setSincronizando] = useState(false);
   const [resultadoSync, setResultadoSync] = useState<string | null>(null);
   const [erroSync, setErroSync] = useState<string | null>(null);
+
+  const [classificando, setClassificando] = useState(false);
+  const [resultadoClassificacao, setResultadoClassificacao] = useState<string | null>(null);
+  const [erroClassificacao, setErroClassificacao] = useState<string | null>(null);
 
   const carregarTudo = useCallback(
     async (t: string) => {
@@ -381,6 +415,28 @@ export default function EmpresaDetalhePage() {
       );
     } finally {
       setSincronizando(false);
+    }
+  }
+
+  async function handleClassificar() {
+    if (!token) return;
+    setClassificando(true);
+    setResultadoClassificacao(null);
+    setErroClassificacao(null);
+    try {
+      const resultado = await classificarPendentes(params.id, token);
+      const partes = [`${resultado.classificados} classificado(s)`];
+      if (resultado.semRegra > 0) partes.push(`${resultado.semRegra} sem regra cadastrada`);
+      if (resultado.semCfop > 0) partes.push(`${resultado.semCfop} ainda sem CFOP (SEFAZ mandou só o resumo)`);
+      setResultadoClassificacao(partes.join(" · "));
+      const docs = await listarDocumentosFiscais(params.id, token);
+      setDocumentos(docs);
+    } catch (err) {
+      setErroClassificacao(
+        err instanceof Error ? err.message : "Não foi possível classificar os documentos agora."
+      );
+    } finally {
+      setClassificando(false);
     }
   }
 
@@ -449,16 +505,27 @@ export default function EmpresaDetalhePage() {
           >
             Documentos fiscais
           </h2>
-          <button
-            onClick={handleSincronizar}
-            disabled={sincronizando || !certificado}
-            className="botao-principal"
-            style={{ width: "auto", paddingInline: "1.25rem" }}
-            title={!certificado ? "Cadastre um certificado antes de sincronizar" : undefined}
-          >
-            {sincronizando && <span className="spinner" />}
-            {sincronizando ? "Sincronizando" : "Sincronizar com a SEFAZ"}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={handleClassificar}
+              disabled={classificando}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+              style={{ color: "var(--paper)" }}
+            >
+              {classificando && <span className="spinner" />}
+              {classificando ? "Classificando" : "Classificar pendentes"}
+            </button>
+            <button
+              onClick={handleSincronizar}
+              disabled={sincronizando || !certificado}
+              className="botao-principal"
+              style={{ width: "auto", paddingInline: "1.25rem" }}
+              title={!certificado ? "Cadastre um certificado antes de sincronizar" : undefined}
+            >
+              {sincronizando && <span className="spinner" />}
+              {sincronizando ? "Sincronizando" : "Sincronizar com a SEFAZ"}
+            </button>
+          </div>
         </div>
 
         {resultadoSync && (
@@ -469,6 +536,16 @@ export default function EmpresaDetalhePage() {
         {erroSync && (
           <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
             {erroSync}
+          </p>
+        )}
+        {resultadoClassificacao && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            {resultadoClassificacao}
+          </p>
+        )}
+        {erroClassificacao && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            {erroClassificacao}
           </p>
         )}
 
@@ -483,50 +560,68 @@ export default function EmpresaDetalhePage() {
           </div>
         ) : (
           <div className="entra overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr
-                  className="font-mono text-[0.625rem] uppercase tracking-[0.1em]"
-                  style={{ color: "var(--muted)", background: "var(--surface)" }}
-                >
-                  <th className="px-4 py-3 font-medium">Chave de acesso</th>
-                  <th className="px-4 py-3 font-medium">Tipo</th>
-                  <th className="px-4 py-3 font-medium">Direção</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Manifestação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documentos.map((doc, i) => (
+            <div className="max-h-[34rem] overflow-auto">
+              <table className="w-full min-w-[62rem] text-left text-sm">
+                <thead className="sticky top-0 z-10">
                   <tr
-                    key={doc.id}
-                    className="entra-suave border-t align-top"
-                    style={{ borderColor: "var(--border)", animationDelay: `${i * 40}ms` }}
+                    className="font-mono text-[0.625rem] uppercase tracking-[0.1em]"
+                    style={{ color: "var(--muted)", background: "var(--surface)" }}
                   >
-                    <td className="chave-mascarada px-4 py-3 text-xs" style={{ color: "var(--paper)" }}>
-                      {mascararChave(doc.chaveAcesso)}
-                    </td>
-                    <td className="px-4 py-3" style={{ color: "var(--paper)" }}>
-                      {doc.tipo}
-                    </td>
-                    <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
-                      {doc.direcao === "ENTRADA" ? "Entrada" : "Saída"}
-                    </td>
-                    <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
-                      {doc.status}
-                    </td>
-                    <td className="px-4 py-3">
-                      <ManifestacaoAcao
-                        empresaId={empresa.id}
-                        documento={doc}
-                        token={token!}
-                        onAtualizado={() => void carregarTudo(token!)}
-                      />
-                    </td>
+                    <th className="px-4 py-3 font-medium">Nº</th>
+                    <th className="px-4 py-3 font-medium">Empresa (emitente)</th>
+                    <th className="px-4 py-3 font-medium">Chave de acesso</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Classificação</th>
+                    <th className="px-4 py-3 font-medium">Manifestação</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {documentos.map((doc, i) => (
+                    <tr
+                      key={doc.id}
+                      className="entra-suave border-t align-top"
+                      style={{ borderColor: "var(--border)", animationDelay: `${Math.min(i, 20) * 40}ms` }}
+                    >
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {numeroNotaDaChave(doc.chaveAcesso)}
+                      </td>
+                      <td
+                        className="max-w-[16rem] truncate overflow-hidden px-4 py-3 whitespace-nowrap"
+                        style={{ color: "var(--paper)" }}
+                        title={doc.nomeEmitente ?? undefined}
+                      >
+                        {doc.nomeEmitente ?? "—"}
+                      </td>
+                      <td className="chave-mascarada px-4 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {doc.chaveAcesso}
+                      </td>
+                      <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
+                        {doc.status}
+                      </td>
+                      <td className="max-w-[12rem] px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>
+                        {doc.classificadoEm ? (
+                          <span style={{ color: "var(--paper)" }}>
+                            {doc.observacao ?? doc.acumulador ?? doc.cfop}
+                          </span>
+                        ) : doc.cfop ? (
+                          "pendente"
+                        ) : (
+                          "sem CFOP"
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <ManifestacaoAcao
+                          empresaId={empresa.id}
+                          documento={doc}
+                          token={token!}
+                          onAtualizado={() => void carregarTudo(token!)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>

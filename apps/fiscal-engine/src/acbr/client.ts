@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { loadAcbr } from "./binding";
-import { parseIniResponse, readField } from "./ini-parser";
+import { parseIniResponse, readField, mergedRoot, SECAO_DOCUMENTO } from "./ini-parser";
 import { siglaUf } from "./uf";
 import { construirIniEvento } from "./eventos";
 import { config } from "../config";
@@ -17,6 +17,18 @@ import type {
   EnviarEventoResultado,
 } from "./types";
 
+/**
+ * A chave de config "Ambiente" da própria ACBrLib usa convenção invertida
+ * da tpAmb do XML da SEFAZ: aqui "0" = Produção e "1" = Homologação
+ * (confirmado em FrmMain.java da Demo oficial:
+ * `rdbHomologacao.setSelected("1".equals(ambiente))`). O resto do sistema
+ * usa o padrão SEFAZ (1=Produção, 2=Homologação) — a inversão fica isolada
+ * aqui, na fronteira com a lib.
+ */
+function ambienteAcbr(ambiente: 1 | 2): string {
+  return ambiente === 1 ? "0" : "1";
+}
+
 async function writeTempIni(): Promise<string> {
   const iniPath = path.join(os.tmpdir(), `acbr-nfe-${crypto.randomUUID()}.ini`);
   const content = [
@@ -25,6 +37,23 @@ async function writeTempIni(): Promise<string> {
     "",
     "[DFe]",
     "SSLType=ssLSSLv23",
+    // Sem isto, a lib cai no default cryNone — a classe-base abstrata
+    // TDFeSSLCryptClass, que não implementa CarregarCertificadoDeDadosPFX
+    // (erro "não implementado em: TDFeSSLCryptClass"). 1 = cryOpenSSL,
+    // usando as DLLs libssl-1_1-x64/libcrypto-1_1-x64 já empacotadas.
+    "SSLCryptLib=1",
+    // Componente HTTP é config separada da de criptografia — sem isto fica
+    // em httpNone (default) e a chamada nunca sai de fato (Erro Interno: 0,
+    // Erro HTTP: 0, sem exceção). 2 = httpWinHttp, a API nativa do Windows
+    // (WinHTTP/SChannel), já lida com TLS 1.2 e certificado cliente sem
+    // depender de mais nenhuma DLL externa.
+    "SSLHttpLib=2",
+    // Assinatura de XML (usada ao enviar eventos de Manifestação) é uma
+    // TERCEIRA config separada de crypto/HTTP — sem isto cai em xsNone, a
+    // classe-base abstrata TDFeSSLXmlSignClass, que não implementa Assinar
+    // ("Falha ao assinar o Envio de Evento... não implementado"). 4 =
+    // xsLibXml2, usando libxml2/libxslt/libexslt já empacotados.
+    "SSLXmlSignLib=4",
     "",
   ].join("\n");
   await fs.writeFile(iniPath, content, "utf8");
@@ -62,7 +91,7 @@ export async function distribuicaoDFePorUltNSU(
   try {
     return await withCertificadoTemporario(input.certificado.pfxBase64, async (pfxPath) => {
       const retInit = acbr.inicializar(iniPath, "");
-      if (retInit !== 1) {
+      if (retInit !== 0) {
         throw new Error(
           `NFE_Inicializar falhou (${retInit}): ${acbr.ultimoRetorno()}`
         );
@@ -71,7 +100,7 @@ export async function distribuicaoDFePorUltNSU(
       try {
         acbr.configGravarValor("DFe", "ArquivoPFX", pfxPath);
         acbr.configGravarValor("DFe", "Senha", input.certificado.senha);
-        acbr.configGravarValor("NFe", "Ambiente", String(input.ambiente));
+        acbr.configGravarValor("NFe", "Ambiente", ambienteAcbr(input.ambiente));
         acbr.configGravarValor("NFe", "UF", uf);
 
         const { retorno, resposta } = acbr.distribuicaoDFePorUltNSU(
@@ -80,14 +109,14 @@ export async function distribuicaoDFePorUltNSU(
           nsuStr
         );
 
-        if (retorno !== 1) {
+        if (retorno !== 0) {
           throw new Error(
             `NFE_DistribuicaoDFePorUltNSU falhou (${retorno}): ${acbr.ultimoRetorno()}`
           );
         }
 
         const parsed = parseIniResponse(resposta);
-        const root = parsed.__root__;
+        const root = mergedRoot(parsed);
 
         const cStat = readField(root, "cStat", "CStat");
         const xMotivo = readField(root, "xMotivo", "XMotivo");
@@ -96,16 +125,23 @@ export async function distribuicaoDFePorUltNSU(
         );
 
         // 137 = Nenhum documento localizado / 138 = Documento(s) localizado(s)
-        if (cStat === "137") {
+        // 656 = Rejeição por consumo indevido — a própria SEFAZ manda usar o
+        // ultNSU devolvido nesta resposta nas próximas consultas, então isto
+        // não é uma falha a descartar: precisa virar resultado (com cStat
+        // preservado pra quem chamou saber que foi throttle) pra o NSU
+        // corrigido ser persistido antes da próxima tentativa.
+        if (cStat === "137" || cStat === "656") {
           return { novas: 0, ultimoNsu, cStat, xMotivo, documentos: [] };
         }
 
         if (cStat !== "138") {
-          throw new Error(`SEFAZ retornou cStat=${cStat} (${xMotivo})`);
+          throw new Error(
+            `SEFAZ retornou cStat=${cStat} (${xMotivo}) | seções encontradas: ${Object.keys(parsed).join(", ")}`
+          );
         }
 
         const documentos: DocumentoDistribuido[] = Object.keys(parsed)
-          .filter((key) => /^doc(zip)?\d+$/i.test(key))
+          .filter((key) => SECAO_DOCUMENTO.test(key))
           .sort()
           .map((key) => parsed[key]!)
           .filter((doc) => doc.NSU && (doc.XML || doc.Xml))
@@ -139,21 +175,21 @@ export async function statusServico(
 
   try {
     const retInit = acbr.inicializar(iniPath, "");
-    if (retInit !== 1) {
+    if (retInit !== 0) {
       throw new Error(`NFE_Inicializar falhou (${retInit}): ${acbr.ultimoRetorno()}`);
     }
 
     try {
-      acbr.configGravarValor("NFe", "Ambiente", String(input.ambiente));
+      acbr.configGravarValor("NFe", "Ambiente", ambienteAcbr(input.ambiente));
       acbr.configGravarValor("NFe", "UF", uf);
 
       const { retorno, resposta } = acbr.statusServico();
-      if (retorno !== 1) {
+      if (retorno !== 0) {
         throw new Error(`NFE_StatusServico falhou (${retorno}): ${acbr.ultimoRetorno()}`);
       }
 
       const parsed = parseIniResponse(resposta);
-      const root = parsed.__root__;
+      const root = mergedRoot(parsed);
 
       return {
         cStat: readField(root, "cStat", "CStat"),
@@ -204,36 +240,41 @@ export async function enviarEventoManifestacao(
   try {
     return await withCertificadoTemporario(input.certificado.pfxBase64, async (pfxPath) => {
       const retInit = acbr.inicializar(iniPathConfig, "");
-      if (retInit !== 1) {
+      if (retInit !== 0) {
         throw new Error(`NFE_Inicializar falhou (${retInit}): ${acbr.ultimoRetorno()}`);
       }
 
       try {
         acbr.configGravarValor("DFe", "ArquivoPFX", pfxPath);
         acbr.configGravarValor("DFe", "Senha", input.certificado.senha);
-        acbr.configGravarValor("NFe", "Ambiente", String(input.ambiente));
+        acbr.configGravarValor("NFe", "Ambiente", ambienteAcbr(input.ambiente));
         acbr.configGravarValor("NFe", "UF", uf);
 
         acbr.limparListaEventos();
 
         const retCarregar = acbr.carregarEventoIni(iniEventoPath);
-        if (retCarregar !== 1) {
+        if (retCarregar !== 0) {
           throw new Error(
             `NFE_CarregarEventoINI falhou (${retCarregar}): ${acbr.ultimoRetorno()}`
           );
         }
 
         const { retorno, resposta } = acbr.enviarEvento(1);
-        if (retorno !== 1) {
+        if (retorno !== 0) {
           throw new Error(`NFE_EnviarEvento falhou (${retorno}): ${acbr.ultimoRetorno()}`);
         }
 
         const parsed = parseIniResponse(resposta);
-        const root = parsed.__root__;
+        const root = mergedRoot(parsed);
+        const cStatResp = readField(root, "cStat", "CStat");
+        const xMotivoResp = readField(root, "xMotivo", "XMotivo");
 
         return {
-          cStat: readField(root, "cStat", "CStat"),
-          xMotivo: readField(root, "xMotivo", "XMotivo"),
+          cStat: cStatResp,
+          xMotivo:
+            cStatResp === "135" || cStatResp === "136"
+              ? xMotivoResp
+              : `${xMotivoResp} | resposta bruta: ${resposta.slice(0, 2000)}`,
           protocolo: readField(root, "nProt", "protocolo") || undefined,
         };
       } finally {

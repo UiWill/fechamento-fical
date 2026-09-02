@@ -82,10 +82,15 @@ export class DocumentosFiscaisService {
           tipo: dadosBasicos.modelo === "65" ? "NFCE" : "NFE",
           direcao: "ENTRADA",
           nsu: BigInt(doc.nsu),
+          nomeEmitente: dadosBasicos.nomeEmitente,
+          cfop: dadosBasicos.cfop,
           objetoStorageXml,
           emitidoEm: dadosBasicos.dataEmissao,
         },
-        update: {}, // documento já indexado — Distribuição DFe pode reenviar o mesmo NSU
+        // Documento já indexado — Distribuição DFe pode reenviar o mesmo NSU.
+        // Só atualiza nomeEmitente/cfop (backfill de registros antigos, de
+        // antes desses campos existirem, caso a SEFAZ reenvie o mesmo NSU).
+        update: { nomeEmitente: dadosBasicos.nomeEmitente, cfop: dadosBasicos.cfop },
       });
 
       documentosNovos += 1;

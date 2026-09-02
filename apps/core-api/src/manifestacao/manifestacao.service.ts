@@ -55,10 +55,13 @@ export class ManifestacaoService {
       );
     }
 
-    const tentativasAnteriores = await this.prisma.client.manifestacaoEvento.count({
-      where: { documentoFiscalId },
-    });
-    const numeroSequencial = tentativasAnteriores + 1;
+    // Ao contrário da Carta de Correção (que permite até 20 sequências pro
+    // mesmo evento), os 4 tipos de Manifestação do Destinatário só aceitam
+    // nSeqEvento=1 — confirmado contra rejeição real da SEFAZ ("O numero de
+    // sequencia do evento informado e maior que o permitido") ao contar
+    // tentativas anteriores (inclusive as rejeitadas por bugs de infra, que
+    // nunca chegaram a registrar de fato um evento).
+    const numeroSequencial = 1;
 
     const certificado = await this.certificados.obterParaUso(empresaId);
 
@@ -71,10 +74,18 @@ export class ManifestacaoService {
       },
     });
 
+    // O "órgão" do evento de Manifestação é o que AUTORIZOU a NF-e (o UF do
+    // emitente, embutido nos 2 primeiros dígitos da chave de acesso), não o
+    // UF da empresa destinatária que está manifestando — confirmado contra
+    // rejeição real da SEFAZ ("Código do Orgao diverge do orgao
+    // autorizador") ao usar empresa.codigoUf num caso em que o emitente é
+    // de um UF diferente do destinatário.
+    const codigoUfAutorizador = Number(documento.chaveAcesso.slice(0, 2));
+
     try {
       const resultado = await this.fiscalEngine.enviarEvento({
         cnpj: empresa.cnpj,
-        codigoUf: empresa.codigoUf,
+        codigoUf: codigoUfAutorizador,
         ambiente: empresa.ambiente === "PRODUCAO" ? 1 : 2,
         chaveAcesso: documento.chaveAcesso,
         tipoEvento: tipo,

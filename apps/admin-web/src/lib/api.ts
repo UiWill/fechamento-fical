@@ -192,6 +192,11 @@ export interface DocumentoFiscal {
   tipo: "NFE" | "NFCE";
   direcao: "ENTRADA" | "SAIDA";
   status: string;
+  nomeEmitente: string | null;
+  cfop: string | null;
+  observacao: string | null;
+  acumulador: string | null;
+  classificadoEm: string | null;
   emitidoEm: string | null;
   recebidoEm: string;
 }
@@ -228,6 +233,78 @@ export async function sincronizarDocumentos(
       headers: { authorization: `Bearer ${token}` },
     }
   );
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
+  return response.json();
+}
+
+export interface RegraFiscal {
+  id: string;
+  organizacaoId: string;
+  empresaId: string | null;
+  cfopEntrada: string;
+  descricao: string;
+  observacao: string | null;
+  acumulador: string | null;
+  ativa: boolean;
+}
+
+export async function listarRegrasFiscais(
+  organizacaoId: string,
+  token: string
+): Promise<RegraFiscal[]> {
+  const response = await fetch(`${API_URL}/regras-fiscais?organizacaoId=${organizacaoId}`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível carregar as regras fiscais.");
+  }
+  return response.json();
+}
+
+export interface CriarRegraFiscalInput {
+  organizacaoId: string;
+  empresaId?: string | null;
+  cfopEntrada: string;
+  descricao: string;
+  observacao?: string;
+  acumulador?: string;
+}
+
+export async function criarRegraFiscal(
+  input: CriarRegraFiscalInput,
+  token: string
+): Promise<RegraFiscal> {
+  const response = await fetch(`${API_URL}/regras-fiscais`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
+  return response.json();
+}
+
+export interface ClassificacaoResultado {
+  total: number;
+  classificados: number;
+  semRegra: number;
+  semCfop: number;
+}
+
+export async function classificarPendentes(
+  empresaId: string,
+  token: string
+): Promise<ClassificacaoResultado> {
+  const response = await fetch(`${API_URL}/regras-fiscais/classificar/${empresaId}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
   if (!response.ok) {
     const corpo = await response.text();
     throw new Error(corpo || `API respondeu ${response.status}`);

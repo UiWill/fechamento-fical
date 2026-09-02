@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 import { criarRegraFiscalSchema } from "@afe/shared";
 import { RegrasFiscaisService } from "./regras-fiscais.service";
 
@@ -15,5 +15,10 @@ export class RegrasFiscaisController {
   criar(@Body() body: unknown) {
     const input = criarRegraFiscalSchema.parse(body);
     return this.service.criar(input);
+  }
+
+  @Post("classificar/:empresaId")
+  classificar(@Param("empresaId") empresaId: string) {
+    return this.service.classificarPendentes(empresaId);
   }
 }

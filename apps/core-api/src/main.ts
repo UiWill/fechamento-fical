@@ -6,6 +6,12 @@ import {
 } from "@nestjs/platform-fastify";
 import { AppModule } from "./app.module";
 
+// Campos BigInt do Prisma (nsu, ultimoNsu...) quebram JSON.stringify sem
+// isto — Node não sabe serializar BigInt nativamente.
+(BigInt.prototype as unknown as { toJSON(): string }).toJSON = function () {
+  return this.toString();
+};
+
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,

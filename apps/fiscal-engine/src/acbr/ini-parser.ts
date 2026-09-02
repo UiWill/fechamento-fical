@@ -41,3 +41,33 @@ export function readField(
   }
   return "";
 }
+
+// `docNNN`/`docZipNNN` é o nome usado pela .so Linux (nfe_marketplace,
+// versão mais antiga da lib); `ResDFeNNN` é o que a ACBrNFe64.dll do
+// Windows usa de fato (confirmado numa resposta real da SEFAZ) — cada
+// seção de documento tem seu próprio CStat/XMotivo (status daquele
+// documento específico), que não pode ser confundido com o CStat/XMotivo
+// do nível superior da resposta.
+export const SECAO_DOCUMENTO = /^(doc(zip)?|resdfe)\d+$/i;
+
+/**
+ * Campos escalares de resposta (cStat, xMotivo, protocolo...) às vezes vêm
+ * soltos em __root__ (sem cabeçalho de seção) e às vezes envolvidos numa
+ * seção nomeada (ex.: `[DistribuicaoDFe]`, `[StatusServico]`) — depende da
+ * função/versão da lib. Mescla __root__ com as seções que vêm antes da
+ * lista de documentos, e PARA no primeiro `ResDFeNNN`/`docNNN` — um lote
+ * real pode ter dezenas de documentos e alguns são resumos de EVENTO (não
+ * de NF-e), cada um com seu próprio CStat/XMotivo (ex.: 135/136 de
+ * manifestação já registrada por outro sistema), que não podem vazar pro
+ * status do nível superior mesmo excluídos individualmente — mais simples
+ * e seguro parar de mesclar ao ver o primeiro item da lista do que tentar
+ * reconhecer todo tipo de seção que pode aparecer depois dele.
+ */
+export function mergedRoot(parsed: ParsedIniSections): Record<string, string> {
+  let merged: Record<string, string> = {};
+  for (const [nome, valores] of Object.entries(parsed)) {
+    if (SECAO_DOCUMENTO.test(nome)) break;
+    merged = { ...merged, ...valores };
+  }
+  return merged;
+}

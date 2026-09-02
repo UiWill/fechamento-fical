@@ -9,6 +9,15 @@ export interface DadosBasicosNFe {
   chaveAcesso: string;
   modelo: "55" | "65";
   dataEmissao: Date | null;
+  nomeEmitente: string | null;
+  /**
+   * CFOP do primeiro item — só existe quando a SEFAZ manda o XML completo
+   * (nfeProc), não no resNFe (resumo). Simplificação assume CFOP uniforme
+   * entre os itens da nota, válido pra maioria dos casos de compra/venda;
+   * notas com CFOP misto entre itens exigiriam classificação por item, fora
+   * do escopo desta primeira versão do motor de regras.
+   */
+  cfop: string | null;
 }
 
 function extractText(xml: string, tag: string): string {
@@ -24,6 +33,11 @@ export function extrairDadosBasicos(xml: string): DadosBasicosNFe | null {
   const modelo = extractText(xml, "mod") === "65" ? "65" : "55";
   const dhEmi = extractText(xml, "dhEmi") || extractText(xml, "dEmi");
   const dataEmissao = dhEmi ? new Date(dhEmi) : null;
+  // <xNome> aparece solto no resNFe (resumo) e dentro de <emit> no nfeProc
+  // completo — em ambos os casos o emitente vem antes do destinatário na
+  // ordem do schema, então a primeira ocorrência é sempre a certa.
+  const nomeEmitente = extractText(xml, "xNome") || null;
+  const cfop = extractText(xml, "CFOP") || null;
 
-  return { chaveAcesso, modelo, dataEmissao };
+  return { chaveAcesso, modelo, dataEmissao, nomeEmitente, cfop };
 }

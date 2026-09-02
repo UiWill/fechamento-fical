@@ -156,6 +156,10 @@ model DocumentoFiscal {
   nsu             BigInt?
   status          StatusDocumentoFiscal  @default(RECEBIDO)
   cfop            String?
+  observacao      String?
+  acumulador      String?
+  classificadoEm  DateTime?
+  nomeEmitente    String?
   objetoStorageXml String // chave do objeto no MinIO (bucket afe-documentos-fiscais)
   emitidoEm        DateTime?
   recebidoEm       DateTime               @default(now())

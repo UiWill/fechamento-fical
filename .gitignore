@@ -18,6 +18,7 @@ build/
 *.pfx
 *.pem
 *.p12
+*.zip
 
 # ACBrLibNFe (binário nativo, baixado à parte — ver apps/fiscal-engine/lib/README.md)
 apps/fiscal-engine/lib/*.so

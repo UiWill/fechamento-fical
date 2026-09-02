@@ -31,14 +31,19 @@ export const EVENTO_MANIFESTACAO: Record<
   },
 };
 
-function dataHoraEventoIso(): string {
-  // formato exigido pela SEFAZ: AAAA-MM-DDTHH:MM:SS-03:00 (horário de Brasília)
+function dataHoraEventoAcbr(): string {
+  // A ACBrLib não aceita o AAAA-MM-DDTHH:MM:SS-03:00 do XML da SEFAZ aqui —
+  // NFE_CarregarEventoINI usa StrToDateTime local do Delphi e rejeita esse
+  // formato ("não é um horário válido"). O formato real esperado é
+  // dd/mm/yyyy hh:nn:ss, confirmado nos logs de produção do ACBrLibNFe.Demo
+  // (`dhEvento=28/12/2023 17:46:43`) — a lib converte pro formato do XML
+  // internamente antes de montar/assinar o evento.
   const agora = new Date();
   const brt = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
   const p = (n: number) => String(n).padStart(2, "0");
   return (
-    `${brt.getUTCFullYear()}-${p(brt.getUTCMonth() + 1)}-${p(brt.getUTCDate())}` +
-    `T${p(brt.getUTCHours())}:${p(brt.getUTCMinutes())}:${p(brt.getUTCSeconds())}-03:00`
+    `${p(brt.getUTCDate())}/${p(brt.getUTCMonth() + 1)}/${brt.getUTCFullYear()}` +
+    ` ${p(brt.getUTCHours())}:${p(brt.getUTCMinutes())}:${p(brt.getUTCSeconds())}`
   );
 }
 
@@ -63,9 +68,17 @@ export function construirIniEvento(input: EnviarEventoInput): string {
     "[Evento001]",
     `chNFe=${input.chaveAcesso}`,
     `CNPJ=${input.cnpj}`,
+    // Manifestação do Destinatário é sempre processada pelo Ambiente
+    // Nacional (AN), não pela SEFAZ do emitente nem do destinatário —
+    // confirmado numa resposta real (VerAplic=AN_1.10.4, cOrgao=91 no
+    // retorno). Usar o UF de qualquer uma das partes aqui (mesmo o do
+    // emitente, extraído da chave) causa rejeição "Código do Orgao diverge
+    // do orgao autorizador" — 91 é o código fixo (tabela IBGE extendida)
+    // que identifica o Ambiente Nacional.
+    "cOrgao=91",
     `tpEvento=${evento.codigo}`,
     `nSeqEvento=${input.numeroSequencial}`,
-    `dhEvento=${dataHoraEventoIso()}`,
+    `dhEvento=${dataHoraEventoAcbr()}`,
     `descEvento=${evento.descEvento}`,
   ];
 

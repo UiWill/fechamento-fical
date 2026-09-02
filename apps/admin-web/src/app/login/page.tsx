@@ -4,10 +4,28 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { login, CredenciaisInvalidasError, ApiInalcancavelError } from "@/lib/api";
 
+function IconeOlho() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" width="18" height="18">
+      <path d="M1.5 12s3.75-7 10.5-7 10.5 7 10.5 7-3.75 7-10.5 7-10.5-7-10.5-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function IconeOlhoFechado() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" width="18" height="18">
+      <path d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.24 4.24M6.3 6.4C3.9 8 2 10.5 1.5 12c0 0 3.75 7 10.5 7 2.06 0 3.83-.55 5.3-1.3M9.9 4.24A11.6 11.6 0 0 1 12 4c6.75 0 10.5 7 10.5 7-.53 1.15-1.6 2.85-3.25 4.3" />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
@@ -79,15 +97,27 @@ export default function LoginPage() {
             >
               Senha
             </label>
-            <input
-              id="senha"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={senha}
-              onChange={(event) => setSenha(event.target.value)}
-              className="campo"
-            />
+            <div className="relative">
+              <input
+                id="senha"
+                type={senhaVisivel ? "text" : "password"}
+                required
+                autoComplete="current-password"
+                value={senha}
+                onChange={(event) => setSenha(event.target.value)}
+                className="campo"
+                style={{ paddingRight: "2rem" }}
+              />
+              <button
+                type="button"
+                onClick={() => setSenhaVisivel((v) => !v)}
+                aria-label={senhaVisivel ? "Ocultar senha" : "Mostrar senha"}
+                className="absolute right-0 top-1/2 -translate-y-1/2 p-1"
+                style={{ color: "var(--muted)" }}
+              >
+                {senhaVisivel ? <IconeOlhoFechado /> : <IconeOlho />}
+              </button>
+            </div>
           </div>
 
           {erro && (

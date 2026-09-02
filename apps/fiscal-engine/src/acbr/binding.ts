@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import koffi from "koffi";
 import { config } from "../config";
 
@@ -55,6 +56,16 @@ export function loadAcbr(): AcbrFunctions {
       `[fiscal-engine] Biblioteca ACBr não encontrada em ${config.libPath}. ` +
         `Veja apps/fiscal-engine/lib/README.md para instruções de instalação.`
     );
+  }
+
+  // A ACBrNFe64.dll carrega libssl-1_1-x64.dll/libcrypto-1_1-x64.dll em
+  // tempo de execução via LoadLibrary por nome simples, não pelo diretório
+  // da própria DLL — sem isto o Windows procura só no diretório do node.exe,
+  // System32 e PATH, nenhum dos quais inclui a pasta lib/, e a lib falha com
+  // "Erro ao carregar bibliotecas do OpenSSL".
+  const libDir = path.dirname(config.libPath);
+  if (!process.env.PATH?.includes(libDir)) {
+    process.env.PATH = `${libDir}${path.delimiter}${process.env.PATH ?? ""}`;
   }
 
   const lib = koffi.load(config.libPath);

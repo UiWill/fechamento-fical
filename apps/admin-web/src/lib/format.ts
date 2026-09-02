@@ -24,6 +24,12 @@ export function mascararChave(chave: string): string {
   return chave.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
 }
 
+/** Número da nota vem embutido na própria chave de acesso (posições 26-34), sem zeros à esquerda. */
+export function numeroNotaDaChave(chave: string): string {
+  if (chave.length !== 44) return "—";
+  return String(Number(chave.slice(25, 34)));
+}
+
 export function formatarData(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR");
 }

@@ -35,13 +35,13 @@
 }
 
 :root[data-theme="light"] {
-  --void: #fafaf8;
-  --surface: #ffffff;
-  --surface-2: #f2f1ed;
-  --border: #e4e2dc;
-  --paper: #111110;
-  --muted: #6b6b66;
-  --muted-2: #9a9994;
+  --void: #f6f3ec;
+  --surface: #fbf9f3;
+  --surface-2: #efeadd;
+  --border: #ddd6c4;
+  --paper: #1a1712;
+  --muted: #78715f;
+  --muted-2: #a39c88;
   color-scheme: light;
 }
 
@@ -349,4 +349,204 @@ select.campo option {
   width: 0.8rem;
   height: 0.8rem;
   animation: aparecer 0.3s var(--ease-out);
+}
+
+/* ==========================================================================
+   Landing page — a "ficha" (elemento de assinatura): notas fiscais reais
+   passando pelas 3 etapas do produto (recebida → classificada → exportada),
+   em loop contínuo. É a coisa mais característica do mundo desse produto:
+   ver o fechamento acontecer sozinho.
+   ========================================================================== */
+
+.landing {
+  background: var(--void);
+}
+
+.landing section {
+  padding: 5.5rem 0;
+}
+
+.landing-faixa {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.landing-olho {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.landing-titulo {
+  font-family: var(--font-display);
+  color: var(--paper);
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+}
+
+/* Revelação ao rolar — "assenta no lugar": some leve desfoque e escala junto
+   com a subida, em vez de só aparecer/deslizar seco. Disparada por
+   IntersectionObserver (ver RevelarAoRolar), não no carregamento. */
+.revelar {
+  opacity: 0;
+  transform: translateY(22px) scale(0.98);
+  filter: blur(6px);
+  transition:
+    opacity 0.9s var(--ease-out),
+    transform 0.9s var(--ease-out),
+    filter 0.9s var(--ease-out);
+}
+.revelar.visivel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+/* Título-cortina: a frase fica escondida atrás de uma máscara e desliza pra
+   cima, como se fosse destampada — reservado pros títulos de seção, pra não
+   virar um efeito repetido em todo elemento da página. */
+.titulo-mascara {
+  display: block;
+  overflow: hidden;
+}
+.titulo-interior {
+  display: block;
+  transform: translateY(115%);
+  transition: transform 1s var(--ease-out);
+}
+.titulo-mascara.visivel .titulo-interior {
+  transform: translateY(0);
+}
+
+.landing-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--void) 82%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---------- Ficha animada (hero) ---------- */
+
+.ficha {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.ficha-linha {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-top: 1px solid var(--border);
+}
+.ficha-linha:first-child {
+  border-top: none;
+}
+
+.ficha-chave {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+  color: var(--muted-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.ficha-emitente {
+  margin-top: 0.2rem;
+  font-size: 0.875rem;
+  color: var(--paper);
+}
+
+.ficha-status {
+  position: relative;
+  height: 1.1rem;
+  min-width: 10.5rem;
+}
+
+.ficha-status span {
+  position: absolute;
+  right: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  animation-duration: 9s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-delay: var(--atraso, 0s);
+}
+
+.ficha-status .s1 {
+  color: var(--muted);
+  animation-name: ciclo-status-1;
+}
+.ficha-status .s2 {
+  color: var(--muted);
+  animation-name: ciclo-status-2;
+}
+.ficha-status .s3 {
+  color: var(--paper);
+  font-weight: 500;
+  animation-name: ciclo-status-3;
+}
+.ficha-status .s3 svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+@keyframes ciclo-status-1 {
+  0%, 27% { opacity: 1; transform: translateY(0); }
+  33%, 100% { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes ciclo-status-2 {
+  0%, 30% { opacity: 0; transform: translateY(6px); }
+  36%, 60% { opacity: 1; transform: translateY(0); }
+  66%, 100% { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes ciclo-status-3 {
+  0%, 63% { opacity: 0; transform: translateY(6px); }
+  69%, 93% { opacity: 1; transform: translateY(0); }
+  99%, 100% { opacity: 0; transform: translateY(0); }
+}
+
+/* ---------- Processo (sequência real: busca → classifica → exporta) ---------- */
+
+.etapa-numero {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted-2);
+  letter-spacing: 0.05em;
+}
+
+/* ---------- Cartão de preço ---------- */
+
+.cartao-preco {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 2.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revelar,
+  .titulo-interior {
+    transition-duration: 0.01ms !important;
+  }
+  .ficha-status span {
+    animation-duration: 0.01ms !important;
+  }
 }
