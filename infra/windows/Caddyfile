@@ -1,19 +1,37 @@
 # Reverse proxy para o projeto de Automacao do Fechamento Fiscal (CAPTAL).
 #
-# Rodando em HTTP puro na porta 8080 (nao 80/443) porque o TSplus ja usa
-# essas portas padrao neste mesmo servidor para o portal remoto da equipe.
-# O prefixo "http://" desliga o HTTPS automatico do Caddy (sem isso, ele
-# tentaria emitir certificado Let's Encrypt, o que falharia mesmo assim
-# porque a validacao do Let's Encrypt sempre bate nas portas 80/443 reais,
-# nao na porta alternativa).
+# HTTP puro na porta 8080 (nao 80/443) porque o TSplus ja usa essas portas
+# padrao neste mesmo servidor para o portal remoto da equipe. O prefixo
+# "http://" desliga o HTTPS automatico do Caddy nesses blocos.
 #
-# TODO (fase 2): trocar por HTTPS de verdade quando decidir entre mover as
-# portas do TSplus ou usar uma VPS dedicada soh para este projeto.
+# HTTPS na porta 8443 (tambem alternativa, pelo mesmo motivo) usando um
+# certificado real do Let's Encrypt emitido via win-acme com validacao por
+# DNS (nao precisa das portas 80/443) — ver C:\afe\certs. Renovacao
+# automatica (tarefa agendada do win-acme) so funciona ate a validacao por
+# DNS pedir intervencao manual de novo (Registro.br nao tem API), entao a
+# cada ~60 dias alguem precisa repetir o passo do registro TXT.
+#
+# "auto_https disable_redirects": sem isso, o Caddy tenta abrir a porta 80
+# sozinho pra redirecionar HTTP->HTTPS assim que existe qualquer bloco
+# https://, e a 80 e do TSplus — o servico nao sobe.
+{
+	auto_https disable_redirects
+}
 
 http://fiscal.dnotas.com.br:8080 {
 	reverse_proxy 127.0.0.1:3200
 }
 
 http://fiscal-api.dnotas.com.br:8080 {
+	reverse_proxy 127.0.0.1:3000
+}
+
+https://fiscal.dnotas.com.br:8443 {
+	tls C:\afe\certs\fiscal.dnotas.com.br-chain.pem C:\afe\certs\fiscal.dnotas.com.br-key.pem
+	reverse_proxy 127.0.0.1:3200
+}
+
+https://fiscal-api.dnotas.com.br:8443 {
+	tls C:\afe\certs\fiscal.dnotas.com.br-chain.pem C:\afe\certs\fiscal.dnotas.com.br-key.pem
 	reverse_proxy 127.0.0.1:3000
 }
