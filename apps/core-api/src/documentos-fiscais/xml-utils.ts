@@ -18,6 +18,11 @@ export interface DadosBasicosNFe {
    * do escopo desta primeira versão do motor de regras.
    */
   cfop: string | null;
+  /**
+   * Valor total da nota (vNF, dentro de <ICMSTot>) — só existe no nfeProc
+   * completo; o resNFe (resumo) não traz totais.
+   */
+  valorTotal: number | null;
 }
 
 function extractText(xml: string, tag: string): string {
@@ -38,6 +43,15 @@ export function extrairDadosBasicos(xml: string): DadosBasicosNFe | null {
   // ordem do schema, então a primeira ocorrência é sempre a certa.
   const nomeEmitente = extractText(xml, "xNome") || null;
   const cfop = extractText(xml, "CFOP") || null;
+  const vNF = extractText(xml, "vNF");
+  const valorTotal = vNF ? Number(vNF) : null;
 
-  return { chaveAcesso, modelo, dataEmissao, nomeEmitente, cfop };
+  return {
+    chaveAcesso,
+    modelo,
+    dataEmissao,
+    nomeEmitente,
+    cfop,
+    valorTotal: valorTotal !== null && !Number.isNaN(valorTotal) ? valorTotal : null,
+  };
 }

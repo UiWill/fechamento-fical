@@ -21,8 +21,16 @@ import {
   mascararCnpj,
   numeroNotaDaChave,
   formatarData,
+  formatarMoeda,
   arquivoParaBase64,
+  chaveMes,
+  mesAtual,
+  rotuloMes,
 } from "@/lib/format";
+import {
+  exportarNotasEntradaPdf,
+  exportarNotasEntradaExcel,
+} from "@/lib/exportar-relatorio";
 
 function useToken() {
   const router = useRouter();
@@ -369,6 +377,8 @@ export default function EmpresaDetalhePage() {
   const [resultadoClassificacao, setResultadoClassificacao] = useState<string | null>(null);
   const [erroClassificacao, setErroClassificacao] = useState<string | null>(null);
 
+  const [mesFiltro, setMesFiltro] = useState(mesAtual());
+
   const carregarTudo = useCallback(
     async (t: string) => {
       try {
@@ -438,6 +448,28 @@ export default function EmpresaDetalhePage() {
     } finally {
       setClassificando(false);
     }
+  }
+
+  const notasEntradaDoMes = documentos.filter(
+    (doc) => doc.direcao === "ENTRADA" && chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltro
+  );
+
+  function linhasRelatorio() {
+    return notasEntradaDoMes.map((doc) => ({
+      numero: numeroNotaDaChave(doc.chaveAcesso),
+      emitente: doc.nomeEmitente ?? "—",
+      valor: doc.valorTotal,
+    }));
+  }
+
+  function handleExportarPdf() {
+    if (!empresa) return;
+    exportarNotasEntradaPdf(linhasRelatorio(), empresa.razaoSocial, rotuloMes(mesFiltro));
+  }
+
+  function handleExportarExcel() {
+    if (!empresa) return;
+    exportarNotasEntradaExcel(linhasRelatorio(), empresa.razaoSocial, rotuloMes(mesFiltro));
   }
 
   if (carregando) {
@@ -549,6 +581,49 @@ export default function EmpresaDetalhePage() {
           </p>
         )}
 
+        <div
+          className="entra flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div className="flex items-center gap-3">
+            <label
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+              style={{ color: "var(--muted)" }}
+            >
+              Relatório de entrada · mês
+            </label>
+            <input
+              type="month"
+              value={mesFiltro}
+              onChange={(event) => setMesFiltro(event.target.value)}
+              className="campo text-sm"
+              style={{ width: "auto" }}
+            />
+            <span className="text-xs" style={{ color: "var(--muted)" }}>
+              {notasEntradaDoMes.length} nota(s)
+            </span>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleExportarPdf}
+              disabled={notasEntradaDoMes.length === 0}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-40 disabled:no-underline"
+              style={{ color: "var(--paper)" }}
+            >
+              Baixar PDF
+            </button>
+            <button
+              onClick={handleExportarExcel}
+              disabled={notasEntradaDoMes.length === 0}
+              className="botao-principal"
+              style={{ width: "auto", paddingInline: "1.25rem" }}
+            >
+              Baixar Excel
+            </button>
+          </div>
+        </div>
+
         {documentos.length === 0 ? (
           <div
             className="entra rounded-lg border border-dashed p-8 text-center"
@@ -571,6 +646,7 @@ export default function EmpresaDetalhePage() {
                     <th className="px-4 py-3 font-medium">Empresa (emitente)</th>
                     <th className="px-4 py-3 font-medium">Chave de acesso</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Valor</th>
                     <th className="px-4 py-3 font-medium">Classificação</th>
                     <th className="px-4 py-3 font-medium">Manifestação</th>
                   </tr>
@@ -597,6 +673,9 @@ export default function EmpresaDetalhePage() {
                       </td>
                       <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
                         {doc.status}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap" style={{ color: "var(--paper)" }}>
+                        {formatarMoeda(doc.valorTotal)}
                       </td>
                       <td className="max-w-[12rem] px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>
                         {doc.classificadoEm ? (

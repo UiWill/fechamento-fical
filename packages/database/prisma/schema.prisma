@@ -160,6 +160,7 @@ model DocumentoFiscal {
   acumulador      String?
   classificadoEm  DateTime?
   nomeEmitente    String?
+  valorTotal      Decimal?               @db.Decimal(14, 2)
   objetoStorageXml String // chave do objeto no MinIO (bucket afe-documentos-fiscais)
   emitidoEm        DateTime?
   recebidoEm       DateTime               @default(now())

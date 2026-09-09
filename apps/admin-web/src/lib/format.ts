@@ -34,6 +34,28 @@ export function formatarData(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
+/** Chave "AAAA-MM" do mês de uma data ISO — usada para agrupar/filtrar por mês. */
+export function chaveMes(iso: string): string {
+  return iso.slice(0, 7);
+}
+
+export function mesAtual(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
+/** Rótulo legível do mês a partir da chave "AAAA-MM", ex: "setembro de 2026". */
+export function rotuloMes(chave: string): string {
+  const [ano, mes] = chave.split("-").map(Number);
+  return new Date(ano, mes - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+export function formatarMoeda(valor: string | number | null): string {
+  if (valor === null) return "—";
+  const numero = typeof valor === "string" ? Number(valor) : valor;
+  if (Number.isNaN(numero)) return "—";
+  return numero.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 /** Lê um File (input type=file) como base64 puro, sem o prefixo data:...;base64, */
 export function arquivoParaBase64(arquivo: File): Promise<string> {
   return new Promise((resolve, reject) => {

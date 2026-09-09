@@ -197,6 +197,7 @@ export interface DocumentoFiscal {
   observacao: string | null;
   acumulador: string | null;
   classificadoEm: string | null;
+  valorTotal: string | null;
   emitidoEm: string | null;
   recebidoEm: string;
 }
