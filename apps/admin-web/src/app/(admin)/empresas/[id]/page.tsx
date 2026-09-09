@@ -556,7 +556,7 @@ export default function EmpresaDetalhePage() {
               title={!certificado ? "Cadastre um certificado antes de sincronizar" : undefined}
             >
               {sincronizando && <span className="spinner" />}
-              {sincronizando ? "Sincronizando" : "Sincronizar com a SEFAZ"}
+              {sincronizando ? "Sincronizando (pode levar alguns minutos)…" : "Sincronizar com a SEFAZ"}
             </button>
           </div>
         </div>
