@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
+import { ScheduleModule } from "@nestjs/schedule";
 import { PrismaModule } from "./common/prisma/prisma.module";
 import { StorageModule } from "./common/storage/storage.module";
 import { FiscalEngineModule } from "./common/fiscal-engine/fiscal-engine.module";
@@ -14,9 +15,11 @@ import { RegrasFiscaisModule } from "./regras-fiscais/regras-fiscais.module";
 import { ManifestacaoModule } from "./manifestacao/manifestacao.module";
 import { ExportacaoTxtModule } from "./exportacao-txt/exportacao-txt.module";
 import { FaturamentoModule } from "./faturamento/faturamento.module";
+import { SincronizacaoAgendadaModule } from "./sincronizacao-agendada/sincronizacao-agendada.module";
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     PrismaModule,
     StorageModule,
     FiscalEngineModule,
@@ -30,6 +33,7 @@ import { FaturamentoModule } from "./faturamento/faturamento.module";
     ManifestacaoModule,
     ExportacaoTxtModule,
     FaturamentoModule,
+    SincronizacaoAgendadaModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })
