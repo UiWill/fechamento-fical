@@ -10,14 +10,37 @@ import { extrairDadosBasicos } from "./xml-utils";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// A SEFAZ devolve no maximo ~50 documentos por chamada de NFeDistribuicaoDFe.
-// Enquanto houver documento na resposta, ha (provavelmente) mais NSU pra
-// buscar - entao repetimos a chamada, avancando o cursor, ate vir uma
-// resposta vazia (backlog esgotado). O limite de 1h/consulta da SEFAZ vale
-// pra ficar perguntando "tem novidade?" quando NAO ha nada nao - nao pra
-// continuar puxando um backlog que ela ja confirmou que existe.
-const MAX_LOTES_POR_SINCRONIZACAO = 100;
+// A SEFAZ devolve no maximo ~50 documentos por chamada de NFeDistribuicaoDFe,
+// e limita a NO MAXIMO 20 CONSULTAS POR HORA por CNPJ - vale tanto pra
+// cStat=137 (nada novo) quanto pra cStat=138 (tem documento, possivelmente
+// mais alem desse lote). Estourar isso derruba cStat=656 "Consumo indevido"
+// e BLOQUEIA o CNPJ por 1h. Por isso mantemos uma margem de seguranca
+// (18, nao 20) e paramos de vez em vez o loop antes de estourar, mesmo que
+// ainda reste backlog - nesse caso o usuario so precisa sincronizar de novo
+// mais tarde (o NSU ja avancado nao se perde).
+//
+// Esse contador fica em memoria (nao sobrevive a reinicio do servico) -
+// aceitavel porque reinicio so acontece em deploy, nao no uso normal.
+const LIMITE_CONSULTAS_POR_HORA = 18;
+const JANELA_HORA_MS = 60 * 60 * 1000;
 const PAUSA_ENTRE_LOTES_MS = 1000;
+
+const historicoConsultasPorEmpresa = new Map<string, number[]>();
+
+function consultasDisponiveis(empresaId: string): number {
+  const agora = Date.now();
+  const historico = (historicoConsultasPorEmpresa.get(empresaId) ?? []).filter(
+    (timestamp) => agora - timestamp < JANELA_HORA_MS
+  );
+  historicoConsultasPorEmpresa.set(empresaId, historico);
+  return LIMITE_CONSULTAS_POR_HORA - historico.length;
+}
+
+function registrarConsulta(empresaId: string): void {
+  const historico = historicoConsultasPorEmpresa.get(empresaId) ?? [];
+  historico.push(Date.now());
+  historicoConsultasPorEmpresa.set(empresaId, historico);
+}
 
 @Injectable()
 export class DocumentosFiscaisService {
@@ -62,8 +85,15 @@ export class DocumentosFiscaisService {
     let documentosNovos = 0;
     let ultimoCStat = "";
     let ultimoXMotivo = "";
+    let limiteSefazAtingido = false;
 
-    for (let lote = 0; lote < MAX_LOTES_POR_SINCRONIZACAO; lote++) {
+    while (true) {
+      if (consultasDisponiveis(empresaId) <= 0) {
+        limiteSefazAtingido = true;
+        break;
+      }
+
+      registrarConsulta(empresaId);
       const resultado = await this.fiscalEngine.distribuicaoDFe({
         cnpj: empresa.cnpj,
         codigoUf: empresa.codigoUf,
@@ -137,6 +167,7 @@ export class DocumentosFiscaisService {
       ultimoNsu: Number(nsuControle.ultimoNsu),
       cStat: ultimoCStat,
       xMotivo: ultimoXMotivo,
+      limiteSefazAtingido,
     };
   }
 }

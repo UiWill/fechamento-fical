@@ -411,10 +411,14 @@ export default function EmpresaDetalhePage() {
     setErroSync(null);
     try {
       const resultado = await sincronizarDocumentos(params.id, token);
-      setResultadoSync(
+      const base =
         resultado.documentosNovos > 0
           ? `${resultado.documentosNovos} documento(s) novo(s) recebido(s).`
-          : "Nenhum documento novo — a SEFAZ não tem nada além do que já foi buscado."
+          : "Nenhum documento novo — a SEFAZ não tem nada além do que já foi buscado.";
+      setResultadoSync(
+        resultado.limiteSefazAtingido
+          ? `${base} Atingiu o limite de consultas da SEFAZ por hora — ainda pode haver mais documentos; sincronize de novo daqui a pouco.`
+          : base
       );
       const docs = await listarDocumentosFiscais(params.id, token);
       setDocumentos(docs);

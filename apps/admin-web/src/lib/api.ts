@@ -221,6 +221,7 @@ export interface SincronizacaoResultado {
   ultimoNsu: number;
   cStat: string;
   xMotivo: string;
+  limiteSefazAtingido: boolean;
 }
 
 export async function sincronizarDocumentos(
