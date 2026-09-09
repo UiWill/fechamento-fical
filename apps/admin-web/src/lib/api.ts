@@ -223,6 +223,7 @@ export interface SincronizacaoResultado {
   cStat: string;
   xMotivo: string;
   limiteSefazAtingido: boolean;
+  bloqueadoPelaSefaz: boolean;
   ultimaSincronizacaoEm: string;
 }
 

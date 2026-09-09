@@ -18,6 +18,12 @@ export class SincronizacaoAgendadaService {
    * por CNPJ da SEFAZ; rodar 1x por hora deixa o contador de cada empresa
    * "descansar" antes da próxima janela, então o backlog vai sendo esgotado
    * noite após noite sem correr risco de bloqueio (erro 656).
+   *
+   * Esse limite é da SEFAZ por CNPJ+certificado, não "nosso" — se outro
+   * sistema (ex: o do contador) também consultar a mesma empresa, pode vir
+   * bloqueio mesmo dentro da nossa margem de segurança. sincronizarComSefaz
+   * detecta isso (cStat=656) e evita novas tentativas por 1h; aqui só
+   * registramos no log pra ficar visível qual empresa foi afetada.
    */
   @Cron("0 0,1,2,3,4,5 * * *")
   async sincronizarTodasAsEmpresas() {
@@ -33,10 +39,12 @@ export class SincronizacaoAgendadaService {
     for (const empresa of empresas) {
       try {
         const resultado = await this.documentosFiscais.sincronizarComSefaz(empresa.id);
-        this.logger.log(
-          `[${empresa.razaoSocial}] ${resultado.documentosNovos} documento(s) novo(s)` +
-            (resultado.limiteSefazAtingido ? " — limite da SEFAZ atingido nesta janela" : "")
-        );
+        const sufixo = resultado.bloqueadoPelaSefaz
+          ? " — BLOQUEADO pela SEFAZ (consumo indevido, possivelmente outro sistema consultando o mesmo CNPJ)"
+          : resultado.limiteSefazAtingido
+            ? " — limite da SEFAZ atingido nesta janela"
+            : "";
+        this.logger.log(`[${empresa.razaoSocial}] ${resultado.documentosNovos} documento(s) novo(s)${sufixo}`);
       } catch (err) {
         this.logger.error(
           `[${empresa.razaoSocial}] falha na sincronização noturna: ${

@@ -11,21 +11,33 @@ import { extrairDadosBasicos } from "./xml-utils";
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // A SEFAZ devolve no maximo ~50 documentos por chamada de NFeDistribuicaoDFe,
-// e limita a NO MAXIMO 20 CONSULTAS POR HORA por CNPJ - vale tanto pra
-// cStat=137 (nada novo) quanto pra cStat=138 (tem documento, possivelmente
-// mais alem desse lote). Estourar isso derruba cStat=656 "Consumo indevido"
-// e BLOQUEIA o CNPJ por 1h. Por isso mantemos uma margem de seguranca
-// (18, nao 20) e paramos de vez em vez o loop antes de estourar, mesmo que
-// ainda reste backlog - nesse caso o usuario so precisa sincronizar de novo
-// mais tarde (o NSU ja avancado nao se perde).
+// e limita a NO MAXIMO 20 CONSULTAS POR HORA por CNPJ+CERTIFICADO - vale
+// tanto pra cStat=137 (nada novo) quanto pra cStat=138 (tem documento,
+// possivelmente mais alem desse lote), e o limite e COMPARTILHADO entre
+// QUALQUER sistema que consulte esse mesmo CNPJ (ex: o software do
+// contador tambem fazendo Distribuicao DFe pra a mesma empresa) - nao e
+// um limite "nosso", e da SEFAZ pra aquele CNPJ.
 //
-// Esse contador fica em memoria (nao sobrevive a reinicio do servico) -
-// aceitavel porque reinicio so acontece em deploy, nao no uso normal.
+// Por isso duas camadas de protecao:
+// 1) Margem de seguranca proativa (18, nao 20) nas NOSSAS proprias
+//    chamadas, pra dificilmente sermos nos a estourar sozinhos.
+// 2) Deteccao reativa: se AINDA ASSIM vier cStat=656 "Consumo indevido"
+//    (porque outro sistema tambem consumiu da mesma cota), paramos na
+//    hora e ficamos 1h sem tentar de novo aquele CNPJ - client nenhum
+//    controla o outro sistema, entao so da pra reagir ao bloqueio real.
+//
+// Estourar o limite so atrasa (o NSU ja avancado nao se perde) - o
+// usuario so precisa sincronizar de novo mais tarde.
+//
+// Os dois controles ficam em memoria (nao sobrevivem a reinicio do
+// servico) - aceitavel porque reinicio so acontece em deploy.
 const LIMITE_CONSULTAS_POR_HORA = 18;
 const JANELA_HORA_MS = 60 * 60 * 1000;
 const PAUSA_ENTRE_LOTES_MS = 1000;
+const CSTAT_CONSUMO_INDEVIDO = "656";
 
 const historicoConsultasPorEmpresa = new Map<string, number[]>();
+const bloqueadoAtePorEmpresa = new Map<string, number>();
 
 function consultasDisponiveis(empresaId: string): number {
   const agora = Date.now();
@@ -40,6 +52,15 @@ function registrarConsulta(empresaId: string): void {
   const historico = historicoConsultasPorEmpresa.get(empresaId) ?? [];
   historico.push(Date.now());
   historicoConsultasPorEmpresa.set(empresaId, historico);
+}
+
+function bloqueadoPelaSefaz(empresaId: string): boolean {
+  const ate = bloqueadoAtePorEmpresa.get(empresaId);
+  return ate !== undefined && Date.now() < ate;
+}
+
+function registrarBloqueioSefaz(empresaId: string): void {
+  bloqueadoAtePorEmpresa.set(empresaId, Date.now() + JANELA_HORA_MS);
 }
 
 @Injectable()
@@ -86,6 +107,22 @@ export class DocumentosFiscaisService {
     let ultimoCStat = "";
     let ultimoXMotivo = "";
     let limiteSefazAtingido = false;
+    let bloqueadoNestaChamada = false;
+
+    if (bloqueadoPelaSefaz(empresaId)) {
+      // Bloqueio real ja confirmado (cStat=656) numa tentativa anterior,
+      // possivelmente causado por OUTRO sistema consultando o mesmo CNPJ -
+      // nem tenta de novo antes da SEFAZ liberar.
+      return {
+        documentosNovos: 0,
+        ultimoNsu: Number(nsuControle.ultimoNsu),
+        cStat: CSTAT_CONSUMO_INDEVIDO,
+        xMotivo: "Consumo indevido — bloqueado pela SEFAZ (pode ser outro sistema consultando o mesmo CNPJ)",
+        limiteSefazAtingido: true,
+        bloqueadoPelaSefaz: true,
+        ultimaSincronizacaoEm: nsuControle.atualizadoEm,
+      };
+    }
 
     while (true) {
       if (consultasDisponiveis(empresaId) <= 0) {
@@ -103,6 +140,18 @@ export class DocumentosFiscaisService {
       });
       ultimoCStat = resultado.cStat;
       ultimoXMotivo = resultado.xMotivo;
+
+      if (resultado.cStat === CSTAT_CONSUMO_INDEVIDO) {
+        // A SEFAZ bloqueou mesmo estando dentro da NOSSA margem de
+        // seguranca - so pode ter sido consumo de OUTRO sistema usando o
+        // mesmo CNPJ+certificado (ex: o software do contador). Registra o
+        // bloqueio de verdade e para na hora, sem processar documentos
+        // (resposta de bloqueio nao traz documento nenhum de qualquer jeito).
+        registrarBloqueioSefaz(empresaId);
+        limiteSefazAtingido = true;
+        bloqueadoNestaChamada = true;
+        break;
+      }
 
       for (const doc of resultado.documentos) {
         const dadosBasicos = extrairDadosBasicos(doc.xml);
@@ -168,6 +217,7 @@ export class DocumentosFiscaisService {
       cStat: ultimoCStat,
       xMotivo: ultimoXMotivo,
       limiteSefazAtingido,
+      bloqueadoPelaSefaz: bloqueadoNestaChamada,
       ultimaSincronizacaoEm: nsuControle.atualizadoEm,
     };
   }

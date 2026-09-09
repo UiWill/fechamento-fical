@@ -417,9 +417,11 @@ export default function EmpresaDetalhePage() {
           ? `${resultado.documentosNovos} documento(s) novo(s) recebido(s).`
           : "Nenhum documento novo — a SEFAZ não tem nada além do que já foi buscado.";
       setResultadoSync(
-        resultado.limiteSefazAtingido
-          ? `${base} Atingiu o limite de consultas da SEFAZ por hora — ainda pode haver mais documentos; sincronize de novo daqui a pouco.`
-          : base
+        resultado.bloqueadoPelaSefaz
+          ? "A SEFAZ bloqueou novas consultas para esse CNPJ por consumo indevido (limite de 20/hora) — pode ter sido outro sistema (ex: do contador) consultando essa mesma empresa. Tente de novo daqui a 1 hora."
+          : resultado.limiteSefazAtingido
+            ? `${base} Atingiu o limite de consultas da SEFAZ por hora — ainda pode haver mais documentos; sincronize de novo daqui a pouco.`
+            : base
       );
       const docs = await listarDocumentosFiscais(params.id, token);
       setDocumentos(docs);
