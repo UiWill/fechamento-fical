@@ -24,6 +24,12 @@ export function mascararChave(chave: string): string {
   return chave.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
 }
 
+/** Versão curta da chave de acesso pra caber em tabela — o valor completo fica só no title. */
+export function chaveResumida(chave: string): string {
+  if (chave.length !== 44) return chave;
+  return `${chave.slice(0, 6)}…${chave.slice(-6)}`;
+}
+
 /** Número da nota vem embutido na própria chave de acesso (posições 26-34), sem zeros à esquerda. */
 export function numeroNotaDaChave(chave: string): string {
   if (chave.length !== 44) return "—";

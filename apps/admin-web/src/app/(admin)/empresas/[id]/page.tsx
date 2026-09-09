@@ -24,6 +24,7 @@ import {
   formatarMoeda,
   arquivoParaBase64,
   chaveMes,
+  chaveResumida,
   mesAtual,
   rotuloMes,
 } from "@/lib/format";
@@ -636,19 +637,20 @@ export default function EmpresaDetalhePage() {
         ) : (
           <div className="entra overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
             <div className="max-h-[34rem] overflow-auto">
-              <table className="w-full min-w-[62rem] text-left text-sm">
+              <table className="w-full table-fixed text-left text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr
                     className="font-mono text-[0.625rem] uppercase tracking-[0.1em]"
                     style={{ color: "var(--muted)", background: "var(--surface)" }}
                   >
-                    <th className="px-4 py-3 font-medium">Nº</th>
-                    <th className="px-4 py-3 font-medium">Empresa (emitente)</th>
-                    <th className="px-4 py-3 font-medium">Chave de acesso</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Valor</th>
-                    <th className="px-4 py-3 font-medium">Classificação</th>
-                    <th className="px-4 py-3 font-medium">Manifestação</th>
+                    <th className="w-[6%] px-3 py-3 font-medium">Nº</th>
+                    <th className="w-[9%] px-3 py-3 font-medium">Data</th>
+                    <th className="w-[22%] px-3 py-3 font-medium">Empresa (emitente)</th>
+                    <th className="w-[13%] px-3 py-3 font-medium">Chave de acesso</th>
+                    <th className="w-[10%] px-3 py-3 font-medium">Status</th>
+                    <th className="w-[10%] px-3 py-3 font-medium">Valor</th>
+                    <th className="w-[15%] px-3 py-3 font-medium">Classificação</th>
+                    <th className="w-[15%] px-3 py-3 font-medium">Manifestação</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -658,26 +660,33 @@ export default function EmpresaDetalhePage() {
                       className="entra-suave border-t align-top"
                       style={{ borderColor: "var(--border)", animationDelay: `${Math.min(i, 20) * 40}ms` }}
                     >
-                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                      <td className="truncate overflow-hidden px-3 py-3 font-mono text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
                         {numeroNotaDaChave(doc.chaveAcesso)}
                       </td>
+                      <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {formatarData(doc.emitidoEm ?? doc.recebidoEm)}
+                      </td>
                       <td
-                        className="max-w-[16rem] truncate overflow-hidden px-4 py-3 whitespace-nowrap"
+                        className="truncate overflow-hidden px-3 py-3 whitespace-nowrap"
                         style={{ color: "var(--paper)" }}
                         title={doc.nomeEmitente ?? undefined}
                       >
                         {doc.nomeEmitente ?? "—"}
                       </td>
-                      <td className="chave-mascarada px-4 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
-                        {doc.chaveAcesso}
+                      <td
+                        className="chave-mascarada truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap"
+                        style={{ color: "var(--muted)" }}
+                        title={doc.chaveAcesso}
+                      >
+                        {chaveResumida(doc.chaveAcesso)}
                       </td>
-                      <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
+                      <td className="truncate overflow-hidden px-3 py-3 whitespace-nowrap" style={{ color: "var(--muted)" }}>
                         {doc.status}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap" style={{ color: "var(--paper)" }}>
+                      <td className="truncate overflow-hidden px-3 py-3 whitespace-nowrap" style={{ color: "var(--paper)" }}>
                         {formatarMoeda(doc.valorTotal)}
                       </td>
-                      <td className="max-w-[12rem] px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>
+                      <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
                         {doc.classificadoEm ? (
                           <span style={{ color: "var(--paper)" }}>
                             {doc.observacao ?? doc.acumulador ?? doc.cfop}
@@ -688,7 +697,7 @@ export default function EmpresaDetalhePage() {
                           "sem CFOP"
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <ManifestacaoAcao
                           empresaId={empresa.id}
                           documento={doc}
