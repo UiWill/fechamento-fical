@@ -586,22 +586,27 @@ export default function EmpresaDetalhePage() {
           className="entra flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4"
           style={{ borderColor: "var(--border)" }}
         >
-          <div className="flex items-center gap-3">
-            <label
-              className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
-              style={{ color: "var(--muted)" }}
-            >
-              Relatório de entrada · mês
-            </label>
-            <input
-              type="month"
-              value={mesFiltro}
-              onChange={(event) => setMesFiltro(event.target.value)}
-              className="campo text-sm"
-              style={{ width: "auto" }}
-            />
-            <span className="text-xs" style={{ color: "var(--muted)" }}>
-              {notasEntradaDoMes.length} nota(s)
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3">
+              <label
+                className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+                style={{ color: "var(--muted)" }}
+              >
+                Relatório de entrada · mês
+              </label>
+              <input
+                type="month"
+                value={mesFiltro}
+                onChange={(event) => setMesFiltro(event.target.value)}
+                className="campo text-sm"
+                style={{ width: "auto" }}
+              />
+            </div>
+            <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
+              {rotuloMes(mesFiltro)} ·{" "}
+              {notasEntradaDoMes.length === 0
+                ? "nenhuma nota de entrada nesse mês"
+                : `${notasEntradaDoMes.length} nota(s)`}
             </span>
           </div>
 
@@ -609,16 +614,18 @@ export default function EmpresaDetalhePage() {
             <button
               onClick={handleExportarPdf}
               disabled={notasEntradaDoMes.length === 0}
-              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-40 disabled:no-underline"
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed"
               style={{ color: "var(--paper)" }}
+              title={notasEntradaDoMes.length === 0 ? "Não há notas de entrada nesse mês" : undefined}
             >
               Baixar PDF
             </button>
             <button
               onClick={handleExportarExcel}
               disabled={notasEntradaDoMes.length === 0}
-              className="botao-principal"
+              className="botao-principal disabled:opacity-30 disabled:cursor-not-allowed"
               style={{ width: "auto", paddingInline: "1.25rem" }}
+              title={notasEntradaDoMes.length === 0 ? "Não há notas de entrada nesse mês" : undefined}
             >
               Baixar Excel
             </button>
