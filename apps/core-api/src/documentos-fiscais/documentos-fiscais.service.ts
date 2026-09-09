@@ -104,20 +104,20 @@ export class DocumentosFiscaisService {
     const certificado = await this.certificados.obterParaUso(empresaId);
 
     let documentosNovos = 0;
-    let ultimoCStat = "";
-    let ultimoXMotivo = "";
     let limiteSefazAtingido = false;
     let bloqueadoNestaChamada = false;
 
     if (bloqueadoPelaSefaz(empresaId)) {
       // Bloqueio real ja confirmado (cStat=656) numa tentativa anterior,
       // possivelmente causado por OUTRO sistema consultando o mesmo CNPJ -
-      // nem tenta de novo antes da SEFAZ liberar.
+      // nem tenta de novo antes da SEFAZ liberar. cStat/xMotivo persistidos
+      // ja refletem esse bloqueio (foram gravados no momento em que
+      // aconteceu), entao nao precisa nem chamar a SEFAZ pra saber disso.
       return {
         documentosNovos: 0,
         ultimoNsu: Number(nsuControle.ultimoNsu),
-        cStat: CSTAT_CONSUMO_INDEVIDO,
-        xMotivo: "Consumo indevido — bloqueado pela SEFAZ (pode ser outro sistema consultando o mesmo CNPJ)",
+        cStat: nsuControle.ultimoCStat ?? CSTAT_CONSUMO_INDEVIDO,
+        xMotivo: nsuControle.ultimoXMotivo ?? "Consumo indevido",
         limiteSefazAtingido: true,
         bloqueadoPelaSefaz: true,
         ultimaSincronizacaoEm: nsuControle.atualizadoEm,
@@ -138,8 +138,15 @@ export class DocumentosFiscaisService {
         ultimoNsu: nsuControle.ultimoNsu.toString(),
         certificado,
       });
-      ultimoCStat = resultado.cStat;
-      ultimoXMotivo = resultado.xMotivo;
+
+      // Persiste cStat/xMotivo a cada tentativa (nao so quando ha
+      // documento novo) - e o que permite a tela mostrar "por que" da
+      // ultima sincronizacao mesmo quando ela rodou sozinha de madrugada,
+      // sem ninguem olhando na hora.
+      nsuControle = await this.prisma.client.nsuControle.update({
+        where: { empresaId },
+        data: { ultimoCStat: resultado.cStat, ultimoXMotivo: resultado.xMotivo },
+      });
 
       if (resultado.cStat === CSTAT_CONSUMO_INDEVIDO) {
         // A SEFAZ bloqueou mesmo estando dentro da NOSSA margem de
@@ -214,8 +221,8 @@ export class DocumentosFiscaisService {
     return {
       documentosNovos,
       ultimoNsu: Number(nsuControle.ultimoNsu),
-      cStat: ultimoCStat,
-      xMotivo: ultimoXMotivo,
+      cStat: nsuControle.ultimoCStat ?? "",
+      xMotivo: nsuControle.ultimoXMotivo ?? "",
       limiteSefazAtingido,
       bloqueadoPelaSefaz: bloqueadoNestaChamada,
       ultimaSincronizacaoEm: nsuControle.atualizadoEm,

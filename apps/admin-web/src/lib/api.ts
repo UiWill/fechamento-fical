@@ -126,6 +126,8 @@ export interface EmpresaDetalhe extends EmpresaResumo {
   ambiente: "PRODUCAO" | "HOMOLOGACAO";
   ativadaEm: string;
   ultimaSincronizacaoEm: string | null;
+  ultimoCStatSefaz: string | null;
+  ultimoXMotivoSefaz: string | null;
 }
 
 export async function buscarEmpresa(id: string, token: string): Promise<EmpresaDetalhe> {

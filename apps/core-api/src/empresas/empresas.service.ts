@@ -26,7 +26,9 @@ export class EmpresasService {
   async buscarPorId(id: string) {
     const empresa = await this.prisma.client.empresa.findUnique({
       where: { id },
-      include: { nsuControle: { select: { atualizadoEm: true } } },
+      include: {
+        nsuControle: { select: { atualizadoEm: true, ultimoCStat: true, ultimoXMotivo: true } },
+      },
     });
     if (!empresa) {
       throw new NotFoundException(`Empresa ${id} não encontrada`);
@@ -35,6 +37,8 @@ export class EmpresasService {
     return {
       ...resto,
       ultimaSincronizacaoEm: nsuControle?.atualizadoEm ?? null,
+      ultimoCStatSefaz: nsuControle?.ultimoCStat ?? null,
+      ultimoXMotivoSefaz: nsuControle?.ultimoXMotivo ?? null,
     };
   }
 

@@ -426,7 +426,14 @@ export default function EmpresaDetalhePage() {
       const docs = await listarDocumentosFiscais(params.id, token);
       setDocumentos(docs);
       setEmpresa((atual) =>
-        atual ? { ...atual, ultimaSincronizacaoEm: resultado.ultimaSincronizacaoEm } : atual
+        atual
+          ? {
+              ...atual,
+              ultimaSincronizacaoEm: resultado.ultimaSincronizacaoEm,
+              ultimoCStatSefaz: resultado.cStat,
+              ultimoXMotivoSefaz: resultado.xMotivo,
+            }
+          : atual
       );
     } catch (err) {
       setErroSync(
@@ -575,6 +582,15 @@ export default function EmpresaDetalhePage() {
           Última sincronização:{" "}
           {empresa.ultimaSincronizacaoEm ? formatarDataHora(empresa.ultimaSincronizacaoEm) : "nunca"}
         </p>
+
+        {empresa.ultimoCStatSefaz === "656" && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            ⚠ Na última tentativa, a SEFAZ bloqueou consultas para esse CNPJ por consumo indevido
+            (limite de 20/hora, compartilhado com qualquer outro sistema que consulte essa mesma
+            empresa — ex: o software do contador). O sistema já para de tentar sozinho por 1 hora;
+            se persistir, vale checar se outro sistema também está consultando essa empresa.
+          </p>
+        )}
 
         {resultadoSync && (
           <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>

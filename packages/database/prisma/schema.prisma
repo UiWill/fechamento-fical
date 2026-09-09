@@ -99,6 +99,8 @@ model NsuControle {
   id         String   @id @default(cuid())
   empresaId  String   @unique
   ultimoNsu  BigInt   @default(0)
+  ultimoCStat    String?
+  ultimoXMotivo  String?
   atualizadoEm DateTime @updatedAt
 
   empresa    Empresa  @relation(fields: [empresaId], references: [id])
