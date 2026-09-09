@@ -59,6 +59,14 @@ export function mesAtual(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
+/** Primeiro e último instante (ISO) do mês representado pela chave "AAAA-MM". */
+export function limitesDoMes(chave: string): { inicio: string; fim: string } {
+  const [ano, mes] = chave.split("-").map(Number);
+  const inicio = new Date(Date.UTC(ano, mes - 1, 1));
+  const fim = new Date(Date.UTC(ano, mes, 0, 23, 59, 59, 999));
+  return { inicio: inicio.toISOString(), fim: fim.toISOString() };
+}
+
 /** Rótulo legível do mês a partir da chave "AAAA-MM", ex: "setembro de 2026". */
 export function rotuloMes(chave: string): string {
   const [ano, mes] = chave.split("-").map(Number);

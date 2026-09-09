@@ -42,3 +42,7 @@ pnpm-debug.log*
 # prisma — client gerado (binário nativo, específico da plataforma; regenerar com `pnpm db:generate`)
 packages/database/prisma/dev.db
 packages/database/generated/
+
+# dados reais de clientes/fornecedores — nunca versionar (cláusula de
+# confidencialidade do contrato, ver Contrato_CAPTAL...pdf clausula 12ª)
+ExportacaoDominio-*.txt

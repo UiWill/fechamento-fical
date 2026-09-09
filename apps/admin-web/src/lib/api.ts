@@ -358,3 +358,59 @@ export async function enviarManifestacao(
   }
   return response.json();
 }
+
+export interface ExportacaoTxtResultado {
+  id: string;
+  status: "PENDENTE" | "PROCESSANDO" | "CONCLUIDA" | "ERRO";
+  totalDocumentos: number;
+  erro: string | null;
+  documentosIgnorados?: number;
+}
+
+export async function gerarExportacaoTxt(
+  empresaId: string,
+  periodoInicio: string,
+  periodoFim: string,
+  token: string
+): Promise<ExportacaoTxtResultado> {
+  const response = await fetch(`${API_URL}/empresas/${empresaId}/exportacoes-txt`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ periodoInicio, periodoFim }),
+  });
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
+  return response.json();
+}
+
+/** Baixa o TXT gerado direto pelo navegador (o link precisa do token, então não dá pra ser um <a href> simples). */
+export async function baixarExportacaoTxt(
+  empresaId: string,
+  exportacaoId: string,
+  token: string
+): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/empresas/${empresaId}/exportacoes-txt/${exportacaoId}/arquivo`,
+    { headers: { authorization: `Bearer ${token}` } }
+  );
+  if (!response.ok) {
+    throw new Error("Não foi possível baixar o arquivo TXT.");
+  }
+  const disposicao = response.headers.get("content-disposition");
+  const nomeArquivo = disposicao?.match(/filename="(.+)"/)?.[1] ?? "exportacao-dominio.txt";
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}

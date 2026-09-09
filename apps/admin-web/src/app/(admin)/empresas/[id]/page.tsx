@@ -11,6 +11,8 @@ import {
   sincronizarDocumentos,
   classificarPendentes,
   enviarManifestacao,
+  gerarExportacaoTxt,
+  baixarExportacaoTxt,
   ROTULO_EVENTO_MANIFESTACAO,
   type EmpresaDetalhe,
   type CertificadoResumo,
@@ -28,6 +30,7 @@ import {
   chaveResumida,
   mesAtual,
   rotuloMes,
+  limitesDoMes,
 } from "@/lib/format";
 import {
   exportarNotasEntradaPdf,
@@ -381,6 +384,11 @@ export default function EmpresaDetalhePage() {
 
   const [mesFiltro, setMesFiltro] = useState(mesAtual());
 
+  const [mesExportacaoTxt, setMesExportacaoTxt] = useState(mesAtual());
+  const [gerandoTxt, setGerandoTxt] = useState(false);
+  const [resultadoTxt, setResultadoTxt] = useState<string | null>(null);
+  const [erroTxt, setErroTxt] = useState<string | null>(null);
+
   const carregarTudo = useCallback(
     async (t: string) => {
       try {
@@ -465,6 +473,36 @@ export default function EmpresaDetalhePage() {
       );
     } finally {
       setClassificando(false);
+    }
+  }
+
+  async function handleGerarExportacaoTxt() {
+    if (!token) return;
+    setGerandoTxt(true);
+    setResultadoTxt(null);
+    setErroTxt(null);
+    try {
+      const { inicio, fim } = limitesDoMes(mesExportacaoTxt);
+      const resultado = await gerarExportacaoTxt(params.id, inicio, fim, token);
+
+      if (resultado.status === "ERRO") {
+        setErroTxt(resultado.erro ?? "Não foi possível gerar o TXT.");
+        return;
+      }
+
+      const partes = [`${resultado.totalDocumentos} nota(s) incluída(s)`];
+      if (resultado.documentosIgnorados) {
+        partes.push(`${resultado.documentosIgnorados} ignorada(s) por falta de CFOP`);
+      }
+      setResultadoTxt(partes.join(" · "));
+
+      if (resultado.totalDocumentos > 0) {
+        await baixarExportacaoTxt(params.id, resultado.id, token);
+      }
+    } catch (err) {
+      setErroTxt(err instanceof Error ? err.message : "Não foi possível gerar o TXT agora.");
+    } finally {
+      setGerandoTxt(false);
     }
   }
 
@@ -749,6 +787,63 @@ export default function EmpresaDetalhePage() {
               </table>
             </div>
           </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h2
+          className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
+          style={{ color: "var(--muted)" }}
+        >
+          Exportação para o Domínio Sistemas
+        </h2>
+
+        <div
+          className="entra flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div className="flex items-center gap-3">
+            <label
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+              style={{ color: "var(--muted)" }}
+            >
+              Notas de entrada · mês
+            </label>
+            <input
+              type="month"
+              value={mesExportacaoTxt}
+              onChange={(event) => setMesExportacaoTxt(event.target.value)}
+              className="campo text-sm"
+              style={{ width: "auto" }}
+            />
+          </div>
+
+          <button
+            onClick={handleGerarExportacaoTxt}
+            disabled={gerandoTxt}
+            className="botao-principal"
+            style={{ width: "auto", paddingInline: "1.25rem" }}
+          >
+            {gerandoTxt && <span className="spinner" />}
+            {gerandoTxt ? "Gerando…" : "Gerar TXT"}
+          </button>
+        </div>
+
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          Gera o TXT de notas de entrada do mês pra importar no Domínio
+          Sistemas (só entrada por enquanto — saída ainda não é capturada
+          pelo sistema).
+        </p>
+
+        {resultadoTxt && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            {resultadoTxt}
+          </p>
+        )}
+        {erroTxt && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            {erroTxt}
+          </p>
         )}
       </section>
     </div>

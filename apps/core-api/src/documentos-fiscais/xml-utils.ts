@@ -55,3 +55,40 @@ export function extrairDadosBasicos(xml: string): DadosBasicosNFe | null {
     valorTotal: valorTotal !== null && !Number.isNaN(valorTotal) ? valorTotal : null,
   };
 }
+
+export interface EnderecoEmitente {
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  codigoMunicipio: string;
+  uf: string;
+  cep: string;
+  inscricaoEstadual: string;
+}
+
+/**
+ * Endereço do emitente (fornecedor), lido sob demanda na hora de exportar
+ * TXT — não é gravado no DocumentoFiscal porque só serve pra isso. Usa a
+ * mesma premissa de "primeira ocorrência é do emitente" do
+ * extrairDadosBasicos (schema da NFe traz <emit> antes de <dest>). Só
+ * funciona com nfeProc completo (resNFe não traz endereço nenhum).
+ */
+export function extrairEnderecoEmitente(xml: string): EnderecoEmitente {
+  return {
+    logradouro: extractText(xml, "xLgr"),
+    numero: extractText(xml, "nro"),
+    complemento: extractText(xml, "xCpl"),
+    bairro: extractText(xml, "xBairro"),
+    codigoMunicipio: extractText(xml, "cMun"),
+    uf: extractText(xml, "UF"),
+    cep: extractText(xml, "CEP"),
+    inscricaoEstadual: extractText(xml, "IE"),
+  };
+}
+
+/** Quantidade de itens (<det>) da nota — usado só como informação auxiliar na exportação. */
+export function contarItens(xml: string): number {
+  const matches = xml.match(/<det\s/gi);
+  return matches?.length ?? 0;
+}

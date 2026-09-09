@@ -5,6 +5,8 @@ export const BUCKET_DOCUMENTOS_FISCAIS =
   process.env.MINIO_BUCKET_XMLS ?? "afe-documentos-fiscais";
 export const BUCKET_CERTIFICADOS =
   process.env.MINIO_BUCKET_CERTIFICADOS ?? "afe-certificados";
+export const BUCKET_EXPORTACOES_TXT =
+  process.env.MINIO_BUCKET_EXPORTACOES_TXT ?? "afe-exportacoes-txt";
 
 @Injectable()
 export class ObjectStorageService implements OnModuleInit {
@@ -17,7 +19,7 @@ export class ObjectStorageService implements OnModuleInit {
   });
 
   async onModuleInit() {
-    for (const bucket of [BUCKET_DOCUMENTOS_FISCAIS, BUCKET_CERTIFICADOS]) {
+    for (const bucket of [BUCKET_DOCUMENTOS_FISCAIS, BUCKET_CERTIFICADOS, BUCKET_EXPORTACOES_TXT]) {
       const existe = await this.client.bucketExists(bucket).catch(() => false);
       if (!existe) {
         await this.client.makeBucket(bucket);
