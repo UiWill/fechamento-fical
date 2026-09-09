@@ -125,6 +125,7 @@ export interface EmpresaDetalhe extends EmpresaResumo {
   codigoUf: number;
   ambiente: "PRODUCAO" | "HOMOLOGACAO";
   ativadaEm: string;
+  ultimaSincronizacaoEm: string | null;
 }
 
 export async function buscarEmpresa(id: string, token: string): Promise<EmpresaDetalhe> {
@@ -222,6 +223,7 @@ export interface SincronizacaoResultado {
   cStat: string;
   xMotivo: string;
   limiteSefazAtingido: boolean;
+  ultimaSincronizacaoEm: string;
 }
 
 export async function sincronizarDocumentos(

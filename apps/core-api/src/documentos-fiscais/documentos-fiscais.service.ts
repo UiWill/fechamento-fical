@@ -168,6 +168,7 @@ export class DocumentosFiscaisService {
       cStat: ultimoCStat,
       xMotivo: ultimoXMotivo,
       limiteSefazAtingido,
+      ultimaSincronizacaoEm: nsuControle.atualizadoEm,
     };
   }
 }

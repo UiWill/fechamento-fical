@@ -40,6 +40,16 @@ export function formatarData(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
+export function formatarDataHora(iso: string): string {
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /** Chave "AAAA-MM" do mês de uma data ISO — usada para agrupar/filtrar por mês. */
 export function chaveMes(iso: string): string {
   return iso.slice(0, 7);

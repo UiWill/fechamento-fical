@@ -21,6 +21,7 @@ import {
   mascararCnpj,
   numeroNotaDaChave,
   formatarData,
+  formatarDataHora,
   formatarMoeda,
   arquivoParaBase64,
   chaveMes,
@@ -422,6 +423,9 @@ export default function EmpresaDetalhePage() {
       );
       const docs = await listarDocumentosFiscais(params.id, token);
       setDocumentos(docs);
+      setEmpresa((atual) =>
+        atual ? { ...atual, ultimaSincronizacaoEm: resultado.ultimaSincronizacaoEm } : atual
+      );
     } catch (err) {
       setErroSync(
         err instanceof Error
@@ -564,6 +568,11 @@ export default function EmpresaDetalhePage() {
             </button>
           </div>
         </div>
+
+        <p className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+          Última sincronização:{" "}
+          {empresa.ultimaSincronizacaoEm ? formatarDataHora(empresa.ultimaSincronizacaoEm) : "nunca"}
+        </p>
 
         {resultadoSync && (
           <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
