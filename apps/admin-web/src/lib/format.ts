@@ -50,13 +50,23 @@ export function formatarDataHora(iso: string): string {
   });
 }
 
-/** Chave "AAAA-MM" do mês de uma data ISO — usada para agrupar/filtrar por mês. */
+/**
+ * Chave "AAAA-MM" do mês de uma data ISO — usada para agrupar/filtrar por
+ * mês. Usa o fuso horário local (não corta a string ISO em UTC direto),
+ * senão uma nota emitida à noite perto da virada do mês cai num mês
+ * diferente do que a coluna "Data" mostra (que também usa fuso local via
+ * toLocaleDateString) — o filtro e o que aparece na tela precisam bater.
+ */
 export function chaveMes(iso: string): string {
-  return iso.slice(0, 7);
+  const data = new Date(iso);
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  return `${ano}-${mes}`;
 }
 
+/** Mesmo cuidado de fuso horário do chaveMes — não usar toISOString() aqui. */
 export function mesAtual(): string {
-  return new Date().toISOString().slice(0, 7);
+  return chaveMes(new Date().toISOString());
 }
 
 /** Primeiro e último instante (ISO) do mês representado pela chave "AAAA-MM". */
