@@ -1,9 +1,10 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
-import { formatarMoeda } from "./format";
+import { formatarData, formatarMoeda } from "./format";
 
 export interface LinhaRelatorioEntrada {
+  data: string;
   numero: string;
   emitente: string;
   valor: string | null;
@@ -39,9 +40,14 @@ export function exportarNotasEntradaPdf(
 
   autoTable(doc, {
     startY: 28,
-    head: [["No", "Emitente", "Valor"]],
-    body: linhas.map((linha) => [linha.numero, linha.emitente, formatarMoeda(linha.valor)]),
-    foot: [["", "Total", formatarMoeda(total)]],
+    head: [["Data", "No", "Emitente", "Valor"]],
+    body: linhas.map((linha) => [
+      formatarData(linha.data),
+      linha.numero,
+      linha.emitente,
+      formatarMoeda(linha.valor),
+    ]),
+    foot: [["", "", "Total", formatarMoeda(total)]],
     styles: { fontSize: 9 },
     headStyles: { fillColor: [30, 30, 30] },
     footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
@@ -56,13 +62,14 @@ export function exportarNotasEntradaExcel(
   mesRotulo: string
 ): void {
   const dados = linhas.map((linha) => ({
+    Data: formatarData(linha.data),
     Numero: linha.numero,
     Emitente: linha.emitente,
     Valor: linha.valor ? Number(linha.valor) : 0,
   }));
 
   const planilha = XLSX.utils.json_to_sheet(dados);
-  planilha["!cols"] = [{ wch: 10 }, { wch: 48 }, { wch: 16 }];
+  planilha["!cols"] = [{ wch: 12 }, { wch: 10 }, { wch: 48 }, { wch: 16 }];
 
   const livro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(livro, planilha, "Notas de entrada");

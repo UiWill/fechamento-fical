@@ -511,11 +511,18 @@ export default function EmpresaDetalhePage() {
   );
 
   function linhasRelatorio() {
-    return notasEntradaDoMes.map((doc) => ({
-      numero: numeroNotaDaChave(doc.chaveAcesso),
-      emitente: doc.nomeEmitente ?? "—",
-      valor: doc.valorTotal,
-    }));
+    return [...notasEntradaDoMes]
+      .sort(
+        (a, b) =>
+          new Date(a.emitidoEm ?? a.recebidoEm).getTime() -
+          new Date(b.emitidoEm ?? b.recebidoEm).getTime()
+      )
+      .map((doc) => ({
+        data: doc.emitidoEm ?? doc.recebidoEm,
+        numero: numeroNotaDaChave(doc.chaveAcesso),
+        emitente: doc.nomeEmitente ?? "—",
+        valor: doc.valorTotal,
+      }));
   }
 
   function handleExportarPdf() {
