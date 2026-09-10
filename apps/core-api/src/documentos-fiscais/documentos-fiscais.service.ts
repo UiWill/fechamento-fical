@@ -63,6 +63,25 @@ function registrarBloqueioSefaz(empresaId: string): void {
   bloqueadoAtePorEmpresa.set(empresaId, Date.now() + JANELA_HORA_MS);
 }
 
+// A SEFAZ tambem exige esperar 1h depois de responder cStat=137 "nenhum
+// documento localizado" antes de consultar de novo - repetir antes disso
+// (mesmo sem estourar as 20 consultas) tambem derruba 656. Isso mordeu a
+// sincronizacao noturna na pratica: agendada de hora em hora, uma janela
+// que termina com "nada novo" e a proxima execucao (1h depois, mas com
+// alguns segundos de variacao de agendamento) as vezes cai um pouco ANTES
+// de completar a 1h cheia. Por isso registramos e checamos isso tambem,
+// nao so o bloqueio 656 em si.
+const ultimaRespostaVaziaPorEmpresa = new Map<string, number>();
+
+function aguardandoJanelaAposRespostaVazia(empresaId: string): boolean {
+  const quando = ultimaRespostaVaziaPorEmpresa.get(empresaId);
+  return quando !== undefined && Date.now() - quando < JANELA_HORA_MS;
+}
+
+function registrarRespostaVazia(empresaId: string): void {
+  ultimaRespostaVaziaPorEmpresa.set(empresaId, Date.now());
+}
+
 @Injectable()
 export class DocumentosFiscaisService {
   private readonly logger = new Logger(DocumentosFiscaisService.name);
@@ -120,6 +139,20 @@ export class DocumentosFiscaisService {
         xMotivo: nsuControle.ultimoXMotivo ?? "Consumo indevido",
         limiteSefazAtingido: true,
         bloqueadoPelaSefaz: true,
+        ultimaSincronizacaoEm: nsuControle.atualizadoEm,
+      };
+    }
+
+    if (aguardandoJanelaAposRespostaVazia(empresaId)) {
+      // A tentativa anterior ja veio "nada novo" (cStat=137) ha menos de
+      // 1h - nem chama a SEFAZ de novo, senao ela mesma bloqueia com 656.
+      return {
+        documentosNovos: 0,
+        ultimoNsu: Number(nsuControle.ultimoNsu),
+        cStat: nsuControle.ultimoCStat ?? "137",
+        xMotivo: nsuControle.ultimoXMotivo ?? "Nenhum documento localizado",
+        limiteSefazAtingido: true,
+        bloqueadoPelaSefaz: false,
         ultimaSincronizacaoEm: nsuControle.atualizadoEm,
       };
     }
@@ -211,7 +244,9 @@ export class DocumentosFiscaisService {
 
       if (resultado.documentos.length === 0) {
         // Resposta vazia - backlog esgotado, SEFAZ nao tem mais nada alem
-        // desse NSU por enquanto.
+        // desse NSU por enquanto. Registra pra nao consultar de novo antes
+        // de 1h (ver aguardandoJanelaAposRespostaVazia acima).
+        registrarRespostaVazia(empresaId);
         break;
       }
 
