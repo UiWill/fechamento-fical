@@ -527,12 +527,12 @@ export default function EmpresaDetalhePage() {
 
   function handleExportarPdf() {
     if (!empresa) return;
-    exportarNotasEntradaPdf(linhasRelatorio(), empresa.razaoSocial, rotuloMes(mesFiltro));
+    exportarNotasEntradaPdf(linhasRelatorio(), empresa.razaoSocial, empresa.cnpj, rotuloMes(mesFiltro));
   }
 
   function handleExportarExcel() {
     if (!empresa) return;
-    exportarNotasEntradaExcel(linhasRelatorio(), empresa.razaoSocial, rotuloMes(mesFiltro));
+    exportarNotasEntradaExcel(linhasRelatorio(), empresa.razaoSocial, empresa.cnpj, rotuloMes(mesFiltro));
   }
 
   if (carregando) {
