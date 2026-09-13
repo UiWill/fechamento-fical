@@ -15,7 +15,9 @@ import { AppModule } from "./app.module";
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter()
+    // Default do Fastify é 1MB — o lote de XML em base64 do agente desktop
+    // (ver apps/core-api/src/agentes/) estoura isso fácil.
+    new FastifyAdapter({ bodyLimit: 20 * 1024 * 1024 })
   );
 
   app.enableCors();

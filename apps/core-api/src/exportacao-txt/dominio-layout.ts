@@ -23,6 +23,7 @@
  * seguindo o mesmo padrão — não precisa mexer no que já existe.
  */
 
+import { decodificarChaveAcesso } from "@afe/shared";
 import type { EnderecoEmitente } from "../documentos-fiscais/xml-utils";
 
 function montarLinha(tamanho: number, valores: Record<number, string>): string {
@@ -42,24 +43,6 @@ function formatarDataBR(data: Date): string {
 
 function formatarValorBR(valor: number): string {
   return valor.toFixed(2).replace(".", ",");
-}
-
-export interface ChaveDecodificada {
-  cnpjEmitente: string;
-  modelo: string;
-  serie: number;
-  numeroNota: number;
-}
-
-/** Decodifica campos fixos da chave de acesso de 44 dígitos (mesma posição em qualquer NFe/NFCe). */
-export function decodificarChave(chave: string): ChaveDecodificada | null {
-  if (chave.length !== 44) return null;
-  return {
-    cnpjEmitente: chave.slice(6, 20),
-    modelo: chave.slice(20, 22),
-    serie: Number(chave.slice(22, 25)),
-    numeroNota: Number(chave.slice(25, 34)),
-  };
 }
 
 /** Registro 0000 — abertura do arquivo (CNPJ do estabelecimento/empresa cliente). */
@@ -118,7 +101,7 @@ export interface NotaEntradaParaLayout {
 
 /** Registro 1000 — nota fiscal de entrada. */
 export function linha1000(n: NotaEntradaParaLayout): string {
-  const chave = decodificarChave(n.chaveAcesso);
+  const chave = decodificarChaveAcesso(n.chaveAcesso);
   if (!chave) {
     throw new Error(`Chave de acesso inválida pra exportação TXT: ${n.chaveAcesso}`);
   }
@@ -131,7 +114,7 @@ export function linha1000(n: NotaEntradaParaLayout): string {
     5: n.quantidadeItens !== null ? String(n.quantidadeItens) : "",
     6: n.cfop,
     7: "1", // constante observada no arquivo-modelo, significado nao confirmado
-    8: String(chave.numeroNota),
+    8: String(chave.numeroDocumento),
     9: String(chave.serie),
     11: formatarDataBR(n.dataRecebimento),
     12: formatarDataBR(n.dataEmissao),

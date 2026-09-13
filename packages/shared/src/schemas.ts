@@ -66,3 +66,29 @@ export const uploadCertificadoSchema = z.object({
   senha: z.string().min(1),
 });
 export type UploadCertificadoInput = z.infer<typeof uploadCertificadoSchema>;
+
+// Exatamente um de organizacaoId/empresaId — mesma regra do CHECK constraint
+// no banco (ver migration 20260913100000_add_agente_desktop).
+export const criarAgenteTokenSchema = z
+  .object({
+    nome: z.string().min(1),
+    organizacaoId: z.string().cuid().optional(),
+    empresaId: z.string().cuid().optional(),
+  })
+  .refine((dado) => Boolean(dado.organizacaoId) !== Boolean(dado.empresaId), {
+    message: "Informe organizacaoId OU empresaId, nunca os dois nem nenhum",
+  });
+export type CriarAgenteTokenInput = z.infer<typeof criarAgenteTokenSchema>;
+
+export const uploadDocumentoAgenteSchema = z.object({
+  documentos: z
+    .array(
+      z.object({
+        nomeArquivoOriginal: z.string().min(1),
+        xmlBase64: z.string().min(1),
+      })
+    )
+    .min(1)
+    .max(50),
+});
+export type UploadDocumentoAgenteInput = z.infer<typeof uploadDocumentoAgenteSchema>;

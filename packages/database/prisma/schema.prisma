@@ -27,6 +27,7 @@ model Organizacao {
   usuarios      Usuario[]
   faturas       Fatura[]
   auditLogs     AuditLog[]
+  agenteTokens  AgenteInstalacaoToken[]
 
   @@map("organizacoes")
 }
@@ -88,6 +89,7 @@ model Empresa {
   itensFatura         ItemFatura[]
   nsuControle         NsuControle?
   regrasFiscaisOverride RegraFiscal[]
+  agenteTokens        AgenteInstalacaoToken[]
 
   @@index([organizacaoId])
   @@index([status])
@@ -134,6 +136,7 @@ model Certificado {
 enum TipoDocumentoFiscal {
   NFE
   NFCE
+  CTE
 }
 
 enum DirecaoDocumento {
@@ -168,12 +171,54 @@ model DocumentoFiscal {
   recebidoEm       DateTime               @default(now())
   atualizadoEm     DateTime               @updatedAt
 
+  // Preenchido só quando o documento veio do agente desktop (SAIDA) — nulo
+  // pros documentos de ENTRADA vindos da SEFAZ via Distribuicao DFe.
+  agenteInstalacaoTokenId String?
+  agenteInstalacaoToken   AgenteInstalacaoToken? @relation(fields: [agenteInstalacaoTokenId], references: [id])
+
   empresa         Empresa               @relation(fields: [empresaId], references: [id])
   manifestacoes   ManifestacaoEvento[]
 
   @@index([empresaId, direcao, status])
   @@index([empresaId, tipo])
+  @@index([agenteInstalacaoTokenId])
   @@map("documentos_fiscais")
+}
+
+// ── Agente desktop (captura de NF-e/NFC-e/CT-e de SAÍDA) ────────────────────
+
+enum StatusAgenteInstalacao {
+  ATIVO
+  REVOGADO
+}
+
+// Um token autoriza OU uma Organizacao inteira (cenario "contador", acesso a
+// todas as Empresas dela) OU uma Empresa só (cenario "empresa sozinha").
+// Exatamente um dos dois deve estar preenchido - reforcado por CHECK
+// constraint (ver migration) + validacao no service, ja que Prisma nao
+// expressa XOR entre colunas nativamente.
+model AgenteInstalacaoToken {
+  id                 String                 @id @default(cuid())
+  organizacaoId      String?
+  empresaId          String?
+  nome               String // rotulo livre pro admin identificar, ex: "PC do escritorio"
+  tokenHash          String                 @unique // SHA-256 do token bruto - o bruto nunca e persistido, so mostrado 1x na criacao
+  status             StatusAgenteInstalacao @default(ATIVO)
+  revogadoEm         DateTime?
+  ultimoHeartbeatEm  DateTime?
+  ultimaVersaoAgente String?
+  ultimoIpOrigem     String?
+  criadoEm           DateTime               @default(now())
+  atualizadoEm       DateTime               @updatedAt
+
+  organizacao       Organizacao?      @relation(fields: [organizacaoId], references: [id])
+  empresa           Empresa?          @relation(fields: [empresaId], references: [id])
+  documentosFiscais DocumentoFiscal[]
+
+  @@index([organizacaoId])
+  @@index([empresaId])
+  @@index([ultimoHeartbeatEm])
+  @@map("agente_instalacao_tokens")
 }
 
 // ── Manifestação do destinatário ────────────────────────────────────────────

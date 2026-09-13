@@ -8,7 +8,7 @@ export type StatusEmpresa = (typeof STATUS_EMPRESA)[number];
 export const AMBIENTE_FISCAL = ["PRODUCAO", "HOMOLOGACAO"] as const;
 export type AmbienteFiscal = (typeof AMBIENTE_FISCAL)[number];
 
-export const TIPO_DOCUMENTO_FISCAL = ["NFE", "NFCE"] as const;
+export const TIPO_DOCUMENTO_FISCAL = ["NFE", "NFCE", "CTE"] as const;
 export type TipoDocumentoFiscal = (typeof TIPO_DOCUMENTO_FISCAL)[number];
 
 export const DIRECAO_DOCUMENTO = ["ENTRADA", "SAIDA"] as const;
@@ -56,5 +56,8 @@ export const PAPEL_USUARIO = [
   "OPERADOR",
 ] as const;
 export type PapelUsuario = (typeof PAPEL_USUARIO)[number];
+
+export const STATUS_AGENTE_INSTALACAO = ["ATIVO", "REVOGADO"] as const;
+export type StatusAgenteInstalacao = (typeof STATUS_AGENTE_INSTALACAO)[number];
 
 export const VALOR_MENSALIDADE_POR_CNPJ = 49.9;

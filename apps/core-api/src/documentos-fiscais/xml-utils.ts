@@ -1,59 +1,16 @@
 /**
- * Extração mínima de campos do XML de NFe/NFCe via regex — suficiente para
- * indexar metadados (chave, modelo, data de emissão). Parsing fiscal
- * completo (itens, impostos, CFOP por item) é responsabilidade do motor de
- * regras (fase 2), que deve usar um parser XML de verdade, não regex.
+ * Extração de metadados do XML de NFe/NFCe recebido via SEFAZ. A extração
+ * de fato (chave, tipo, data, CFOP, valor) mora em @afe/shared
+ * (xml-documento-fiscal.ts) — compartilhada com o agente desktop, que
+ * precisa classificar XML de saída exatamente da mesma forma. Este arquivo
+ * fica só com o que é específico do fluxo de entrada (endereço do
+ * emitente, contagem de itens — usados na exportação TXT, não no agente).
  */
-
-export interface DadosBasicosNFe {
-  chaveAcesso: string;
-  modelo: "55" | "65";
-  dataEmissao: Date | null;
-  nomeEmitente: string | null;
-  /**
-   * CFOP do primeiro item — só existe quando a SEFAZ manda o XML completo
-   * (nfeProc), não no resNFe (resumo). Simplificação assume CFOP uniforme
-   * entre os itens da nota, válido pra maioria dos casos de compra/venda;
-   * notas com CFOP misto entre itens exigiriam classificação por item, fora
-   * do escopo desta primeira versão do motor de regras.
-   */
-  cfop: string | null;
-  /**
-   * Valor total da nota (vNF, dentro de <ICMSTot>) — só existe no nfeProc
-   * completo; o resNFe (resumo) não traz totais.
-   */
-  valorTotal: number | null;
-}
+export { extrairDadosBasicos, type DadosBasicosDocumentoFiscal } from "@afe/shared";
 
 function extractText(xml: string, tag: string): string {
   const match = xml.match(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i"));
   return match?.[1]?.trim() ?? "";
-}
-
-export function extrairDadosBasicos(xml: string): DadosBasicosNFe | null {
-  const idMatch = xml.match(/Id="NFe(\d{44})"/i);
-  const chaveAcesso = idMatch?.[1] ?? extractText(xml, "chNFe");
-  if (!chaveAcesso || chaveAcesso.length !== 44) return null;
-
-  const modelo = extractText(xml, "mod") === "65" ? "65" : "55";
-  const dhEmi = extractText(xml, "dhEmi") || extractText(xml, "dEmi");
-  const dataEmissao = dhEmi ? new Date(dhEmi) : null;
-  // <xNome> aparece solto no resNFe (resumo) e dentro de <emit> no nfeProc
-  // completo — em ambos os casos o emitente vem antes do destinatário na
-  // ordem do schema, então a primeira ocorrência é sempre a certa.
-  const nomeEmitente = extractText(xml, "xNome") || null;
-  const cfop = extractText(xml, "CFOP") || null;
-  const vNF = extractText(xml, "vNF");
-  const valorTotal = vNF ? Number(vNF) : null;
-
-  return {
-    chaveAcesso,
-    modelo,
-    dataEmissao,
-    nomeEmitente,
-    cfop,
-    valorTotal: valorTotal !== null && !Number.isNaN(valorTotal) ? valorTotal : null,
-  };
 }
 
 export interface EnderecoEmitente {

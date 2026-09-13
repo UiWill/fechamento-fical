@@ -214,7 +214,7 @@ export class DocumentosFiscaisService {
           create: {
             empresaId,
             chaveAcesso: dadosBasicos.chaveAcesso,
-            tipo: dadosBasicos.modelo === "65" ? "NFCE" : "NFE",
+            tipo: dadosBasicos.tipo,
             direcao: "ENTRADA",
             nsu: BigInt(doc.nsu),
             nomeEmitente: dadosBasicos.nomeEmitente,
