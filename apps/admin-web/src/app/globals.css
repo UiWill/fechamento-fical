@@ -137,6 +137,36 @@ code,
   animation: aparecer 0.5s ease-out both;
 }
 
+@keyframes deslizar-da-direita {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes deslizar-da-esquerda {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.desliza-direita {
+  animation: deslizar-da-direita 0.3s var(--ease-out) both;
+}
+
+.desliza-esquerda {
+  animation: deslizar-da-esquerda 0.3s var(--ease-out) both;
+}
+
 .spinner {
   width: 1rem;
   height: 1rem;

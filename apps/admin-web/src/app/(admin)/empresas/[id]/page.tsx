@@ -392,6 +392,7 @@ export default function EmpresaDetalhePage() {
 
   const [mesFiltro, setMesFiltro] = useState(mesAtual());
   const [mesFiltroSaida, setMesFiltroSaida] = useState(mesAtual());
+  const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida">("entrada");
 
   const [mesExportacaoTxt, setMesExportacaoTxt] = useState(mesAtual());
   const [gerandoTxt, setGerandoTxt] = useState(false);
@@ -635,13 +636,34 @@ export default function EmpresaDetalhePage() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2
-            className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
-            style={{ color: "var(--muted)" }}
+        <div className="flex items-center gap-1 border-b" style={{ borderColor: "var(--border)" }}>
+          <button
+            onClick={() => setAbaDocumentos("entrada")}
+            className="px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
+            style={{
+              color: abaDocumentos === "entrada" ? "var(--paper)" : "var(--muted)",
+              borderBottom: abaDocumentos === "entrada" ? "2px solid var(--paper)" : "2px solid transparent",
+              marginBottom: "-1px",
+            }}
           >
             Notas de entrada
-          </h2>
+          </button>
+          <button
+            onClick={() => setAbaDocumentos("saida")}
+            className="ml-4 px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
+            style={{
+              color: abaDocumentos === "saida" ? "var(--paper)" : "var(--muted)",
+              borderBottom: abaDocumentos === "saida" ? "2px solid var(--paper)" : "2px solid transparent",
+              marginBottom: "-1px",
+            }}
+          >
+            Notas de saída
+          </button>
+        </div>
+
+        {abaDocumentos === "entrada" && (
+        <div key="entrada" className="desliza-esquerda space-y-3">
+          <div className="flex items-center justify-end">
           <div className="flex gap-3">
             <button
               onClick={handleClassificar}
@@ -837,18 +859,11 @@ export default function EmpresaDetalhePage() {
             </div>
           </div>
         )}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2
-            className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
-            style={{ color: "var(--muted)" }}
-          >
-            Notas de saída
-          </h2>
         </div>
+        )}
 
+        {abaDocumentos === "saida" && (
+        <div key="saida" className="desliza-direita space-y-3">
         <p className="text-xs" style={{ color: "var(--muted)" }}>
           Notas emitidas por esta empresa (via PDV/ERP próprio), capturadas
           pelo agente desktop instalado no computador do cliente ou do
@@ -975,6 +990,8 @@ export default function EmpresaDetalhePage() {
               </table>
             </div>
           </div>
+        )}
+        </div>
         )}
       </section>
 
