@@ -51,3 +51,24 @@ export async function enviarLoteDocumentos(
   const dados = (await resposta.json()) as { resultados: ResultadoItemUpload[] };
   return dados.resultados;
 }
+
+export interface InfoVersaoMaisRecente {
+  versao: string | null;
+  obrigatoria: boolean;
+  urlDownload: string | null;
+}
+
+export async function buscarVersaoMaisRecente(token: string): Promise<InfoVersaoMaisRecente> {
+  const resposta = await fetch(`${API_URL}/agente-ingestao/versoes/mais-recente`, { headers: cabecalhos(token) });
+  if (!resposta.ok) throw new Error(`Falha ao buscar versão mais recente (${resposta.status})`);
+  return resposta.json() as Promise<InfoVersaoMaisRecente>;
+}
+
+export async function baixarVersao(token: string, versao: string): Promise<Buffer> {
+  const resposta = await fetch(`${API_URL}/agente-ingestao/versoes/${versao}/download`, {
+    headers: cabecalhos(token),
+  });
+  if (!resposta.ok) throw new Error(`Falha ao baixar versão ${versao} (${resposta.status})`);
+  const arrayBuffer = await resposta.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}

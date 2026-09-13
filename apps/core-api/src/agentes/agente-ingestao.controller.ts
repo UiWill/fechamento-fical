@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
+import type { FastifyReply } from "fastify";
 import { uploadDocumentoAgenteSchema } from "@afe/shared";
 import { Public } from "../auth/public.decorator";
 import { AgenteTokenGuard, type AgenteAuthenticatedRequest } from "./agente-token.guard";
@@ -32,5 +33,25 @@ export class AgenteIngestaoController {
     const input = uploadDocumentoAgenteSchema.parse(body);
     const resultados = await this.service.processarLoteDocumentos(request.agenteToken!, input.documentos);
     return { resultados };
+  }
+
+  @Get("versoes/mais-recente")
+  async versaoMaisRecente() {
+    const registro = await this.service.obterVersaoMaisRecente();
+    if (!registro) return { versao: null, obrigatoria: false, urlDownload: null };
+    return {
+      versao: registro.versao,
+      obrigatoria: registro.obrigatoria,
+      urlDownload: `/agente-ingestao/versoes/${registro.versao}/download`,
+    };
+  }
+
+  @Get("versoes/:versao/download")
+  async baixarVersao(@Param("versao") versao: string, @Res() reply: FastifyReply) {
+    const buffer = await this.service.obterArquivoVersao(versao);
+    reply
+      .header("Content-Type", "application/octet-stream")
+      .header("Content-Disposition", `attachment; filename="agente-fiscal-${versao}.exe"`)
+      .send(buffer);
   }
 }

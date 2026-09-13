@@ -221,6 +221,22 @@ model AgenteInstalacaoToken {
   @@map("agente_instalacao_tokens")
 }
 
+// Controla qual versao do .exe do agente desktop e a vigente - o agente
+// consulta isso pra saber se deve se autoatualizar. Publicar uma versao
+// nova e um processo manual: subir o arquivo pro MinIO (bucket
+// afe-agente-desktop-releases, chave "agente-fiscal-<versao>.exe") e so
+// depois registrar aqui via POST /agentes/versoes.
+model VersaoAgente {
+  id               String   @id @default(cuid())
+  versao           String   @unique
+  objetoStorageExe String
+  obrigatoria      Boolean  @default(false)
+  notas            String?
+  publicadoEm      DateTime @default(now())
+
+  @@map("versoes_agente")
+}
+
 // ── Manifestação do destinatário ────────────────────────────────────────────
 
 enum TipoEventoManifestacao {

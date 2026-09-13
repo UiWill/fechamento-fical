@@ -5,11 +5,15 @@ import { observarPastas } from "./watcher";
 import { criarFilaDeEnvio } from "./upload";
 import { enviarHeartbeat, buscarEscopo } from "./api-client";
 import { notificar } from "./notify";
+import { verificarAtualizacao, notificarSeFoiAtualizadoAgora } from "./updater";
 
 const INTERVALO_FLUSH_MS = 5_000;
 const INTERVALO_HEARTBEAT_MS = 5 * 60_000;
+const INTERVALO_ATUALIZACAO_MS = 6 * 60 * 60_000;
 
 async function main() {
+  notificarSeFoiAtualizadoAgora();
+
   let config = carregarConfig();
 
   if (!config.token || config.pastasMonitoradas.length === 0) {
@@ -34,6 +38,11 @@ async function main() {
   }
 
   habilitarInicioAutomatico(process.execPath);
+
+  void verificarAtualizacao(config.token!).catch((err) => console.error(`[main] falha ao verificar atualização: ${err}`));
+  setInterval(() => {
+    verificarAtualizacao(config.token!).catch((err) => console.error(`[main] falha ao verificar atualização: ${err}`));
+  }, INTERVALO_ATUALIZACAO_MS);
 
   const fila = criarFilaDeEnvio(config.token!);
 

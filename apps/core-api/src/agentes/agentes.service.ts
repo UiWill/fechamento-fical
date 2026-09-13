@@ -2,7 +2,11 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import crypto from "node:crypto";
 import { extrairDadosBasicos, validarDigitoVerificadorChave, type CriarAgenteTokenInput } from "@afe/shared";
 import { PrismaService } from "../common/prisma/prisma.service";
-import { BUCKET_DOCUMENTOS_FISCAIS, ObjectStorageService } from "../common/storage/object-storage.service";
+import {
+  BUCKET_AGENTE_RELEASES,
+  BUCKET_DOCUMENTOS_FISCAIS,
+  ObjectStorageService,
+} from "../common/storage/object-storage.service";
 import type { AgenteAutenticado } from "./agente-token.guard";
 import { hashTokenAgente } from "./agente-token.guard";
 
@@ -188,5 +192,33 @@ export class AgentesService {
       this.logger.error(`Falha ao gravar documento ${dados.chaveAcesso}: ${err}`);
       throw err;
     }
+  }
+
+  /**
+   * Registra uma nova versão do agente como vigente. O arquivo .exe em si
+   * precisa já estar no MinIO (bucket afe-agente-desktop-releases, chave
+   * "agente-fiscal-<versao>.exe") antes de chamar isso — publicar uma
+   * versão é um processo manual (poucas vezes por mês), não justifica um
+   * endpoint de upload de arquivo grande.
+   */
+  publicarVersao(input: { versao: string; obrigatoria?: boolean; notas?: string }) {
+    return this.prisma.client.versaoAgente.create({
+      data: {
+        versao: input.versao,
+        objetoStorageExe: `agente-fiscal-${input.versao}.exe`,
+        obrigatoria: input.obrigatoria ?? false,
+        notas: input.notas,
+      },
+    });
+  }
+
+  obterVersaoMaisRecente() {
+    return this.prisma.client.versaoAgente.findFirst({ orderBy: { publicadoEm: "desc" } });
+  }
+
+  async obterArquivoVersao(versao: string): Promise<Buffer> {
+    const registro = await this.prisma.client.versaoAgente.findUnique({ where: { versao } });
+    if (!registro) throw new NotFoundException(`Versão ${versao} não encontrada`);
+    return this.storage.getObject(BUCKET_AGENTE_RELEASES, registro.objetoStorageExe);
   }
 }
