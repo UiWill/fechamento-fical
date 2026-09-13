@@ -5,11 +5,13 @@
 # "http://" desliga o HTTPS automatico do Caddy nesses blocos.
 #
 # HTTPS na porta 8443 (tambem alternativa, pelo mesmo motivo) usando um
-# certificado real do Let's Encrypt emitido via win-acme com validacao por
-# DNS (nao precisa das portas 80/443) — ver C:\afe\certs. Renovacao
-# automatica (tarefa agendada do win-acme) so funciona ate a validacao por
-# DNS pedir intervencao manual de novo (Registro.br nao tem API), entao a
-# cada ~60 dias alguem precisa repetir o passo do registro TXT.
+# certificado wildcard real (*.dnotas.com.br) do Let's Encrypt emitido via
+# win-acme com validacao por DNS (nao precisa das portas 80/443) — ver
+# C:\afe\certs. O win-acme cria uma tarefa agendada de renovacao sozinho,
+# mas como a validacao DNS e manual (Registro.br nao tem API), essa tarefa
+# fica parada esperando o registro TXT ate alguem repetir o passo — a cada
+# ~60 dias (ver infra/windows/renovar-https.md). Sendo wildcard, um unico
+# registro TXT (_acme-challenge.dnotas.com.br) cobre os dois subdominios.
 #
 # "auto_https disable_redirects": sem isso, o Caddy tenta abrir a porta 80
 # sozinho pra redirecionar HTTP->HTTPS assim que existe qualquer bloco
@@ -27,11 +29,11 @@ http://fiscal-api.dnotas.com.br:8080 {
 }
 
 https://fiscal.dnotas.com.br:8443 {
-	tls C:\afe\certs\fiscal.dnotas.com.br-chain.pem C:\afe\certs\fiscal.dnotas.com.br-key.pem
+	tls C:\afe\certs\dnotas-wildcard-chain.pem C:\afe\certs\dnotas-wildcard-key.pem
 	reverse_proxy 127.0.0.1:3200
 }
 
 https://fiscal-api.dnotas.com.br:8443 {
-	tls C:\afe\certs\fiscal.dnotas.com.br-chain.pem C:\afe\certs\fiscal.dnotas.com.br-key.pem
+	tls C:\afe\certs\dnotas-wildcard-chain.pem C:\afe\certs\dnotas-wildcard-key.pem
 	reverse_proxy 127.0.0.1:3000
 }

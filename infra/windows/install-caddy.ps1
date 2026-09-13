@@ -49,6 +49,7 @@ if (Get-Service -Name AfeCaddy -ErrorAction SilentlyContinue) {
 New-Item -ItemType Directory -Force -Path 'C:\afe\logs' | Out-Null
 
 New-NetFirewallRule -DisplayName 'AFE-Caddy-8080' -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -ErrorAction SilentlyContinue | Out-Null
+New-NetFirewallRule -DisplayName 'AFE-Caddy-8443' -Direction Inbound -Protocol TCP -LocalPort 8443 -Action Allow -ErrorAction SilentlyContinue | Out-Null
 
 & $nssm start AfeCaddy
 
