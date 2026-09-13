@@ -35,7 +35,15 @@ import {
 import {
   exportarNotasEntradaPdf,
   exportarNotasEntradaExcel,
+  exportarNotasSaidaPdf,
+  exportarNotasSaidaExcel,
 } from "@/lib/exportar-relatorio";
+
+const ROTULO_TIPO_DOCUMENTO: Record<DocumentoFiscal["tipo"], string> = {
+  NFE: "NF-e",
+  NFCE: "NFC-e",
+  CTE: "CT-e",
+};
 
 function useToken() {
   const router = useRouter();
@@ -383,6 +391,7 @@ export default function EmpresaDetalhePage() {
   const [erroClassificacao, setErroClassificacao] = useState<string | null>(null);
 
   const [mesFiltro, setMesFiltro] = useState(mesAtual());
+  const [mesFiltroSaida, setMesFiltroSaida] = useState(mesAtual());
 
   const [mesExportacaoTxt, setMesExportacaoTxt] = useState(mesAtual());
   const [gerandoTxt, setGerandoTxt] = useState(false);
@@ -506,8 +515,14 @@ export default function EmpresaDetalhePage() {
     }
   }
 
-  const notasEntradaDoMes = documentos.filter(
-    (doc) => doc.direcao === "ENTRADA" && chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltro
+  const documentosEntrada = documentos.filter((doc) => doc.direcao === "ENTRADA");
+  const documentosSaida = documentos.filter((doc) => doc.direcao === "SAIDA");
+
+  const notasEntradaDoMes = documentosEntrada.filter(
+    (doc) => chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltro
+  );
+  const notasSaidaDoMes = documentosSaida.filter(
+    (doc) => chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltroSaida
   );
 
   function linhasRelatorio() {
@@ -533,6 +548,33 @@ export default function EmpresaDetalhePage() {
   function handleExportarExcel() {
     if (!empresa) return;
     exportarNotasEntradaExcel(linhasRelatorio(), empresa.razaoSocial, empresa.cnpj, rotuloMes(mesFiltro));
+  }
+
+  function linhasRelatorioSaida() {
+    return [...notasSaidaDoMes]
+      .sort(
+        (a, b) =>
+          new Date(a.emitidoEm ?? a.recebidoEm).getTime() -
+          new Date(b.emitidoEm ?? b.recebidoEm).getTime()
+      )
+      .map((doc) => ({
+        data: doc.emitidoEm ?? doc.recebidoEm,
+        numero: numeroNotaDaChave(doc.chaveAcesso),
+        tipo: ROTULO_TIPO_DOCUMENTO[doc.tipo],
+        cfop: doc.cfop,
+        valor: doc.valorTotal,
+        enviadoPor: doc.agenteInstalacaoToken?.nome ?? "—",
+      }));
+  }
+
+  function handleExportarSaidaPdf() {
+    if (!empresa) return;
+    exportarNotasSaidaPdf(linhasRelatorioSaida(), empresa.razaoSocial, empresa.cnpj, rotuloMes(mesFiltroSaida));
+  }
+
+  function handleExportarSaidaExcel() {
+    if (!empresa) return;
+    exportarNotasSaidaExcel(linhasRelatorioSaida(), empresa.razaoSocial, empresa.cnpj, rotuloMes(mesFiltroSaida));
   }
 
   if (carregando) {
@@ -598,7 +640,7 @@ export default function EmpresaDetalhePage() {
             className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
             style={{ color: "var(--muted)" }}
           >
-            Documentos fiscais
+            Notas de entrada
           </h2>
           <div className="flex gap-3">
             <button
@@ -708,13 +750,13 @@ export default function EmpresaDetalhePage() {
           </div>
         </div>
 
-        {documentos.length === 0 ? (
+        {documentosEntrada.length === 0 ? (
           <div
             className="entra rounded-lg border border-dashed p-8 text-center"
             style={{ borderColor: "var(--border)" }}
           >
             <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Nenhum documento fiscal recebido ainda.
+              Nenhuma nota de entrada recebida ainda.
             </p>
           </div>
         ) : (
@@ -737,7 +779,7 @@ export default function EmpresaDetalhePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {documentos.map((doc, i) => (
+                  {documentosEntrada.map((doc, i) => (
                     <tr
                       key={doc.id}
                       className="entra-suave border-t align-top"
@@ -787,6 +829,145 @@ export default function EmpresaDetalhePage() {
                           token={token!}
                           onAtualizado={() => void carregarTudo(token!)}
                         />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
+            style={{ color: "var(--muted)" }}
+          >
+            Notas de saída
+          </h2>
+        </div>
+
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          Notas emitidas por esta empresa (via PDV/ERP próprio), capturadas
+          pelo agente desktop instalado no computador do cliente ou do
+          contador — não vêm da SEFAZ.
+        </p>
+
+        <div
+          className="entra flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3">
+              <label
+                className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+                style={{ color: "var(--muted)" }}
+              >
+                Relatório de saída · mês
+              </label>
+              <input
+                type="month"
+                value={mesFiltroSaida}
+                onChange={(event) => setMesFiltroSaida(event.target.value)}
+                className="campo text-sm"
+                style={{ width: "auto" }}
+              />
+            </div>
+            <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
+              {rotuloMes(mesFiltroSaida)} ·{" "}
+              {notasSaidaDoMes.length === 0
+                ? "nenhuma nota de saída nesse mês"
+                : `${notasSaidaDoMes.length} nota(s)`}
+            </span>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleExportarSaidaPdf}
+              disabled={notasSaidaDoMes.length === 0}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed"
+              style={{ color: "var(--paper)" }}
+              title={notasSaidaDoMes.length === 0 ? "Não há notas de saída nesse mês" : undefined}
+            >
+              Baixar PDF
+            </button>
+            <button
+              onClick={handleExportarSaidaExcel}
+              disabled={notasSaidaDoMes.length === 0}
+              className="botao-principal disabled:opacity-30 disabled:cursor-not-allowed"
+              style={{ width: "auto", paddingInline: "1.25rem" }}
+              title={notasSaidaDoMes.length === 0 ? "Não há notas de saída nesse mês" : undefined}
+            >
+              Baixar Excel
+            </button>
+          </div>
+        </div>
+
+        {documentosSaida.length === 0 ? (
+          <div
+            className="entra rounded-lg border border-dashed p-8 text-center"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              Nenhuma nota de saída capturada ainda. Instale o agente desktop
+              na página{" "}
+              <Link href="/agentes" className="underline underline-offset-4" style={{ color: "var(--paper)" }}>
+                Agentes desktop
+              </Link>{" "}
+              pra começar.
+            </p>
+          </div>
+        ) : (
+          <div className="entra overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
+            <div className="max-h-[34rem] overflow-auto">
+              <table className="w-full table-fixed text-left text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr
+                    className="font-mono text-[0.625rem] uppercase tracking-[0.1em]"
+                    style={{ color: "var(--muted)", background: "var(--surface)" }}
+                  >
+                    <th className="w-[6%] px-3 py-3 font-medium">Nº</th>
+                    <th className="w-[9%] px-3 py-3 font-medium">Data</th>
+                    <th className="w-[8%] px-3 py-3 font-medium">Tipo</th>
+                    <th className="w-[9%] px-3 py-3 font-medium">CFOP</th>
+                    <th className="w-[15%] px-3 py-3 font-medium">Chave de acesso</th>
+                    <th className="w-[11%] px-3 py-3 font-medium">Valor</th>
+                    <th className="w-[42%] px-3 py-3 font-medium">Enviado por</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documentosSaida.map((doc, i) => (
+                    <tr
+                      key={doc.id}
+                      className="entra-suave border-t align-top"
+                      style={{ borderColor: "var(--border)", animationDelay: `${Math.min(i, 20) * 40}ms` }}
+                    >
+                      <td className="truncate overflow-hidden px-3 py-3 font-mono text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {numeroNotaDaChave(doc.chaveAcesso)}
+                      </td>
+                      <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {formatarData(doc.emitidoEm ?? doc.recebidoEm)}
+                      </td>
+                      <td className="truncate overflow-hidden px-3 py-3 whitespace-nowrap" style={{ color: "var(--paper)" }}>
+                        {ROTULO_TIPO_DOCUMENTO[doc.tipo]}
+                      </td>
+                      <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {doc.cfop ?? "—"}
+                      </td>
+                      <td
+                        className="chave-mascarada truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap"
+                        style={{ color: "var(--muted)" }}
+                        title={doc.chaveAcesso}
+                      >
+                        {chaveResumida(doc.chaveAcesso)}
+                      </td>
+                      <td className="truncate overflow-hidden px-3 py-3 whitespace-nowrap" style={{ color: "var(--paper)" }}>
+                        {formatarMoeda(doc.valorTotal)}
+                      </td>
+                      <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                        {doc.agenteInstalacaoToken?.nome ?? "—"}
                       </td>
                     </tr>
                   ))}

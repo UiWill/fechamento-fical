@@ -110,14 +110,14 @@ model NsuControle {
   @@map("nsu_controle")
 }
 
-// PFX nunca fica em disco fora do MinIO, e nunca em texto puro:
+// PFX nunca fica fora do armazenamento de objetos, e nunca em texto puro:
 // - conteudoCriptografado: caminho do objeto no bucket afe-certificados (arquivo já cifrado)
 // - senhaCriptografada: senha do PFX cifrada com a mesma chave de envelope (CERT_MASTER_KEY)
 model Certificado {
   id                    String    @id @default(cuid())
   empresaId             String    @unique
   nomeArquivoOriginal   String
-  objetoStorage         String // chave do objeto no MinIO (bucket afe-certificados)
+  objetoStorage         String // chave do objeto no armazenamento (bucket afe-certificados)
   senhaCriptografada     String
   ivCriptografia         String // IV usado na cifra AES-GCM (envelope encryption)
   validoAte              DateTime
@@ -166,7 +166,7 @@ model DocumentoFiscal {
   classificadoEm  DateTime?
   nomeEmitente    String?
   valorTotal      Decimal?               @db.Decimal(14, 2)
-  objetoStorageXml String // chave do objeto no MinIO (bucket afe-documentos-fiscais)
+  objetoStorageXml String // chave do objeto no armazenamento (bucket afe-documentos-fiscais)
   emitidoEm        DateTime?
   recebidoEm       DateTime               @default(now())
   atualizadoEm     DateTime               @updatedAt
@@ -223,9 +223,9 @@ model AgenteInstalacaoToken {
 
 // Controla qual versao do .exe do agente desktop e a vigente - o agente
 // consulta isso pra saber se deve se autoatualizar. Publicar uma versao
-// nova e um processo manual: subir o arquivo pro MinIO (bucket
-// afe-agente-desktop-releases, chave "agente-fiscal-<versao>.exe") e so
-// depois registrar aqui via POST /agentes/versoes.
+// nova e um processo manual: subir o arquivo pro armazenamento de objetos
+// (bucket afe-agente-desktop-releases, chave "agente-fiscal-<versao>.exe")
+// e so depois registrar aqui via POST /agentes/versoes.
 model VersaoAgente {
   id               String   @id @default(cuid())
   versao           String   @unique

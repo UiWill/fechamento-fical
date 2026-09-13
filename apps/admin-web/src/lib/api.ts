@@ -192,7 +192,7 @@ export async function uploadCertificado(
 export interface DocumentoFiscal {
   id: string;
   chaveAcesso: string;
-  tipo: "NFE" | "NFCE";
+  tipo: "NFE" | "NFCE" | "CTE";
   direcao: "ENTRADA" | "SAIDA";
   status: string;
   nomeEmitente: string | null;
@@ -203,6 +203,8 @@ export interface DocumentoFiscal {
   valorTotal: string | null;
   emitidoEm: string | null;
   recebidoEm: string;
+  /** Só existe pra documentos de SAIDA — de qual instalação do agente desktop veio. */
+  agenteInstalacaoToken: { nome: string } | null;
 }
 
 export async function listarDocumentosFiscais(

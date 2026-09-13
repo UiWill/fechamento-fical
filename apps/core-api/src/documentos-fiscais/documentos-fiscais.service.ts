@@ -96,6 +96,9 @@ export class DocumentosFiscaisService {
   listarPorEmpresa(empresaId: string) {
     return this.prisma.client.documentoFiscal.findMany({
       where: { empresaId },
+      // nome do agente desktop que enviou (só existe pra SAIDA) — o
+      // admin-web usa isso pra mostrar de qual instalação veio cada nota.
+      include: { agenteInstalacaoToken: { select: { nome: true } } },
       orderBy: { recebidoEm: "desc" },
     });
   }
