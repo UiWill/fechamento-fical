@@ -102,7 +102,7 @@ export class DocumentosFiscaisService {
 
   /**
    * Busca novos documentos endereçados à empresa via NFeDistribuicaoDFe
-   * (fiscal-engine -> ACBrLib -> SEFAZ), grava o XML no MinIO e indexa os
+   * (fiscal-engine -> ACBrLib -> SEFAZ), grava o XML no armazenamento de objetos e indexa os
    * metadados no Postgres. Pensado para rodar via job agendado por empresa
    * (fase 2 — aqui exposto também como chamada manual/on-demand).
    */

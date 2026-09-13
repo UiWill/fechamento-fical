@@ -1,6 +1,6 @@
 export interface CertificadoInput {
   /**
-   * Conteúdo do PFX em base64. O fiscal-engine não tem acesso ao MinIO nem à
+   * Conteúdo do PFX em base64. O fiscal-engine não tem acesso ao armazenamento de objetos nem à
    * chave de criptografia — é o core-api quem descriptografa o certificado e
    * envia o conteúdo bruto aqui, por chamada. O fiscal-engine grava em um
    * arquivo temporário só durante a chamada à ACBrLib e apaga em seguida

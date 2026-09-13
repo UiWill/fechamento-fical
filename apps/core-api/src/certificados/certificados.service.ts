@@ -22,7 +22,7 @@ export class CertificadosService {
   ) {}
 
   /**
-   * Grava o PFX cifrado (AES-256-GCM) no MinIO e a senha cifrada no Postgres.
+   * Grava o PFX cifrado (AES-256-GCM) no armazenamento de objetos e a senha cifrada no Postgres.
    * O conteúdo em claro nunca é persistido — só existe em memória durante
    * esta chamada.
    */

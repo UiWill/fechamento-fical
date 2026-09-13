@@ -35,7 +35,7 @@ export class AgentesController {
 
   /**
    * Registra uma versão nova como vigente. O .exe já precisa estar no
-   * MinIO antes de chamar isso — ver comentário em agentes.service.ts.
+   * storage antes de chamar isso — ver comentário em agentes.service.ts.
    */
   @Post("versoes")
   publicarVersao(

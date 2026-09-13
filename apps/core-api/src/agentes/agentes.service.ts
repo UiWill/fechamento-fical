@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import crypto from "node:crypto";
 import { extrairDadosBasicos, validarDigitoVerificadorChave, type CriarAgenteTokenInput } from "@afe/shared";
 import { PrismaService } from "../common/prisma/prisma.service";
@@ -196,12 +196,15 @@ export class AgentesService {
 
   /**
    * Registra uma nova versão do agente como vigente. O arquivo .exe em si
-   * precisa já estar no MinIO (bucket afe-agente-desktop-releases, chave
+   * precisa já estar no storage (bucket afe-agente-desktop-releases, chave
    * "agente-fiscal-<versao>.exe") antes de chamar isso — publicar uma
    * versão é um processo manual (poucas vezes por mês), não justifica um
    * endpoint de upload de arquivo grande.
    */
   publicarVersao(input: { versao: string; obrigatoria?: boolean; notas?: string }) {
+    if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(input.versao)) {
+      throw new BadRequestException('Versão deve seguir o formato "X.Y.Z" (ex: 1.2.3)');
+    }
     return this.prisma.client.versaoAgente.create({
       data: {
         versao: input.versao,
