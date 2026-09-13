@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { extrairDadosBasicos, validarDigitoVerificadorChave } from "@afe/shared";
 import { carregarConfig, salvarConfig, type ConfigAgente } from "./config";
 import { enviarLoteDocumentos, type ItemDocumentoUpload } from "./api-client";
+import { notificar } from "./notify";
 
 const TAMANHO_MAXIMO_LOTE = 50;
 
@@ -65,11 +66,13 @@ export function criarFilaDeEnvio(token: string) {
 
     try {
       const resultados = await enviarLoteDocumentos(token, lote);
+      let aceitos = 0;
       for (const resultado of resultados) {
         if (resultado.chaveAcesso) {
           registrarResultado(resultado.chaveAcesso, resultado.status);
         }
         if (resultado.status === "ACEITO") {
+          aceitos += 1;
           console.log(`[upload] aceito: ${resultado.nomeArquivoOriginal}`);
         } else if (resultado.status === "CNPJ_NAO_AUTORIZADO") {
           console.warn(`[upload] CNPJ fora do escopo: ${resultado.nomeArquivoOriginal} — ${resultado.motivo}`);
@@ -78,6 +81,9 @@ export function criarFilaDeEnvio(token: string) {
         }
       }
       salvarConfig(config);
+      if (aceitos > 0) {
+        notificar("Agente Fiscal", `${aceitos} nota(s) de saída enviada(s).`);
+      }
     } catch (err) {
       // Falha de rede/servidor — devolve os itens pra fila, tenta de novo
       // no próximo ciclo. Nada foi marcado em chavesEnviadas, então é

@@ -33,6 +33,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             Regras fiscais
           </Link>
+          <Link
+            href="/agentes"
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
+            style={{ color: "var(--muted)" }}
+          >
+            Agentes desktop
+          </Link>
         </nav>
       </header>
       <main className="mx-auto max-w-7xl px-6 py-10">{children}</main>

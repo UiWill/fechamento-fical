@@ -1,33 +1,41 @@
-import { carregarConfig, ARQUIVO_CONFIG } from "./config";
+import { carregarConfig } from "./config";
+import { rodarConfiguracaoInicial } from "./setup";
+import { habilitarInicioAutomatico } from "./autostart";
 import { observarPastas } from "./watcher";
 import { criarFilaDeEnvio } from "./upload";
 import { enviarHeartbeat, buscarEscopo } from "./api-client";
+import { notificar } from "./notify";
 
 const INTERVALO_FLUSH_MS = 5_000;
 const INTERVALO_HEARTBEAT_MS = 5 * 60_000;
 
 async function main() {
-  const config = carregarConfig();
+  let config = carregarConfig();
 
-  // Fase 2: sem tela de configuração ainda (isso vem na Fase 3) — token e
-  // pastas são editados a mão neste arquivo.
   if (!config.token || config.pastasMonitoradas.length === 0) {
-    console.error(
-      `Configuração incompleta. Edite ${ARQUIVO_CONFIG} preenchendo "token" (gerado no admin) ` +
-        `e "pastasMonitoradas" (lista de pastas a observar) antes de rodar de novo.`
-    );
-    process.exit(1);
+    if (process.platform === "win32") {
+      await rodarConfiguracaoInicial();
+      config = carregarConfig();
+    } else {
+      console.error(
+        "Configuração incompleta. Preencha token/pastasMonitoradas no config.json " +
+          "(a configuração interativa só roda no Windows) antes de rodar de novo."
+      );
+      process.exit(1);
+    }
   }
 
   try {
-    const { cnpjs } = await buscarEscopo(config.token);
+    const { cnpjs } = await buscarEscopo(config.token!);
     console.log(`[main] token autorizado para ${cnpjs.length} CNPJ(s): ${cnpjs.join(", ")}`);
   } catch (err) {
     console.error(`[main] não consegui validar o token com o servidor: ${err}`);
     process.exit(1);
   }
 
-  const fila = criarFilaDeEnvio(config.token);
+  habilitarInicioAutomatico(process.execPath);
+
+  const fila = criarFilaDeEnvio(config.token!);
 
   observarPastas(config.pastasMonitoradas, (caminho) => fila.enfileirar(caminho));
 
@@ -38,11 +46,12 @@ async function main() {
       console.error(`[main] falha no heartbeat: ${err}`)
     );
   }, INTERVALO_HEARTBEAT_MS);
-  void enviarHeartbeat(config.token, config.versaoAgente).catch((err) =>
+  void enviarHeartbeat(config.token!, config.versaoAgente).catch((err) =>
     console.error(`[main] falha no heartbeat inicial: ${err}`)
   );
 
   console.log(`[main] agente rodando, observando: ${config.pastasMonitoradas.join(", ")}`);
+  notificar("Agente Fiscal", "Iniciado e monitorando notas de saída.");
 }
 
 main().catch((err) => {

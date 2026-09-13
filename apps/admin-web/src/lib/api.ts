@@ -414,3 +414,60 @@ export async function baixarExportacaoTxt(
   link.remove();
   URL.revokeObjectURL(url);
 }
+
+export interface AgenteInstalacao {
+  id: string;
+  nome: string;
+  organizacaoId: string | null;
+  empresaId: string | null;
+  status: "ATIVO" | "REVOGADO";
+  ultimoHeartbeatEm: string | null;
+  ultimaVersaoAgente: string | null;
+  criadoEm: string;
+}
+
+export async function listarAgentes(organizacaoId: string, token: string): Promise<AgenteInstalacao[]> {
+  const response = await fetch(`${API_URL}/agentes/tokens?organizacaoId=${organizacaoId}`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível carregar os agentes.");
+  }
+  return response.json();
+}
+
+export interface GerarAgenteTokenInput {
+  nome: string;
+  organizacaoId?: string;
+  empresaId?: string;
+}
+
+export async function gerarTokenAgente(
+  input: GerarAgenteTokenInput,
+  token: string
+): Promise<{ id: string; nome: string; tokenRaw: string; criadoEm: string }> {
+  const response = await fetch(`${API_URL}/agentes/tokens`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function revogarTokenAgente(id: string, token: string): Promise<void> {
+  const response = await fetch(`${API_URL}/agentes/tokens/${id}/revogar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível revogar esse token.");
+  }
+}
