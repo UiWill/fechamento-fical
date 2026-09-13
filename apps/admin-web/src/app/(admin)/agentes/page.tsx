@@ -117,11 +117,12 @@ function ModalNovoToken({
             </div>
             <hr style={{ borderColor: "var(--border)" }} />
             <p className="text-sm" style={{ color: "var(--paper)" }}>
-              Envie esse link pro cliente instalar — ele já baixa o programa
-              direto, sem precisar de token nem configuração manual:
+              Envie esse link pro cliente instalar o programa — o mesmo link
+              serve pra qualquer cliente, o token acima é colado depois, na
+              configuração inicial do programa:
             </p>
             <a
-              href={`${API_URL}/agente-ingestao/instalador?token=${encodeURIComponent(tokenGerado)}`}
+              href={`${API_URL}/agente-ingestao/instalador`}
               className="botao-principal inline-block text-center"
               style={{ width: "auto", paddingInline: "1.25rem", textDecoration: "none" }}
             >

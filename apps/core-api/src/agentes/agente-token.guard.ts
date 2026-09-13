@@ -10,7 +10,6 @@ export interface AgenteAutenticado {
 
 export interface AgenteAuthenticatedRequest {
   headers: Record<string, string | string[] | undefined>;
-  query?: Record<string, string | string[] | undefined>;
   ip?: string;
   agenteToken?: AgenteAutenticado;
 }
@@ -35,12 +34,7 @@ export class AgenteTokenGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AgenteAuthenticatedRequest>();
     const header = request.headers["x-agente-token"];
-    const query = request.query?.["token"];
-    // Fallback pra query string: o agente desktop sempre manda o header,
-    // mas o link de "baixar instalador" no admin-web é clicado direto no
-    // navegador (não dá pra mandar cabeçalho customizado a partir de um
-    // link comum), então esse endpoint específico depende do fallback.
-    const tokenBruto = Array.isArray(header) ? header[0] : (header ?? (Array.isArray(query) ? query[0] : query));
+    const tokenBruto = Array.isArray(header) ? header[0] : header;
 
     if (!tokenBruto) {
       throw new UnauthorizedException("Token de agente ausente");
