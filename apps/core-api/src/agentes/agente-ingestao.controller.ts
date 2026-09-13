@@ -54,4 +54,24 @@ export class AgenteIngestaoController {
       .header("Content-Disposition", `attachment; filename="agente-fiscal-${versao}.exe"`)
       .send(buffer);
   }
+
+  /**
+   * Link único de "baixar instalador" pro admin-web mostrar pro cliente —
+   * resolve a versão mais recente sozinho, pra não precisar saber o
+   * número da versão de antemão. Pensado pra ser clicado direto no
+   * navegador (token vem via query string, ver AgenteTokenGuard).
+   */
+  @Get("instalador")
+  async baixarInstalador(@Res() reply: FastifyReply) {
+    const registro = await this.service.obterVersaoMaisRecente();
+    if (!registro) {
+      reply.status(404).send({ message: "Nenhuma versão do agente foi publicada ainda" });
+      return;
+    }
+    const buffer = await this.service.obterArquivoVersao(registro.versao);
+    reply
+      .header("Content-Type", "application/octet-stream")
+      .header("Content-Disposition", `attachment; filename="agente-fiscal-${registro.versao}.exe"`)
+      .send(buffer);
+  }
 }

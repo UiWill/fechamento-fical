@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  API_URL,
   listarEmpresas,
   listarAgentes,
   gerarTokenAgente,
@@ -114,6 +115,18 @@ function ModalNovoToken({
                 Fechar
               </button>
             </div>
+            <hr style={{ borderColor: "var(--border)" }} />
+            <p className="text-sm" style={{ color: "var(--paper)" }}>
+              Envie esse link pro cliente instalar — ele já baixa o programa
+              direto, sem precisar de token nem configuração manual:
+            </p>
+            <a
+              href={`${API_URL}/agente-ingestao/instalador?token=${encodeURIComponent(tokenGerado)}`}
+              className="botao-principal inline-block text-center"
+              style={{ width: "auto", paddingInline: "1.25rem", textDecoration: "none" }}
+            >
+              Baixar instalador (.exe)
+            </a>
           </>
         ) : (
           <form onSubmit={handleGerar} className="space-y-4">
