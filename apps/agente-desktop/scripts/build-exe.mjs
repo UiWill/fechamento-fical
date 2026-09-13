@@ -20,16 +20,27 @@ const pastaSea = path.join(raizApp, "dist-sea");
 const nomeExecutavel = process.platform === "win32" ? "agente-fiscal.exe" : "agente-fiscal";
 const caminhoExecutavel = path.join(pastaSea, nomeExecutavel);
 
+// URL do core-api embutida no binario em tempo de build (nao da pra
+// depender de variavel de ambiente no PC do cliente - ninguem la vai
+// configurar isso). Pode trocar via env var só na hora de gerar o build
+// (ex: build de teste apontando pro localhost), nunca em runtime no
+// cliente final.
+const URL_API_PADRAO = "https://fiscal-api.dnotas.com.br:8443";
+const urlApi = process.env.AFE_CORE_API_URL_BUILD ?? URL_API_PADRAO;
+
 async function main() {
   mkdirSync(pastaSea, { recursive: true });
 
-  console.log("[build-exe] empacotando com esbuild...");
+  console.log(`[build-exe] empacotando com esbuild (API: ${urlApi})...`);
   await build({
     entryPoints: [path.join(raizApp, "src/main.ts")],
     bundle: true,
     platform: "node",
     format: "cjs",
     target: "node22",
+    define: {
+      "process.env.AFE_CORE_API_URL": JSON.stringify(urlApi),
+    },
     outfile: path.join(pastaSea, "bundle.js"),
   });
 
@@ -65,7 +76,10 @@ async function main() {
   if (process.platform === "darwin") {
     argsPostject.push("--macho-segment-name", "NODE_SEA");
   }
-  execFileSync("npx", argsPostject, { stdio: "inherit" });
+  // No Windows, "npx" e um .cmd, e execFileSync so resolve isso com
+  // shell:true (sem isso da ENOENT mesmo com o npx instalado e no PATH -
+  // e um comportamento conhecido do child_process no Windows).
+  execFileSync("npx", argsPostject, { stdio: "inherit", shell: process.platform === "win32" });
 
   if (process.platform === "darwin") {
     console.log("[build-exe] reassinando (ad-hoc)...");
