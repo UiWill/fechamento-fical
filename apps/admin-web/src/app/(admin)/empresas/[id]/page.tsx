@@ -1019,8 +1019,9 @@ export default function EmpresaDetalhePage() {
 
         <p className="text-xs" style={{ color: "var(--muted)" }}>
           Gera o TXT de notas de entrada do mês pra importar no Domínio
-          Sistemas (só entrada por enquanto — saída ainda não é capturada
-          pelo sistema).
+          Sistemas. Exportação de notas de saída para o Domínio ainda não
+          existe — hoje elas ficam disponíveis pra conferência em PDF/Excel
+          na seção acima.
         </p>
 
         {resultadoTxt && (
