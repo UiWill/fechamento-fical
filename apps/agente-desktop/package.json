@@ -1,6 +1,6 @@
 {
   "name": "@afe/agente-desktop",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
@@ -13,9 +13,11 @@
   },
   "dependencies": {
     "@afe/shared": "workspace:*",
+    "adm-zip": "^0.6.1",
     "chokidar": "^4.0.3"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/node": "^22.10.5",
     "esbuild": "^0.28.2",
     "postject": "1.0.0-alpha.6",

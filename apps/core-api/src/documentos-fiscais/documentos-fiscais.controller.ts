@@ -48,18 +48,23 @@ export class DocumentosFiscaisController {
     @Query("direcao") direcao: string,
     @Query("inicio") inicio: string,
     @Query("fim") fim: string,
+    @Query("tipo") tipo: string | undefined,
     @Req() request: AuthenticatedRequest,
     @Res() reply: FastifyReply
   ) {
     if (direcao !== "ENTRADA" && direcao !== "SAIDA") {
       throw new BadRequestException('direcao deve ser "ENTRADA" ou "SAIDA"');
     }
+    if (tipo !== undefined && tipo !== "NFE" && tipo !== "NFCE" && tipo !== "CTE") {
+      throw new BadRequestException('tipo deve ser "NFE", "NFCE" ou "CTE"');
+    }
     const stream = await this.service.baixarXmlsEmZip(
       empresaId,
       direcao,
       new Date(inicio),
       new Date(fim),
-      this.organizacaoIdDoUsuario(request)
+      this.organizacaoIdDoUsuario(request),
+      tipo
     );
     reply
       .header("Content-Type", "application/zip")

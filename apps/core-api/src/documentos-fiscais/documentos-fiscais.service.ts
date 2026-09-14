@@ -311,7 +311,8 @@ export class DocumentosFiscaisService {
     direcao: "ENTRADA" | "SAIDA",
     inicio: Date,
     fim: Date,
-    organizacaoId: string
+    organizacaoId: string,
+    tipo?: "NFE" | "NFCE" | "CTE"
   ): Promise<Readable> {
     await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
 
@@ -319,6 +320,7 @@ export class DocumentosFiscaisService {
       where: {
         empresaId,
         direcao,
+        ...(tipo ? { tipo } : {}),
         OR: [
           { emitidoEm: { gte: inicio, lt: fim } },
           { emitidoEm: null, recebidoEm: { gte: inicio, lt: fim } },

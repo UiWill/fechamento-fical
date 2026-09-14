@@ -24,6 +24,7 @@ import {
 import {
   mascararCnpj,
   numeroNotaDaChave,
+  numeroNotaOrdenavel,
   formatarData,
   formatarDataHora,
   formatarMoeda,
@@ -47,6 +48,115 @@ const ROTULO_TIPO_DOCUMENTO: Record<DocumentoFiscal["tipo"], string> = {
   NFCE: "NFC-e",
   CTE: "CT-e",
 };
+
+type CampoOrdenacao = "data" | "numero" | "tipo";
+
+interface Ordenacao {
+  campo: CampoOrdenacao;
+  direcao: "asc" | "desc";
+}
+
+const ORDENACAO_PADRAO: Ordenacao = { campo: "data", direcao: "desc" };
+
+/**
+ * Ordena sempre pelos 3 critérios (data, número, tipo) — o campo escolhido
+ * manda primeiro, na direção escolhida, e os outros dois desempatam em
+ * ordem crescente. Assim a lista fica sempre 100% previsível (nunca "meio
+ * ordenada"), e o padrão (data, mais recente no topo) já sai organizado
+ * por data → número → tipo sem precisar de nenhuma escolha do usuário.
+ */
+function compararDocumentos(a: DocumentoFiscal, b: DocumentoFiscal, ordenacao: Ordenacao): number {
+  const chaveDe = (doc: DocumentoFiscal) => ({
+    data: new Date(doc.emitidoEm ?? doc.recebidoEm).getTime(),
+    numero: numeroNotaOrdenavel(doc.chaveAcesso),
+    tipo: ROTULO_TIPO_DOCUMENTO[doc.tipo],
+  });
+  const chaveA = chaveDe(a);
+  const chaveB = chaveDe(b);
+  const ordemCampos: CampoOrdenacao[] =
+    ordenacao.campo === "data"
+      ? ["data", "numero", "tipo"]
+      : ordenacao.campo === "numero"
+        ? ["numero", "data", "tipo"]
+        : ["tipo", "data", "numero"];
+
+  for (const campo of ordemCampos) {
+    const valorA = chaveA[campo];
+    const valorB = chaveB[campo];
+    const diferenca =
+      typeof valorA === "string" ? valorA.localeCompare(valorB as string) : valorA - (valorB as number);
+    if (diferenca !== 0) {
+      return campo === ordenacao.campo ? diferenca * (ordenacao.direcao === "asc" ? 1 : -1) : diferenca;
+    }
+  }
+  return 0;
+}
+
+function ordenarDocumentos(docs: DocumentoFiscal[], ordenacao: Ordenacao): DocumentoFiscal[] {
+  return [...docs].sort((a, b) => compararDocumentos(a, b, ordenacao));
+}
+
+function ControleOrdenacaoEFiltro({
+  ordenacao,
+  onMudarOrdenacao,
+  filtroTipo,
+  onMudarFiltroTipo,
+}: {
+  ordenacao: Ordenacao;
+  onMudarOrdenacao: (o: Ordenacao) => void;
+  filtroTipo: DocumentoFiscal["tipo"] | "TODOS";
+  onMudarFiltroTipo: (t: DocumentoFiscal["tipo"] | "TODOS") => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <label
+        className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+        style={{ color: "var(--muted)" }}
+      >
+        Ordenar por
+      </label>
+      <select
+        value={ordenacao.campo}
+        onChange={(event) =>
+          onMudarOrdenacao({ campo: event.target.value as CampoOrdenacao, direcao: ordenacao.direcao })
+        }
+        className="campo text-sm"
+        style={{ width: "auto" }}
+      >
+        <option value="data">Data de emissão</option>
+        <option value="numero">Número</option>
+        <option value="tipo">Tipo</option>
+      </select>
+      <button
+        type="button"
+        onClick={() => onMudarOrdenacao({ campo: ordenacao.campo, direcao: ordenacao.direcao === "asc" ? "desc" : "asc" })}
+        className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+        style={{ color: "var(--paper)" }}
+        title="Inverter direção da ordenação"
+      >
+        {ordenacao.direcao === "desc" ? "↓ decrescente" : "↑ crescente"}
+      </button>
+
+      <label
+        className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+        style={{ color: "var(--muted)" }}
+      >
+        Tipo
+      </label>
+      <select
+        value={filtroTipo}
+        onChange={(event) => onMudarFiltroTipo(event.target.value as DocumentoFiscal["tipo"] | "TODOS")}
+        className="campo text-sm"
+        style={{ width: "auto" }}
+      >
+        <option value="TODOS">Todos</option>
+        <option value="NFE">NF-e</option>
+        <option value="NFCE">NFC-e</option>
+        <option value="CTE">CT-e</option>
+      </select>
+    </div>
+  );
+}
 
 function useToken() {
   const router = useRouter();
@@ -409,6 +519,11 @@ export default function EmpresaDetalhePage() {
   const [resultadoNsu, setResultadoNsu] = useState<string | null>(null);
   const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "certificado">("entrada");
 
+  const [ordenacaoEntrada, setOrdenacaoEntrada] = useState<Ordenacao>(ORDENACAO_PADRAO);
+  const [filtroTipoEntrada, setFiltroTipoEntrada] = useState<DocumentoFiscal["tipo"] | "TODOS">("TODOS");
+  const [ordenacaoSaida, setOrdenacaoSaida] = useState<Ordenacao>(ORDENACAO_PADRAO);
+  const [filtroTipoSaida, setFiltroTipoSaida] = useState<DocumentoFiscal["tipo"] | "TODOS">("TODOS");
+
   const [mesExportacaoTxt, setMesExportacaoTxt] = useState(mesAtual());
   const [gerandoTxt, setGerandoTxt] = useState(false);
   const [resultadoTxt, setResultadoTxt] = useState<string | null>(null);
@@ -537,25 +652,30 @@ export default function EmpresaDetalhePage() {
   const certificadoAtencao = diasVencimentoCertificado !== null && diasVencimentoCertificado <= 30;
 
   const notasEntradaDoMes = documentosEntrada.filter(
-    (doc) => chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltro
+    (doc) =>
+      chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltro &&
+      (filtroTipoEntrada === "TODOS" || doc.tipo === filtroTipoEntrada)
   );
   const notasSaidaDoMes = documentosSaida.filter(
-    (doc) => chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltroSaida
+    (doc) =>
+      chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltroSaida &&
+      (filtroTipoSaida === "TODOS" || doc.tipo === filtroTipoSaida)
   );
 
+  const notasEntradaOrdenadas = ordenarDocumentos(documentosEntrada.filter(
+    (doc) => filtroTipoEntrada === "TODOS" || doc.tipo === filtroTipoEntrada
+  ), ordenacaoEntrada);
+  const notasSaidaOrdenadas = ordenarDocumentos(documentosSaida.filter(
+    (doc) => filtroTipoSaida === "TODOS" || doc.tipo === filtroTipoSaida
+  ), ordenacaoSaida);
+
   function linhasRelatorio() {
-    return [...notasEntradaDoMes]
-      .sort(
-        (a, b) =>
-          new Date(a.emitidoEm ?? a.recebidoEm).getTime() -
-          new Date(b.emitidoEm ?? b.recebidoEm).getTime()
-      )
-      .map((doc) => ({
-        data: doc.emitidoEm ?? doc.recebidoEm,
-        numero: numeroNotaDaChave(doc.chaveAcesso),
-        emitente: doc.nomeEmitente ?? "—",
-        valor: doc.valorTotal,
-      }));
+    return ordenarDocumentos(notasEntradaDoMes, ordenacaoEntrada).map((doc) => ({
+      data: doc.emitidoEm ?? doc.recebidoEm,
+      numero: numeroNotaDaChave(doc.chaveAcesso),
+      emitente: doc.nomeEmitente ?? "—",
+      valor: doc.valorTotal,
+    }));
   }
 
   function handleExportarPdf() {
@@ -569,20 +689,14 @@ export default function EmpresaDetalhePage() {
   }
 
   function linhasRelatorioSaida() {
-    return [...notasSaidaDoMes]
-      .sort(
-        (a, b) =>
-          new Date(a.emitidoEm ?? a.recebidoEm).getTime() -
-          new Date(b.emitidoEm ?? b.recebidoEm).getTime()
-      )
-      .map((doc) => ({
-        data: doc.emitidoEm ?? doc.recebidoEm,
-        numero: numeroNotaDaChave(doc.chaveAcesso),
-        tipo: ROTULO_TIPO_DOCUMENTO[doc.tipo],
-        cfop: doc.cfop,
-        valor: doc.valorTotal,
-        enviadoPor: doc.agenteInstalacaoToken?.nome ?? "—",
-      }));
+    return ordenarDocumentos(notasSaidaDoMes, ordenacaoSaida).map((doc) => ({
+      data: doc.emitidoEm ?? doc.recebidoEm,
+      numero: numeroNotaDaChave(doc.chaveAcesso),
+      tipo: ROTULO_TIPO_DOCUMENTO[doc.tipo],
+      cfop: doc.cfop,
+      valor: doc.valorTotal,
+      enviadoPor: doc.agenteInstalacaoToken?.nome ?? "—",
+    }));
   }
 
   function handleExportarSaidaPdf() {
@@ -600,7 +714,14 @@ export default function EmpresaDetalhePage() {
     setBaixandoXmlEntrada(true);
     try {
       const { inicio, fim } = limitesDoMes(mesFiltro);
-      await baixarXmlsZip(params.id, "ENTRADA", inicio, fim, token);
+      await baixarXmlsZip(
+        params.id,
+        "ENTRADA",
+        inicio,
+        fim,
+        token,
+        filtroTipoEntrada === "TODOS" ? undefined : filtroTipoEntrada
+      );
     } catch {
       setErroXmlEntrada("Não foi possível baixar os XMLs agora.");
     } finally {
@@ -613,7 +734,14 @@ export default function EmpresaDetalhePage() {
     setBaixandoXmlSaida(true);
     try {
       const { inicio, fim } = limitesDoMes(mesFiltroSaida);
-      await baixarXmlsZip(params.id, "SAIDA", inicio, fim, token);
+      await baixarXmlsZip(
+        params.id,
+        "SAIDA",
+        inicio,
+        fim,
+        token,
+        filtroTipoSaida === "TODOS" ? undefined : filtroTipoSaida
+      );
     } catch {
       setErroXmlSaida("Não foi possível baixar os XMLs agora.");
     } finally {
@@ -835,7 +963,14 @@ export default function EmpresaDetalhePage() {
               {notasEntradaDoMes.length === 0
                 ? "nenhuma nota de entrada nesse mês"
                 : `${notasEntradaDoMes.length} nota(s)`}
+              {filtroTipoEntrada !== "TODOS" && ` (filtrado por ${ROTULO_TIPO_DOCUMENTO[filtroTipoEntrada]})`}
             </span>
+            <ControleOrdenacaoEFiltro
+              ordenacao={ordenacaoEntrada}
+              onMudarOrdenacao={setOrdenacaoEntrada}
+              filtroTipo={filtroTipoEntrada}
+              onMudarFiltroTipo={setFiltroTipoEntrada}
+            />
           </div>
 
           <div className="flex gap-3">
@@ -884,6 +1019,15 @@ export default function EmpresaDetalhePage() {
               Nenhuma nota de entrada recebida ainda.
             </p>
           </div>
+        ) : notasEntradaOrdenadas.length === 0 ? (
+          <div
+            className="entra rounded-lg border border-dashed p-8 text-center"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              Nenhuma nota do tipo selecionado no filtro.
+            </p>
+          </div>
         ) : (
           <div className="entra overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
             <div className="max-h-[34rem] overflow-auto">
@@ -895,16 +1039,17 @@ export default function EmpresaDetalhePage() {
                   >
                     <th className="w-[6%] px-3 py-3 font-medium">Nº</th>
                     <th className="w-[9%] px-3 py-3 font-medium">Data</th>
-                    <th className="w-[22%] px-3 py-3 font-medium">Empresa (emitente)</th>
+                    <th className="w-[7%] px-3 py-3 font-medium">Tipo</th>
+                    <th className="w-[16%] px-3 py-3 font-medium">Empresa (emitente)</th>
                     <th className="w-[13%] px-3 py-3 font-medium">Chave de acesso</th>
-                    <th className="w-[10%] px-3 py-3 font-medium">Status</th>
+                    <th className="w-[9%] px-3 py-3 font-medium">Status</th>
                     <th className="w-[10%] px-3 py-3 font-medium">Valor</th>
                     <th className="w-[15%] px-3 py-3 font-medium">Classificação</th>
                     <th className="w-[15%] px-3 py-3 font-medium">Manifestação</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {documentosEntrada.map((doc, i) => (
+                  {notasEntradaOrdenadas.map((doc, i) => (
                     <tr
                       key={doc.id}
                       className="entra-suave border-t align-top"
@@ -915,6 +1060,9 @@ export default function EmpresaDetalhePage() {
                       </td>
                       <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
                         {formatarData(doc.emitidoEm ?? doc.recebidoEm)}
+                      </td>
+                      <td className="truncate overflow-hidden px-3 py-3 whitespace-nowrap" style={{ color: "var(--paper)" }}>
+                        {ROTULO_TIPO_DOCUMENTO[doc.tipo]}
                       </td>
                       <td
                         className="truncate overflow-hidden px-3 py-3 whitespace-nowrap"
@@ -998,7 +1146,14 @@ export default function EmpresaDetalhePage() {
               {notasSaidaDoMes.length === 0
                 ? "nenhuma nota de saída nesse mês"
                 : `${notasSaidaDoMes.length} nota(s)`}
+              {filtroTipoSaida !== "TODOS" && ` (filtrado por ${ROTULO_TIPO_DOCUMENTO[filtroTipoSaida]})`}
             </span>
+            <ControleOrdenacaoEFiltro
+              ordenacao={ordenacaoSaida}
+              onMudarOrdenacao={setOrdenacaoSaida}
+              filtroTipo={filtroTipoSaida}
+              onMudarFiltroTipo={setFiltroTipoSaida}
+            />
           </div>
 
           <div className="flex gap-3">
@@ -1052,6 +1207,15 @@ export default function EmpresaDetalhePage() {
               pra começar.
             </p>
           </div>
+        ) : notasSaidaOrdenadas.length === 0 ? (
+          <div
+            className="entra rounded-lg border border-dashed p-8 text-center"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              Nenhuma nota do tipo selecionado no filtro.
+            </p>
+          </div>
         ) : (
           <div className="entra overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
             <div className="max-h-[34rem] overflow-auto">
@@ -1071,7 +1235,7 @@ export default function EmpresaDetalhePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {documentosSaida.map((doc, i) => (
+                  {notasSaidaOrdenadas.map((doc, i) => (
                     <tr
                       key={doc.id}
                       className="entra-suave border-t align-top"

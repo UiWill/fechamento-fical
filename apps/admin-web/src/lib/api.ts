@@ -450,15 +450,17 @@ export async function baixarExportacaoTxt(
   URL.revokeObjectURL(url);
 }
 
-/** Baixa um .zip com os XMLs do periodo/direcao filtrados na tela. */
+/** Baixa um .zip com os XMLs do periodo/direcao/tipo filtrados na tela. */
 export async function baixarXmlsZip(
   empresaId: string,
   direcao: "ENTRADA" | "SAIDA",
   inicio: string,
   fim: string,
-  token: string
+  token: string,
+  tipo?: "NFE" | "NFCE" | "CTE"
 ): Promise<void> {
   const params = new URLSearchParams({ direcao, inicio, fim });
+  if (tipo) params.set("tipo", tipo);
   const response = await fetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/xml-zip?${params}`, {
     headers: { authorization: `Bearer ${token}` },
   });

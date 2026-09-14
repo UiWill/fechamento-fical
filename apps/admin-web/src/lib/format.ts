@@ -36,6 +36,12 @@ export function numeroNotaDaChave(chave: string): string {
   return String(Number(chave.slice(25, 34)));
 }
 
+/** Mesmo número de numeroNotaDaChave, mas como number pra ordenar tabela/relatório — chave inválida vai pro fim. */
+export function numeroNotaOrdenavel(chave: string): number {
+  if (chave.length !== 44) return -1;
+  return Number(chave.slice(25, 34));
+}
+
 export function formatarData(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR");
 }

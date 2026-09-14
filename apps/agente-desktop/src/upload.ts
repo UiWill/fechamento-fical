@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import AdmZip from "adm-zip";
 import { extrairDadosBasicos, validarDigitoVerificadorChave } from "@afe/shared";
 import { carregarConfig, salvarConfig, type ConfigAgente } from "./config";
 import { enviarLoteDocumentos, type ItemDocumentoUpload } from "./api-client";
@@ -31,7 +32,54 @@ export function criarFilaDeEnvio(token: string) {
     config.chavesEnviadas[chaveAcesso] = { status, enviadoEm: new Date().toISOString() };
   }
 
+  function processarConteudoXml(nomeArquivoOriginal: string, conteudo: string): void {
+    const dados = extrairDadosBasicos(conteudo);
+    if (!dados || !validarDigitoVerificadorChave(dados.chaveAcesso)) {
+      // Não é um XML fiscal reconhecível (ou está corrompido/incompleto) —
+      // não registra em chavesEnviadas, então se o arquivo mudar depois
+      // (ex: terminou de ser escrito) o watcher tenta de novo naturalmente.
+      console.warn(`[upload] ignorado (não reconhecido como NF-e/NFC-e/CT-e válido): ${nomeArquivoOriginal}`);
+      return;
+    }
+
+    if (jaProcessado(dados.chaveAcesso)) return;
+
+    pendentes.push({
+      nomeArquivoOriginal,
+      xmlBase64: Buffer.from(conteudo, "utf8").toString("base64"),
+      chaveAcesso: dados.chaveAcesso,
+    });
+  }
+
+  /** Extrai o .zip em memória e classifica cada .xml de dentro como se fosse um arquivo solto. */
+  function enfileirarZip(caminhoZip: string): void {
+    let entradas: ReturnType<AdmZip["getEntries"]>;
+    try {
+      entradas = new AdmZip(caminhoZip).getEntries();
+    } catch (err) {
+      console.error(`[upload] não consegui abrir o zip ${caminhoZip}: ${err}`);
+      return;
+    }
+
+    for (const entrada of entradas) {
+      if (entrada.isDirectory || !entrada.entryName.toLowerCase().endsWith(".xml")) continue;
+      let conteudo: string;
+      try {
+        conteudo = entrada.getData().toString("utf8");
+      } catch (err) {
+        console.error(`[upload] não consegui ler ${entrada.entryName} dentro de ${caminhoZip}: ${err}`);
+        continue;
+      }
+      processarConteudoXml(`${caminhoZip} > ${entrada.entryName}`, conteudo);
+    }
+  }
+
   function enfileirar(caminhoArquivo: string): void {
+    if (caminhoArquivo.toLowerCase().endsWith(".zip")) {
+      enfileirarZip(caminhoArquivo);
+      return;
+    }
+
     let conteudo: string;
     try {
       conteudo = fs.readFileSync(caminhoArquivo, "utf8");
@@ -40,22 +88,7 @@ export function criarFilaDeEnvio(token: string) {
       return;
     }
 
-    const dados = extrairDadosBasicos(conteudo);
-    if (!dados || !validarDigitoVerificadorChave(dados.chaveAcesso)) {
-      // Não é um XML fiscal reconhecível (ou está corrompido/incompleto) —
-      // não registra em chavesEnviadas, então se o arquivo mudar depois
-      // (ex: terminou de ser escrito) o watcher tenta de novo naturalmente.
-      console.warn(`[upload] ignorado (não reconhecido como NF-e/NFC-e/CT-e válido): ${caminhoArquivo}`);
-      return;
-    }
-
-    if (jaProcessado(dados.chaveAcesso)) return;
-
-    pendentes.push({
-      nomeArquivoOriginal: caminhoArquivo,
-      xmlBase64: Buffer.from(conteudo, "utf8").toString("base64"),
-      chaveAcesso: dados.chaveAcesso,
-    });
+    processarConteudoXml(caminhoArquivo, conteudo);
   }
 
   async function flush(): Promise<void> {
