@@ -1,6 +1,8 @@
 import { carregarConfig } from "./config";
 import { rodarConfiguracaoInicial } from "./setup";
 import { habilitarInicioAutomatico } from "./autostart";
+import { habilitarVigiaPeriodica } from "./watchdog";
+import { encerrarSeJaTiverOutraCopia } from "./instancia-unica";
 import { observarPastas } from "./watcher";
 import { criarFilaDeEnvio } from "./upload";
 import { enviarHeartbeat, buscarEscopo } from "./api-client";
@@ -12,6 +14,10 @@ const INTERVALO_HEARTBEAT_MS = 5 * 60_000;
 const INTERVALO_ATUALIZACAO_MS = 6 * 60 * 60_000;
 
 async function main() {
+  // Primeira coisa de todas: se já tem outra cópia rodando, essa aqui se
+  // fecha na hora, sem gastar rede nem tempo com mais nada.
+  encerrarSeJaTiverOutraCopia();
+
   notificarSeFoiAtualizadoAgora();
 
   let config = carregarConfig();
@@ -38,6 +44,7 @@ async function main() {
   }
 
   habilitarInicioAutomatico(process.execPath);
+  habilitarVigiaPeriodica(process.execPath);
 
   void verificarAtualizacao(config.token!).catch((err) => console.error(`[main] falha ao verificar atualização: ${err}`));
   setInterval(() => {
