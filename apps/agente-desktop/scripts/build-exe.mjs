@@ -116,6 +116,20 @@ async function main() {
     execFileSync("codesign", ["--remove-signature", caminhoExecutavel]);
   }
 
+  if (process.platform === "win32") {
+    // Tem que ser ANTES do postject injetar o blob do SEA: o rcedit
+    // trava (nao da erro, so fica parado pra sempre) quando o PE ja tem
+    // aquela secao extra injetada - ele so lida bem com um PE "normal",
+    // igual o node.exe original antes de virar SEA.
+    const caminhoIcone = path.join(raizApp, "assets", "agente-fiscal.ico");
+    if (existsSync(caminhoIcone)) {
+      console.log("[build-exe] aplicando ícone (antes de injetar o blob)...");
+      await rcedit(caminhoExecutavel, { icon: caminhoIcone });
+    } else {
+      console.log("[build-exe] ícone não encontrado em assets/agente-fiscal.ico — pulando (não é obrigatório).");
+    }
+  }
+
   console.log("[build-exe] injetando o blob no executavel...");
   const argsPostject = [
     "postject",
@@ -139,14 +153,6 @@ async function main() {
   }
 
   if (process.platform === "win32") {
-    const caminhoIcone = path.join(raizApp, "assets", "agente-fiscal.ico");
-    if (existsSync(caminhoIcone)) {
-      console.log("[build-exe] aplicando ícone...");
-      await rcedit(caminhoExecutavel, { icon: caminhoIcone });
-    } else {
-      console.log("[build-exe] ícone não encontrado em assets/agente-fiscal.ico — pulando (não é obrigatório).");
-    }
-
     console.log("[build-exe] removendo janela de console (roda em segundo plano)...");
     removerJanelaDeConsole(caminhoExecutavel);
   }
