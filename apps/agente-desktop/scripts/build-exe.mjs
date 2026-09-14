@@ -11,7 +11,7 @@
 // de assinatura so roda condicionalmente.
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, writeFileSync, chmodSync, readSync, writeSync, openSync, closeSync, existsSync } from "node:fs";
+import { copyFileSync, mkdirSync, writeFileSync, chmodSync, readSync, writeSync, openSync, closeSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { rcedit } from "rcedit";
@@ -80,10 +80,18 @@ const caminhoExecutavel = path.join(pastaSea, nomeExecutavel);
 const URL_API_PADRAO = "https://fiscal-api.dnotas.com.br:8443";
 const urlApi = process.env.AFE_CORE_API_URL_BUILD ?? URL_API_PADRAO;
 
+// A versao que vai ser publicada via POST /agentes/versoes precisa bater
+// com a que fica embutida aqui, senao o agente nasce achando que e uma
+// versao antiga e se auto-atualiza pra ele mesmo, a toa, na primeira
+// verificacao. Fonte da verdade: version do package.json — lembrar de
+// atualizar os dois juntos ao publicar uma versao nova.
+const packageJson = JSON.parse(readFileSync(path.join(raizApp, "package.json"), "utf8"));
+const versaoAgente = process.env.AFE_AGENTE_VERSAO_BUILD ?? packageJson.version;
+
 async function main() {
   mkdirSync(pastaSea, { recursive: true });
 
-  console.log(`[build-exe] empacotando com esbuild (API: ${urlApi})...`);
+  console.log(`[build-exe] empacotando com esbuild (API: ${urlApi}, versão: ${versaoAgente})...`);
   await build({
     entryPoints: [path.join(raizApp, "src/main.ts")],
     bundle: true,
@@ -92,6 +100,7 @@ async function main() {
     target: "node22",
     define: {
       "process.env.AFE_CORE_API_URL": JSON.stringify(urlApi),
+      "process.env.AFE_AGENTE_VERSAO_BUILD": JSON.stringify(versaoAgente),
     },
     outfile: path.join(pastaSea, "bundle.js"),
   });

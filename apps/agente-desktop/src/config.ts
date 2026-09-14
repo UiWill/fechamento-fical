@@ -33,11 +33,17 @@ export interface ConfigAgente {
   ultimoHeartbeatEm: string | null;
 }
 
+// Embutido em tempo de build (ver build-exe.mjs) com a versão real que
+// vai ser publicada — sem isso, todo .exe novo nascia achando que era a
+// "0.1.0" até a primeira verificação de atualização se autocorrigir,
+// baixando e reiniciando por nada (a versão que ele já era).
+const VERSAO_PADRAO = process.env.AFE_AGENTE_VERSAO_BUILD ?? "0.1.0";
+
 const CONFIG_PADRAO: ConfigAgente = {
   token: null,
   pastasMonitoradas: [],
   chavesEnviadas: {},
-  versaoAgente: "0.1.0",
+  versaoAgente: VERSAO_PADRAO,
   ultimoHeartbeatEm: null,
 };
 
