@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import type { RegistrarContaInput } from "@afe/shared";
 import { PrismaService } from "../common/prisma/prisma.service";
 
 function getJwtSecret(): string {
@@ -9,21 +10,19 @@ function getJwtSecret(): string {
   return secret;
 }
 
+interface UsuarioParaToken {
+  id: string;
+  nome: string;
+  email: string;
+  papel: string;
+  organizacaoId: string | null;
+}
+
 @Injectable()
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async login(email: string, senha: string) {
-    const usuario = await this.prisma.client.usuario.findUnique({ where: { email } });
-    if (!usuario || !usuario.ativo) {
-      throw new UnauthorizedException("Credenciais inválidas");
-    }
-
-    const senhaValida = await bcrypt.compare(senha, usuario.senhaHash);
-    if (!senhaValida) {
-      throw new UnauthorizedException("Credenciais inválidas");
-    }
-
+  private assinarToken(usuario: UsuarioParaToken) {
     const token = jwt.sign(
       { sub: usuario.id, organizacaoId: usuario.organizacaoId, papel: usuario.papel },
       getJwtSecret(),
@@ -42,22 +41,59 @@ export class AuthService {
     };
   }
 
-  async criarUsuario(input: {
-    nome: string;
-    email: string;
-    senha: string;
-    organizacaoId?: string;
-    papel?: "ADMIN_PLATAFORMA" | "ADMIN_ORGANIZACAO" | "OPERADOR";
-  }) {
+  async login(email: string, senha: string) {
+    const usuario = await this.prisma.client.usuario.findUnique({ where: { email } });
+    if (!usuario || !usuario.ativo) {
+      throw new UnauthorizedException("Credenciais inválidas");
+    }
+
+    const senhaValida = await bcrypt.compare(senha, usuario.senhaHash);
+    if (!senhaValida) {
+      throw new UnauthorizedException("Credenciais inválidas");
+    }
+
+    return this.assinarToken(usuario);
+  }
+
+  /**
+   * Auto-atendimento: cria a organização (conta) e o primeiro usuário dela
+   * junto, sem precisar de ninguém já logado. Ainda não tem
+   * assinatura/cobrança — só a criação da conta em si; a organização
+   * nasce sem restrição de uso.
+   */
+  async registrarConta(input: RegistrarContaInput) {
+    const [organizacaoExistente, usuarioExistente] = await Promise.all([
+      this.prisma.client.organizacao.findUnique({ where: { cnpj: input.cnpj } }),
+      this.prisma.client.usuario.findUnique({ where: { email: input.email } }),
+    ]);
+    if (organizacaoExistente) {
+      throw new ConflictException("Já existe uma conta cadastrada com esse CNPJ");
+    }
+    if (usuarioExistente) {
+      throw new ConflictException("Já existe uma conta cadastrada com esse e-mail");
+    }
+
     const senhaHash = await bcrypt.hash(input.senha, 12);
-    return this.prisma.client.usuario.create({
-      data: {
-        nome: input.nome,
-        email: input.email,
-        senhaHash,
-        organizacaoId: input.organizacaoId,
-        papel: input.papel ?? "OPERADOR",
-      },
+
+    const usuario = await this.prisma.client.$transaction(async (tx) => {
+      const organizacao = await tx.organizacao.create({
+        data: {
+          razaoSocial: input.razaoSocial,
+          cnpj: input.cnpj,
+          emailContato: input.email,
+        },
+      });
+      return tx.usuario.create({
+        data: {
+          nome: input.nomeResponsavel,
+          email: input.email,
+          senhaHash,
+          organizacaoId: organizacao.id,
+          papel: "ADMIN_ORGANIZACAO",
+        },
+      });
     });
+
+    return this.assinarToken(usuario);
   }
 }

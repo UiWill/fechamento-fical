@@ -80,6 +80,18 @@ export const criarAgenteTokenSchema = z
   });
 export type CriarAgenteTokenInput = z.infer<typeof criarAgenteTokenSchema>;
 
+// Auto-atendimento: cria a Organizacao (a "conta") e o primeiro usuario
+// dela junto, num passo so — ainda nao tem assinatura/cobranca, so a
+// criacao da conta em si.
+export const registrarContaSchema = z.object({
+  razaoSocial: z.string().min(1),
+  cnpj: cnpjSchema,
+  nomeResponsavel: z.string().min(1),
+  email: z.string().email(),
+  senha: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+});
+export type RegistrarContaInput = z.infer<typeof registrarContaSchema>;
+
 export const uploadDocumentoAgenteSchema = z.object({
   documentos: z
     .array(

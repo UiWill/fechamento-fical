@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { login, CredenciaisInvalidasError, ApiInalcancavelError } from "@/lib/api";
 
 function IconeOlho() {
@@ -136,7 +137,10 @@ export default function LoginPage() {
           className="entra-suave mt-10 text-center text-xs"
           style={{ color: "var(--muted-2)", animationDelay: "300ms" }}
         >
-          Acesso restrito à equipe autorizada.
+          Ainda não tem conta?{" "}
+          <Link href="/registrar" className="underline underline-offset-4" style={{ color: "var(--muted)" }}>
+            Criar conta
+          </Link>
         </p>
       </div>
     </main>

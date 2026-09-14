@@ -13,6 +13,7 @@ export interface LoginResponse {
 
 export class CredenciaisInvalidasError extends Error {}
 export class ApiInalcancavelError extends Error {}
+export class ContaJaExisteError extends Error {}
 
 export async function login(email: string, senha: string): Promise<LoginResponse> {
   let response: Response;
@@ -32,6 +33,38 @@ export async function login(email: string, senha: string): Promise<LoginResponse
   }
   if (!response.ok) {
     throw new Error(`API respondeu ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export interface RegistrarContaInput {
+  razaoSocial: string;
+  cnpj: string;
+  nomeResponsavel: string;
+  email: string;
+  senha: string;
+}
+
+export async function registrarConta(input: RegistrarContaInput): Promise<LoginResponse> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/auth/registrar`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new ApiInalcancavelError(`Não foi possível contatar ${API_URL}`);
+  }
+
+  if (response.status === 409) {
+    const corpo = await response.json().catch(() => null);
+    throw new ContaJaExisteError(corpo?.message ?? "Já existe uma conta com esses dados.");
+  }
+  if (!response.ok) {
+    const corpo = await response.json().catch(() => null);
+    throw new Error(corpo?.message || `API respondeu ${response.status}`);
   }
 
   return response.json();
