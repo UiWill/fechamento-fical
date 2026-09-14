@@ -9,7 +9,6 @@ const cadastrarSchema = z.object({
   nomeArquivoOriginal: z.string().min(1),
   pfxBase64: z.string().min(1),
   senha: z.string().min(1),
-  validoAte: z.coerce.date(),
 });
 
 @Controller("certificados")

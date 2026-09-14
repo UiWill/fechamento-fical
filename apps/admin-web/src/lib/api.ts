@@ -167,7 +167,6 @@ export interface UploadCertificadoInput {
   nomeArquivoOriginal: string;
   pfxBase64: string;
   senha: string;
-  validoAte: string;
 }
 
 export async function uploadCertificado(
@@ -183,8 +182,8 @@ export async function uploadCertificado(
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const corpo = await response.text();
-    throw new Error(corpo || `API respondeu ${response.status}`);
+    const corpo = await response.json().catch(() => null);
+    throw new Error(corpo?.message || `API respondeu ${response.status}`);
   }
   return response.json();
 }

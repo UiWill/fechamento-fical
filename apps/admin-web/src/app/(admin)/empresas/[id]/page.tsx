@@ -75,7 +75,6 @@ function SecaoCertificado({
   const [editando, setEditando] = useState(!certificado);
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [senha, setSenha] = useState("");
-  const [validoAte, setValidoAte] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -97,7 +96,6 @@ function SecaoCertificado({
           nomeArquivoOriginal: arquivo.name,
           pfxBase64,
           senha,
-          validoAte: new Date(validoAte).toISOString(),
         },
         token
       );
@@ -105,8 +103,12 @@ function SecaoCertificado({
       setEditando(false);
       setSenha("");
       setArquivo(null);
-    } catch {
-      setErro("Não foi possível cadastrar o certificado. Confira o arquivo, a senha e tente de novo.");
+    } catch (err) {
+      setErro(
+        err instanceof Error
+          ? err.message
+          : "Não foi possível cadastrar o certificado. Confira o arquivo, a senha e tente de novo."
+      );
     } finally {
       setEnviando(false);
     }
@@ -155,38 +157,23 @@ function SecaoCertificado({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        <div className="space-y-1.5">
-          <label
-            className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
-            style={{ color: "var(--muted)" }}
-          >
-            Senha do certificado
-          </label>
-          <input
-            type="password"
-            required
-            value={senha}
-            onChange={(event) => setSenha(event.target.value)}
-            className="campo"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label
-            className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
-            style={{ color: "var(--muted)" }}
-          >
-            Válido até
-          </label>
-          <input
-            type="date"
-            required
-            value={validoAte}
-            onChange={(event) => setValidoAte(event.target.value)}
-            className="campo"
-          />
-        </div>
+      <div className="space-y-1.5">
+        <label
+          className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+          style={{ color: "var(--muted)" }}
+        >
+          Senha do certificado
+        </label>
+        <input
+          type="password"
+          required
+          value={senha}
+          onChange={(event) => setSenha(event.target.value)}
+          className="campo"
+        />
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          A validade é lida direto do certificado — não precisa digitar.
+        </p>
       </div>
 
       {erro && (

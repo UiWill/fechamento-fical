@@ -1,17 +1,17 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import {
   BUCKET_CERTIFICADOS,
   ObjectStorageService,
 } from "../common/storage/object-storage.service";
 import { encryptBuffer, encryptString, decryptBuffer, decryptString } from "../common/crypto/envelope-encryption";
+import { lerCertificadoPfx } from "./ler-pfx";
 
 export interface CadastrarCertificadoInput {
   empresaId: string;
   nomeArquivoOriginal: string;
   pfxBuffer: Buffer;
   senha: string;
-  validoAte: Date;
 }
 
 @Injectable()
@@ -25,8 +25,30 @@ export class CertificadosService {
    * Grava o PFX cifrado (AES-256-GCM) no armazenamento de objetos e a senha cifrada no Postgres.
    * O conteúdo em claro nunca é persistido — só existe em memória durante
    * esta chamada.
+   *
+   * A validade e o CNPJ vêm de dentro do próprio certificado (nunca de um
+   * campo digitado) — além de tirar o trabalho manual de digitar a data,
+   * isso também valida a senha na hora (antes, uma senha errada só ia
+   * falhar depois, na hora de assinar de verdade contra a SEFAZ) e evita
+   * vincular por engano o certificado de uma empresa à conta de outra.
    */
   async cadastrar(input: CadastrarCertificadoInput) {
+    const empresa = await this.prisma.client.empresa.findUnique({ where: { id: input.empresaId } });
+    if (!empresa) throw new NotFoundException(`Empresa ${input.empresaId} não encontrada`);
+
+    let dadosCertificado;
+    try {
+      dadosCertificado = lerCertificadoPfx(input.pfxBuffer, input.senha);
+    } catch (err) {
+      throw new BadRequestException(err instanceof Error ? err.message : "Certificado inválido");
+    }
+
+    if (dadosCertificado.cnpjCertificado && dadosCertificado.cnpjCertificado !== empresa.cnpj) {
+      throw new BadRequestException(
+        `Este certificado pertence ao CNPJ ${dadosCertificado.cnpjCertificado}, mas a empresa cadastrada é ${empresa.cnpj}. Confira se não é o certificado de outro cliente.`
+      );
+    }
+
     const objetoStorage = `${input.empresaId}.pfx.enc`;
 
     const pfxCifrado = encryptBuffer(input.pfxBuffer);
@@ -51,14 +73,14 @@ export class CertificadosService {
         objetoStorage,
         senhaCriptografada,
         ivCriptografia: pfxCifrado.iv,
-        validoAte: input.validoAte,
+        validoAte: dadosCertificado.validoAte,
       },
       update: {
         nomeArquivoOriginal: input.nomeArquivoOriginal,
         objetoStorage,
         senhaCriptografada,
         ivCriptografia: pfxCifrado.iv,
-        validoAte: input.validoAte,
+        validoAte: dadosCertificado.validoAte,
         alertaVencimentoEnviado: false,
       },
     });

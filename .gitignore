@@ -47,3 +47,4 @@ packages/database/generated/
 # dados reais de clientes/fornecedores — nunca versionar (cláusula de
 # confidencialidade do contrato, ver Contrato_CAPTAL...pdf clausula 12ª)
 ExportacaoDominio-*.txt
+*.rar
