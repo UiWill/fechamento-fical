@@ -204,6 +204,11 @@ model AgenteInstalacaoToken {
   nome               String // rotulo livre pro admin identificar, ex: "PC do escritorio"
   tokenHash          String                 @unique // SHA-256 do token bruto - o bruto nunca e persistido, so mostrado 1x na criacao
   status             StatusAgenteInstalacao @default(ATIVO)
+  // Contato de quem cuida dessa maquina especifica - pra saber quem ligar
+  // quando o agente para de mandar heartbeat e ninguem sabe de quem e o PC.
+  anydeskId          String?
+  nomeContato        String?
+  telefoneContato    String?
   revogadoEm         DateTime?
   ultimoHeartbeatEm  DateTime?
   ultimaVersaoAgente String?

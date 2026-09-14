@@ -13,6 +13,8 @@ import {
   enviarManifestacao,
   gerarExportacaoTxt,
   baixarExportacaoTxt,
+  baixarXmlsZip,
+  zerarNsu,
   ROTULO_EVENTO_MANIFESTACAO,
   type EmpresaDetalhe,
   type CertificadoResumo,
@@ -398,6 +400,13 @@ export default function EmpresaDetalhePage() {
 
   const [mesFiltro, setMesFiltro] = useState(mesAtual());
   const [mesFiltroSaida, setMesFiltroSaida] = useState(mesAtual());
+
+  const [baixandoXmlEntrada, setBaixandoXmlEntrada] = useState(false);
+  const [erroXmlEntrada, setErroXmlEntrada] = useState<string | null>(null);
+  const [baixandoXmlSaida, setBaixandoXmlSaida] = useState(false);
+  const [erroXmlSaida, setErroXmlSaida] = useState<string | null>(null);
+  const [zerandoNsu, setZerandoNsu] = useState(false);
+  const [resultadoNsu, setResultadoNsu] = useState<string | null>(null);
   const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "certificado">("entrada");
 
   const [mesExportacaoTxt, setMesExportacaoTxt] = useState(mesAtual());
@@ -586,6 +595,53 @@ export default function EmpresaDetalhePage() {
     exportarNotasSaidaExcel(linhasRelatorioSaida(), empresa.razaoSocial, empresa.cnpj, rotuloMes(mesFiltroSaida));
   }
 
+  async function handleBaixarXmlEntrada() {
+    if (!token) return;
+    setBaixandoXmlEntrada(true);
+    try {
+      const { inicio, fim } = limitesDoMes(mesFiltro);
+      await baixarXmlsZip(params.id, "ENTRADA", inicio, fim, token);
+    } catch {
+      setErroXmlEntrada("Não foi possível baixar os XMLs agora.");
+    } finally {
+      setBaixandoXmlEntrada(false);
+    }
+  }
+
+  async function handleBaixarXmlSaida() {
+    if (!token) return;
+    setBaixandoXmlSaida(true);
+    try {
+      const { inicio, fim } = limitesDoMes(mesFiltroSaida);
+      await baixarXmlsZip(params.id, "SAIDA", inicio, fim, token);
+    } catch {
+      setErroXmlSaida("Não foi possível baixar os XMLs agora.");
+    } finally {
+      setBaixandoXmlSaida(false);
+    }
+  }
+
+  async function handleZerarNsu() {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "Zerar o NSU dessa empresa? Isso faz a próxima sincronização buscar todo o histórico de novo na SEFAZ, desde o início — use só se os dados de entrada foram perdidos (ex: reconstrução do servidor)."
+      )
+    ) {
+      return;
+    }
+    setZerandoNsu(true);
+    setResultadoNsu(null);
+    try {
+      await zerarNsu(params.id, token);
+      setResultadoNsu("NSU zerado — a próxima sincronização vai buscar o histórico desde o início.");
+    } catch {
+      setResultadoNsu("Não foi possível zerar o NSU agora.");
+    } finally {
+      setZerandoNsu(false);
+    }
+  }
+
   if (carregando) {
     return (
       <div className="space-y-4">
@@ -702,10 +758,27 @@ export default function EmpresaDetalhePage() {
           </div>
         </div>
 
-        <p className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
-          Última sincronização:{" "}
-          {empresa.ultimaSincronizacaoEm ? formatarDataHora(empresa.ultimaSincronizacaoEm) : "nunca"}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+            Última sincronização:{" "}
+            {empresa.ultimaSincronizacaoEm ? formatarDataHora(empresa.ultimaSincronizacaoEm) : "nunca"}
+          </p>
+          <button
+            onClick={() => void handleZerarNsu()}
+            disabled={zerandoNsu}
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30"
+            style={{ color: "var(--muted)" }}
+            title="Use só se os dados de entrada foram perdidos (ex: reconstrução do servidor) e a SEFAZ precisa reenviar tudo de novo"
+          >
+            {zerandoNsu ? "Zerando…" : "Zerar NSU"}
+          </button>
+        </div>
+
+        {resultadoNsu && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            {resultadoNsu}
+          </p>
+        )}
 
         {empresa.ultimoCStatSefaz === "656" && (
           <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
@@ -776,6 +849,15 @@ export default function EmpresaDetalhePage() {
               Baixar PDF
             </button>
             <button
+              onClick={() => void handleBaixarXmlEntrada()}
+              disabled={notasEntradaDoMes.length === 0 || baixandoXmlEntrada}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed"
+              style={{ color: "var(--paper)" }}
+              title={notasEntradaDoMes.length === 0 ? "Não há notas de entrada nesse mês" : undefined}
+            >
+              {baixandoXmlEntrada ? "Baixando…" : "Baixar XML"}
+            </button>
+            <button
               onClick={handleExportarExcel}
               disabled={notasEntradaDoMes.length === 0}
               className="botao-principal disabled:opacity-30 disabled:cursor-not-allowed"
@@ -786,6 +868,12 @@ export default function EmpresaDetalhePage() {
             </button>
           </div>
         </div>
+
+        {erroXmlEntrada && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            {erroXmlEntrada}
+          </p>
+        )}
 
         {documentosEntrada.length === 0 ? (
           <div
@@ -924,6 +1012,15 @@ export default function EmpresaDetalhePage() {
               Baixar PDF
             </button>
             <button
+              onClick={() => void handleBaixarXmlSaida()}
+              disabled={notasSaidaDoMes.length === 0 || baixandoXmlSaida}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed"
+              style={{ color: "var(--paper)" }}
+              title={notasSaidaDoMes.length === 0 ? "Não há notas de saída nesse mês" : undefined}
+            >
+              {baixandoXmlSaida ? "Baixando…" : "Baixar XML"}
+            </button>
+            <button
               onClick={handleExportarSaidaExcel}
               disabled={notasSaidaDoMes.length === 0}
               className="botao-principal disabled:opacity-30 disabled:cursor-not-allowed"
@@ -933,6 +1030,12 @@ export default function EmpresaDetalhePage() {
               Baixar Excel
             </button>
           </div>
+
+          {erroXmlSaida && (
+            <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+              {erroXmlSaida}
+            </p>
+          )}
         </div>
 
         {documentosSaida.length === 0 ? (

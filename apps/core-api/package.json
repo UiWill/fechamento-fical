@@ -12,6 +12,7 @@
   "dependencies": {
     "@afe/database": "workspace:*",
     "@afe/shared": "workspace:*",
+    "archiver": "^7.0.1",
     "@nestjs/common": "^11.0.6",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.6",
@@ -29,6 +30,7 @@
     "@nestjs/cli": "^11.0.2",
     "@nestjs/schematics": "^11.0.0",
     "@types/bcryptjs": "^2.4.6",
+    "@types/archiver": "^6.0.4",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.5",
     "@types/node-forge": "^1.3.14",

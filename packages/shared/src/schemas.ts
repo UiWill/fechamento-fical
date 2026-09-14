@@ -74,6 +74,11 @@ export const criarAgenteTokenSchema = z
     nome: z.string().min(1),
     organizacaoId: z.string().cuid().optional(),
     empresaId: z.string().cuid().optional(),
+    // Contato de quem cuida dessa maquina - pra saber quem ligar se o
+    // agente parar de mandar heartbeat.
+    anydeskId: z.string().optional(),
+    nomeContato: z.string().optional(),
+    telefoneContato: z.string().optional(),
   })
   .refine((dado) => Boolean(dado.organizacaoId) !== Boolean(dado.empresaId), {
     message: "Informe organizacaoId OU empresaId, nunca os dois nem nenhum",

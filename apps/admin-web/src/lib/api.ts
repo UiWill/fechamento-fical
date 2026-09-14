@@ -450,6 +450,45 @@ export async function baixarExportacaoTxt(
   URL.revokeObjectURL(url);
 }
 
+/** Baixa um .zip com os XMLs do periodo/direcao filtrados na tela. */
+export async function baixarXmlsZip(
+  empresaId: string,
+  direcao: "ENTRADA" | "SAIDA",
+  inicio: string,
+  fim: string,
+  token: string
+): Promise<void> {
+  const params = new URLSearchParams({ direcao, inicio, fim });
+  const response = await fetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/xml-zip?${params}`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível baixar os XMLs.");
+  }
+  const disposicao = response.headers.get("content-disposition");
+  const nomeArquivo = disposicao?.match(/filename="(.+)"/)?.[1] ?? `xmls-${direcao.toLowerCase()}.zip`;
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function zerarNsu(empresaId: string, token: string): Promise<void> {
+  const response = await fetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/nsu/zerar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível zerar o NSU.");
+  }
+}
+
 export interface AgenteInstalacao {
   id: string;
   nome: string;
@@ -458,6 +497,9 @@ export interface AgenteInstalacao {
   status: "ATIVO" | "REVOGADO";
   ultimoHeartbeatEm: string | null;
   ultimaVersaoAgente: string | null;
+  anydeskId: string | null;
+  nomeContato: string | null;
+  telefoneContato: string | null;
   criadoEm: string;
 }
 
@@ -476,6 +518,9 @@ export interface GerarAgenteTokenInput {
   nome: string;
   organizacaoId?: string;
   empresaId?: string;
+  anydeskId?: string;
+  nomeContato?: string;
+  telefoneContato?: string;
 }
 
 export async function gerarTokenAgente(
@@ -504,5 +549,15 @@ export async function revogarTokenAgente(id: string, token: string): Promise<voi
   });
   if (!response.ok) {
     throw new Error("Não foi possível revogar esse token.");
+  }
+}
+
+export async function excluirTokenAgente(id: string, token: string): Promise<void> {
+  const response = await fetch(`${API_URL}/agentes/tokens/${id}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível excluir esse agente.");
   }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Query, Req } from "@nestjs/common";
 import { criarAgenteTokenSchema } from "@afe/shared";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { AgentesService } from "./agentes.service";
@@ -31,6 +31,14 @@ export class AgentesController {
   @Post("tokens/:id/revogar")
   revogarToken(@Param("id") id: string) {
     return this.service.revogarToken(id);
+  }
+
+  @Delete("tokens/:id")
+  excluirToken(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    if (request.usuario?.papel === "OPERADOR") {
+      throw new ForbiddenException("Apenas administradores podem excluir instalações de agente");
+    }
+    return this.service.excluirToken(id);
   }
 
   /**

@@ -1,4 +1,6 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import archiver from "archiver";
+import type { Readable } from "node:stream";
 import { PrismaService } from "../common/prisma/prisma.service";
 import {
   BUCKET_DOCUMENTOS_FISCAIS,
@@ -265,5 +267,71 @@ export class DocumentosFiscaisService {
       bloqueadoPelaSefaz: bloqueadoNestaChamada,
       ultimaSincronizacaoEm: nsuControle.atualizadoEm,
     };
+  }
+
+  /**
+   * Zera o NSU controle da empresa, forcando a proxima sincronizacao a
+   * pedir a Distribuicao DFe de novo desde o inicio. Necessario quando o
+   * banco/armazenamento foi perdido (ex: reconstrucao de servidor) mas a
+   * SEFAZ ja tinha avancado o NSU pra alem do que a gente tem salvo aqui -
+   * sem isso, a SEFAZ acha que ja mandou tudo que a gente "ja recebeu" e
+   * nunca reenvia os documentos que perdemos.
+   */
+  async zerarNsu(empresaId: string) {
+    const empresa = await this.prisma.client.empresa.findUnique({ where: { id: empresaId } });
+    if (!empresa) throw new NotFoundException(`Empresa ${empresaId} não encontrada`);
+
+    await this.prisma.client.nsuControle.upsert({
+      where: { empresaId },
+      create: { empresaId, ultimoNsu: 0 },
+      update: { ultimoNsu: 0, ultimoCStat: null, ultimoXMotivo: null },
+    });
+
+    return { ok: true };
+  }
+
+  /**
+   * Monta um .zip com os XMLs dos documentos filtrados (mesmo criterio da
+   * tela: direcao + periodo) e devolve como stream, pra nao precisar
+   * carregar tudo em memoria de uma vez quando o mes tiver muitos documentos.
+   */
+  async baixarXmlsEmZip(
+    empresaId: string,
+    direcao: "ENTRADA" | "SAIDA",
+    inicio: Date,
+    fim: Date
+  ): Promise<Readable> {
+    const documentos = await this.prisma.client.documentoFiscal.findMany({
+      where: {
+        empresaId,
+        direcao,
+        OR: [
+          { emitidoEm: { gte: inicio, lt: fim } },
+          { emitidoEm: null, recebidoEm: { gte: inicio, lt: fim } },
+        ],
+      },
+      select: { chaveAcesso: true, objetoStorageXml: true },
+    });
+
+    const zip = archiver("zip", { zlib: { level: 9 } });
+    zip.on("warning", (err) => this.logger.warn(`Aviso ao gerar zip de XMLs: ${err}`));
+
+    // Nao usar `await` no loop antes de retornar o stream — o chamador
+    // (controller) precisa comecar a consumir o stream em paralelo com o
+    // preenchimento, senao arquivos grandes de XML enchem o buffer interno
+    // do archiver e travam.
+    void (async () => {
+      for (const doc of documentos) {
+        try {
+          const buffer = await this.storage.getObject(BUCKET_DOCUMENTOS_FISCAIS, doc.objetoStorageXml);
+          zip.append(buffer, { name: `${doc.chaveAcesso}.xml` });
+        } catch (err) {
+          this.logger.error(`Falha ao ler XML ${doc.chaveAcesso} pro zip: ${err}`);
+        }
+      }
+      void zip.finalize();
+    })();
+
+    return zip;
   }
 }

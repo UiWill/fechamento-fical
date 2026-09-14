@@ -47,6 +47,9 @@ export class AgentesService {
         organizacaoId: input.organizacaoId,
         empresaId: input.empresaId,
         tokenHash: hashTokenAgente(tokenBruto),
+        anydeskId: input.anydeskId,
+        nomeContato: input.nomeContato,
+        telefoneContato: input.telefoneContato,
       },
     });
 
@@ -55,8 +58,12 @@ export class AgentesService {
   }
 
   listarTokens(organizacaoId: string) {
+    // Um token pode estar preso direto na organizacao (escopo "toda a
+    // carteira") OU numa empresa especifica dela (escopo "um CNPJ") — sem
+    // o segundo braço do OR, os tokens de empresa especifica nunca
+    // apareciam aqui (bug anterior: so buscava por organizacaoId).
     return this.prisma.client.agenteInstalacaoToken.findMany({
-      where: { organizacaoId },
+      where: { OR: [{ organizacaoId }, { empresa: { organizacaoId } }] },
       select: {
         id: true,
         nome: true,
@@ -65,6 +72,9 @@ export class AgentesService {
         status: true,
         ultimoHeartbeatEm: true,
         ultimaVersaoAgente: true,
+        anydeskId: true,
+        nomeContato: true,
+        telefoneContato: true,
         criadoEm: true,
       },
       orderBy: { criadoEm: "desc" },
@@ -79,6 +89,20 @@ export class AgentesService {
       where: { id },
       data: { status: "REVOGADO", revogadoEm: new Date() },
     });
+  }
+
+  /**
+   * Diferente de revogar (que só invalida o token, mantendo o registro pra
+   * histórico): apaga a instalação da lista de vez. Os documentos fiscais
+   * já recebidos por ela não são afetados — a FK
+   * (agenteInstalacaoTokenId) é SET NULL, nunca cascade delete.
+   */
+  async excluirToken(id: string) {
+    const registro = await this.prisma.client.agenteInstalacaoToken.findUnique({ where: { id } });
+    if (!registro) throw new NotFoundException(`Token ${id} não encontrado`);
+
+    await this.prisma.client.agenteInstalacaoToken.delete({ where: { id } });
+    return { ok: true };
   }
 
   async resolverEmpresasAutorizadas(agenteToken: AgenteAutenticado) {

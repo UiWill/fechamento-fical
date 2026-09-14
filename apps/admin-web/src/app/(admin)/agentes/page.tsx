@@ -8,6 +8,7 @@ import {
   listarAgentes,
   gerarTokenAgente,
   revogarTokenAgente,
+  excluirTokenAgente,
   type EmpresaResumo,
   type AgenteInstalacao,
 } from "@/lib/api";
@@ -37,6 +38,9 @@ function ModalNovoToken({
   const [nome, setNome] = useState("");
   const [escopo, setEscopo] = useState<"organizacao" | "empresa">("organizacao");
   const [empresaId, setEmpresaId] = useState(empresas[0]?.id ?? "");
+  const [anydeskId, setAnydeskId] = useState("");
+  const [nomeContato, setNomeContato] = useState("");
+  const [telefoneContato, setTelefoneContato] = useState("");
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [tokenGerado, setTokenGerado] = useState<string | null>(null);
@@ -56,6 +60,9 @@ function ModalNovoToken({
           nome: nome.trim(),
           organizacaoId: escopo === "organizacao" ? organizacaoId : undefined,
           empresaId: escopo === "empresa" ? empresaId : undefined,
+          anydeskId: anydeskId.trim() || undefined,
+          nomeContato: nomeContato.trim() || undefined,
+          telefoneContato: telefoneContato.trim() || undefined,
         },
         token
       );
@@ -172,6 +179,47 @@ function ModalNovoToken({
               </div>
             )}
 
+            <p className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+              Contato dessa instalação (opcional — pra saber quem chamar se o agente parar)
+            </p>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+                  Nome
+                </label>
+                <input
+                  value={nomeContato}
+                  onChange={(event) => setNomeContato(event.target.value)}
+                  placeholder="Quem cuida desse PC"
+                  className="campo text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+                  Telefone
+                </label>
+                <input
+                  value={telefoneContato}
+                  onChange={(event) => setTelefoneContato(event.target.value)}
+                  placeholder="(00) 00000-0000"
+                  className="campo text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+                ID do AnyDesk
+              </label>
+              <input
+                value={anydeskId}
+                onChange={(event) => setAnydeskId(event.target.value)}
+                placeholder="Ex: 123 456 789"
+                className="campo text-sm"
+              />
+            </div>
+
             {erro && (
               <p className="text-sm" style={{ color: "var(--paper)" }}>
                 {erro}
@@ -239,6 +287,15 @@ export default function AgentesPage() {
     if (organizacaoId) void carregar(token, organizacaoId);
   }
 
+  async function handleExcluir(id: string, nome: string) {
+    if (!token) return;
+    if (!window.confirm(`Excluir a instalação "${nome}"? Isso não pode ser desfeito (mas os documentos já recebidos por ela continuam salvos).`)) {
+      return;
+    }
+    await excluirTokenAgente(id, token);
+    if (organizacaoId) void carregar(token, organizacaoId);
+  }
+
   function escopoDoAgente(agente: AgenteInstalacao): string {
     if (agente.organizacaoId) return "Toda a carteira";
     const empresa = empresas.find((e) => e.id === agente.empresaId);
@@ -290,6 +347,7 @@ export default function AgentesPage() {
               <tr className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)", background: "var(--surface)" }}>
                 <th className="px-4 py-3 font-medium">Nome</th>
                 <th className="px-4 py-3 font-medium">Escopo</th>
+                <th className="px-4 py-3 font-medium">Contato</th>
                 <th className="px-4 py-3 font-medium">Versão</th>
                 <th className="px-4 py-3 font-medium">Último sinal</th>
                 <th className="px-4 py-3 font-medium">Status</th>
@@ -304,6 +362,17 @@ export default function AgentesPage() {
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
                     {escopoDoAgente(agente)}
+                  </td>
+                  <td className="px-4 py-3 text-xs" style={{ color: "var(--muted)" }}>
+                    {agente.nomeContato || agente.telefoneContato || agente.anydeskId ? (
+                      <div className="space-y-0.5">
+                        {agente.nomeContato && <div style={{ color: "var(--paper)" }}>{agente.nomeContato}</div>}
+                        {agente.telefoneContato && <div>{agente.telefoneContato}</div>}
+                        {agente.anydeskId && <div className="font-mono">AnyDesk: {agente.anydeskId}</div>}
+                      </div>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>
                     {agente.ultimaVersaoAgente ?? "—"}
@@ -321,15 +390,24 @@ export default function AgentesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {agente.status === "ATIVO" && (
+                    <div className="flex gap-3">
+                      {agente.status === "ATIVO" && (
+                        <button
+                          onClick={() => void handleRevogar(agente.id)}
+                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          Revogar
+                        </button>
+                      )}
                       <button
-                        onClick={() => void handleRevogar(agente.id)}
+                        onClick={() => void handleExcluir(agente.id, agente.nome)}
                         className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
                         style={{ color: "var(--muted)" }}
                       >
-                        Revogar
+                        Excluir
                       </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}
