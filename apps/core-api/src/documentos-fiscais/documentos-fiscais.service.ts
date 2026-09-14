@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import archiver from "archiver";
 import type { Readable } from "node:stream";
 import { PrismaService } from "../common/prisma/prisma.service";
@@ -95,7 +95,24 @@ export class DocumentosFiscaisService {
     private readonly fiscalEngine: FiscalEngineClient
   ) {}
 
-  listarPorEmpresa(empresaId: string) {
+  /**
+   * Confere que a empresa pertence à organização de quem está chamando —
+   * sem isso, qualquer conta logada (de qualquer organização) conseguiria
+   * listar/sincronizar/zerar NSU/baixar XMLs de uma empresa de outro
+   * cliente só sabendo o id (achado numa revisão de segurança
+   * automática).
+   */
+  private async verificarEmpresaDaOrganizacao(empresaId: string, organizacaoId: string) {
+    const empresa = await this.prisma.client.empresa.findUnique({ where: { id: empresaId } });
+    if (!empresa) throw new NotFoundException(`Empresa ${empresaId} não encontrada`);
+    if (empresa.organizacaoId !== organizacaoId) {
+      throw new ForbiddenException("Essa empresa não pertence à sua organização");
+    }
+    return empresa;
+  }
+
+  async listarPorEmpresa(empresaId: string, organizacaoId: string) {
+    await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
     return this.prisma.client.documentoFiscal.findMany({
       where: { empresaId },
       // nome do agente desktop que enviou (só existe pra SAIDA) — o
@@ -111,13 +128,8 @@ export class DocumentosFiscaisService {
    * metadados no Postgres. Pensado para rodar via job agendado por empresa
    * (fase 2 — aqui exposto também como chamada manual/on-demand).
    */
-  async sincronizarComSefaz(empresaId: string) {
-    const empresa = await this.prisma.client.empresa.findUnique({
-      where: { id: empresaId },
-    });
-    if (!empresa) {
-      throw new NotFoundException(`Empresa ${empresaId} não encontrada`);
-    }
+  async sincronizarComSefaz(empresaId: string, organizacaoId: string) {
+    const empresa = await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
 
     let nsuControle = await this.prisma.client.nsuControle.upsert({
       where: { empresaId },
@@ -277,9 +289,8 @@ export class DocumentosFiscaisService {
    * sem isso, a SEFAZ acha que ja mandou tudo que a gente "ja recebeu" e
    * nunca reenvia os documentos que perdemos.
    */
-  async zerarNsu(empresaId: string) {
-    const empresa = await this.prisma.client.empresa.findUnique({ where: { id: empresaId } });
-    if (!empresa) throw new NotFoundException(`Empresa ${empresaId} não encontrada`);
+  async zerarNsu(empresaId: string, organizacaoId: string) {
+    await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
 
     await this.prisma.client.nsuControle.upsert({
       where: { empresaId },
@@ -299,8 +310,11 @@ export class DocumentosFiscaisService {
     empresaId: string,
     direcao: "ENTRADA" | "SAIDA",
     inicio: Date,
-    fim: Date
+    fim: Date,
+    organizacaoId: string
   ): Promise<Readable> {
+    await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
+
     const documentos = await this.prisma.client.documentoFiscal.findMany({
       where: {
         empresaId,

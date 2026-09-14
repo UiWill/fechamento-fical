@@ -29,7 +29,7 @@ export class SincronizacaoAgendadaService {
   async sincronizarTodasAsEmpresas() {
     const empresas = await this.prisma.client.empresa.findMany({
       where: { status: "ATIVA", certificado: { isNot: null } },
-      select: { id: true, razaoSocial: true },
+      select: { id: true, razaoSocial: true, organizacaoId: true },
     });
 
     this.logger.log(
@@ -38,7 +38,7 @@ export class SincronizacaoAgendadaService {
 
     for (const empresa of empresas) {
       try {
-        const resultado = await this.documentosFiscais.sincronizarComSefaz(empresa.id);
+        const resultado = await this.documentosFiscais.sincronizarComSefaz(empresa.id, empresa.organizacaoId);
         const sufixo = resultado.bloqueadoPelaSefaz
           ? " — BLOQUEADO pela SEFAZ (consumo indevido, possivelmente outro sistema consultando o mesmo CNPJ)"
           : resultado.limiteSefazAtingido
