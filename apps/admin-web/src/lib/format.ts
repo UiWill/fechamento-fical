@@ -40,6 +40,15 @@ export function formatarData(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
+/** Dias corridos até a data (negativo se já passou) — comparação por dia civil, não por hora exata. */
+export function diasAte(iso: string): number {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const alvo = new Date(iso);
+  alvo.setHours(0, 0, 0, 0);
+  return Math.round((alvo.getTime() - hoje.getTime()) / 86_400_000);
+}
+
 export function formatarDataHora(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",

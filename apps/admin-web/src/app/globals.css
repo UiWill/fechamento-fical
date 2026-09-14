@@ -167,6 +167,12 @@ code,
   animation: deslizar-da-esquerda 0.3s var(--ease-out) both;
 }
 
+/* Aviso sem cor de acento (ver nota no topo do arquivo) — a atenção vem
+   do movimento (pulso), não de vermelho/laranja. */
+.pulso-atencao {
+  animation: respirar 1.4s ease-in-out infinite;
+}
+
 .spinner {
   width: 1rem;
   height: 1rem;

@@ -31,6 +31,7 @@ import {
   mesAtual,
   rotuloMes,
   limitesDoMes,
+  diasAte,
 } from "@/lib/format";
 import {
   exportarNotasEntradaPdf,
@@ -115,6 +116,17 @@ function SecaoCertificado({
   }
 
   if (!editando && certificado) {
+    const dias = diasAte(certificado.validoAte);
+    const atencao = dias <= 30;
+    const rotuloDias =
+      dias < 0
+        ? `venceu há ${Math.abs(dias)} dia${Math.abs(dias) === 1 ? "" : "s"}`
+        : dias === 0
+          ? "vence hoje"
+          : dias === 1
+            ? "vence amanhã"
+            : `vence em ${dias} dias`;
+
     return (
       <div
         className="entra flex items-center justify-between rounded-lg border p-5"
@@ -124,8 +136,15 @@ function SecaoCertificado({
           <p className="text-sm" style={{ color: "var(--paper)" }}>
             {certificado.nomeArquivoOriginal}
           </p>
-          <p className="mt-1 font-mono text-xs" style={{ color: "var(--muted)" }}>
-            válido até {formatarData(certificado.validoAte)}
+          <p className="mt-1 flex items-center gap-2 font-mono text-xs" style={{ color: "var(--muted)" }}>
+            <span>válido até {formatarData(certificado.validoAte)}</span>
+            <span
+              style={{ color: atencao ? "var(--paper)" : "var(--muted)", fontWeight: atencao ? 600 : 400 }}
+              className="flex items-center gap-1.5"
+            >
+              {atencao && <span className="pulso-atencao h-1.5 w-1.5 rounded-full" style={{ background: "var(--paper)" }} />}
+              ({rotuloDias})
+            </span>
           </p>
         </div>
         <button
@@ -379,7 +398,7 @@ export default function EmpresaDetalhePage() {
 
   const [mesFiltro, setMesFiltro] = useState(mesAtual());
   const [mesFiltroSaida, setMesFiltroSaida] = useState(mesAtual());
-  const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida">("entrada");
+  const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "certificado">("entrada");
 
   const [mesExportacaoTxt, setMesExportacaoTxt] = useState(mesAtual());
   const [gerandoTxt, setGerandoTxt] = useState(false);
@@ -505,6 +524,8 @@ export default function EmpresaDetalhePage() {
 
   const documentosEntrada = documentos.filter((doc) => doc.direcao === "ENTRADA");
   const documentosSaida = documentos.filter((doc) => doc.direcao === "SAIDA");
+  const diasVencimentoCertificado = certificado ? diasAte(certificado.validoAte) : null;
+  const certificadoAtencao = diasVencimentoCertificado !== null && diasVencimentoCertificado <= 30;
 
   const notasEntradaDoMes = documentosEntrada.filter(
     (doc) => chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltro
@@ -608,21 +629,6 @@ export default function EmpresaDetalhePage() {
       </div>
 
       <section className="space-y-3">
-        <h2
-          className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
-          style={{ color: "var(--muted)" }}
-        >
-          Certificado digital
-        </h2>
-        <SecaoCertificado
-          empresaId={empresa.id}
-          token={token!}
-          certificado={certificado}
-          onCadastrado={setCertificado}
-        />
-      </section>
-
-      <section className="space-y-3">
         <div className="flex items-center gap-1 border-b" style={{ borderColor: "var(--border)" }}>
           <button
             onClick={() => setAbaDocumentos("entrada")}
@@ -645,6 +651,28 @@ export default function EmpresaDetalhePage() {
             }}
           >
             Notas de saída
+          </button>
+          <button
+            onClick={() => setAbaDocumentos("certificado")}
+            className="ml-4 flex items-center gap-1.5 px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
+            style={{
+              color: abaDocumentos === "certificado" ? "var(--paper)" : "var(--muted)",
+              borderBottom: abaDocumentos === "certificado" ? "2px solid var(--paper)" : "2px solid transparent",
+              marginBottom: "-1px",
+            }}
+          >
+            Certificado
+            {certificadoAtencao && (
+              <span
+                className="pulso-atencao h-1.5 w-1.5 rounded-full"
+                style={{ background: "var(--paper)" }}
+                title={
+                  diasVencimentoCertificado !== null && diasVencimentoCertificado < 0
+                    ? "Certificado vencido"
+                    : "Certificado perto de vencer"
+                }
+              />
+            )}
           </button>
         </div>
 
@@ -978,6 +1006,17 @@ export default function EmpresaDetalhePage() {
             </div>
           </div>
         )}
+        </div>
+        )}
+
+        {abaDocumentos === "certificado" && (
+        <div key="certificado" className="desliza-direita space-y-3">
+          <SecaoCertificado
+            empresaId={empresa.id}
+            token={token!}
+            certificado={certificado}
+            onCadastrado={setCertificado}
+          />
         </div>
         )}
       </section>
