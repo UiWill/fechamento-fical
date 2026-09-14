@@ -212,14 +212,48 @@ automática configurada pelo NSSM). É o primeiro lugar a olhar quando um
 serviço reporta "Running" no `Get-Service` mas não responde no health check
 — muitas vezes o processo crashou e o NSSM já tentou reiniciar.
 
+## Gotchas recorrentes ao reimplantar
+
+**`nssm restart` nem sempre reinicia o processo de verdade.** Já aconteceu
+mais de uma vez do serviço continuar respondendo com o código/build
+*antigo* mesmo depois de um `nssm restart` sem erro nenhum. O jeito
+confiável:
+
+```powershell
+$nssm = 'C:\tools\nssm\nssm.exe'
+& $nssm stop AfeCoreApi
+Start-Sleep -Seconds 2
+$p = (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue).OwningProcess
+if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }
+Start-Sleep -Seconds 2
+& $nssm start AfeCoreApi
+```
+
+(troque a porta: core-api=3000, admin-web=3200, fiscal-engine=3100)
+
+**`prisma generate` falha com `EPERM` se o serviço que usa o client
+Prisma estiver rodando**, porque a engine nativa
+(`query_engine-windows.dll.node`) fica com o arquivo travado pelo
+Windows enquanto o processo tem ela carregada em memória (Linux permite
+sobrescrever um arquivo aberto, Windows não). **O pior**: quando isso
+falha, o `prisma generate` aborta *antes* de terminar de escrever o
+`generated/client/index.d.ts` — ou seja, os tipos ficam desatualizados
+(sem os campos novos do schema) e o build do TypeScript falha logo
+depois com um erro confuso de "propriedade não existe", sem nenhuma
+pista de que a causa real foi um lock de arquivo. Sempre pare o
+`AfeCoreApi` **antes** de rodar `prisma migrate deploy` / `prisma
+generate`, e só suba o serviço de novo depois do build terminar.
+
 ## Backups
 
 Ainda não automatizado — antes de operar com clientes reais em produção,
 configurar pelo menos:
 - Backup diário do PostgreSQL (`pg_dump`, agendado via Task Scheduler,
   copiado para fora do servidor).
-- Backup do diretório de dados do MinIO (`C:\afe\minio-data`) — retenção
-  legal de XMLs fiscais é de vários anos, não pode depender só deste disco.
+- Backup do diretório de armazenamento de objetos local
+  (`C:\afe\object-storage` — substituiu o MinIO, que descontinuou os
+  binários pra Windows) — retenção legal de XMLs fiscais é de vários
+  anos, não pode depender só deste disco.
 
 ## Comandos úteis
 

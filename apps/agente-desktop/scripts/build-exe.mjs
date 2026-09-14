@@ -11,9 +11,10 @@
 // de assinatura so roda condicionalmente.
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, writeFileSync, chmodSync, readSync, writeSync, openSync, closeSync } from "node:fs";
+import { copyFileSync, mkdirSync, writeFileSync, chmodSync, readSync, writeSync, openSync, closeSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { rcedit } from "rcedit";
 
 const IMAGE_SUBSYSTEM_WINDOWS_CUI = 3; // console - abre janela de terminal preta
 const IMAGE_SUBSYSTEM_WINDOWS_GUI = 2; // "janela" - roda sem abrir janela nenhuma
@@ -135,6 +136,19 @@ async function main() {
   if (process.platform === "darwin") {
     console.log("[build-exe] reassinando (ad-hoc)...");
     execFileSync("codesign", ["--sign", "-", caminhoExecutavel]);
+  }
+
+  if (process.platform === "win32") {
+    const caminhoIcone = path.join(raizApp, "assets", "agente-fiscal.ico");
+    if (existsSync(caminhoIcone)) {
+      console.log("[build-exe] aplicando ícone...");
+      await rcedit(caminhoExecutavel, { icon: caminhoIcone });
+    } else {
+      console.log("[build-exe] ícone não encontrado em assets/agente-fiscal.ico — pulando (não é obrigatório).");
+    }
+
+    console.log("[build-exe] removendo janela de console (roda em segundo plano)...");
+    removerJanelaDeConsole(caminhoExecutavel);
   }
 
   console.log(`[build-exe] pronto: ${caminhoExecutavel}`);
