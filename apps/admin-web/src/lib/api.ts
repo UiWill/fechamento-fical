@@ -8,6 +8,7 @@ export interface LoginResponse {
     email: string;
     papel: string;
     organizacaoId: string | null;
+    organizacaoNome: string | null;
   };
 }
 

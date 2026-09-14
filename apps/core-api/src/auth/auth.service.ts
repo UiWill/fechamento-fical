@@ -22,7 +22,7 @@ interface UsuarioParaToken {
 export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private assinarToken(usuario: UsuarioParaToken) {
+  private assinarToken(usuario: UsuarioParaToken, organizacaoNome: string | null) {
     const token = jwt.sign(
       { sub: usuario.id, organizacaoId: usuario.organizacaoId, papel: usuario.papel },
       getJwtSecret(),
@@ -37,12 +37,16 @@ export class AuthService {
         email: usuario.email,
         papel: usuario.papel,
         organizacaoId: usuario.organizacaoId,
+        organizacaoNome,
       },
     };
   }
 
   async login(email: string, senha: string) {
-    const usuario = await this.prisma.client.usuario.findUnique({ where: { email } });
+    const usuario = await this.prisma.client.usuario.findUnique({
+      where: { email },
+      include: { organizacao: true },
+    });
     if (!usuario || !usuario.ativo) {
       throw new UnauthorizedException("Credenciais inválidas");
     }
@@ -52,7 +56,7 @@ export class AuthService {
       throw new UnauthorizedException("Credenciais inválidas");
     }
 
-    return this.assinarToken(usuario);
+    return this.assinarToken(usuario, usuario.organizacao?.razaoSocial ?? null);
   }
 
   /**
@@ -94,6 +98,6 @@ export class AuthService {
       });
     });
 
-    return this.assinarToken(usuario);
+    return this.assinarToken(usuario, input.razaoSocial);
   }
 }

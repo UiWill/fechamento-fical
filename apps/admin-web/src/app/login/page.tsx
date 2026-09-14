@@ -38,6 +38,7 @@ export default function LoginPage() {
       const resultado = await login(email, senha);
       localStorage.setItem("afe_token", resultado.token);
       localStorage.setItem("afe_organizacao_id", resultado.usuario.organizacaoId ?? "");
+      localStorage.setItem("afe_organizacao_nome", resultado.usuario.organizacaoNome ?? "");
       router.push("/dashboard");
     } catch (err) {
       if (err instanceof CredenciaisInvalidasError) {

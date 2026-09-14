@@ -1,6 +1,15 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const [organizacaoNome, setOrganizacaoNome] = useState("");
+
+  useEffect(() => {
+    setOrganizacaoNome(localStorage.getItem("afe_organizacao_nome") ?? "");
+  }, []);
+
   return (
     <div className="min-h-screen" style={{ background: "var(--void)" }}>
       <header
@@ -11,12 +20,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="font-display text-lg italic" style={{ color: "var(--paper)" }}>
             Fechamento Fiscal Fácil
           </span>
-          <span
-            className="font-mono text-[0.625rem] uppercase tracking-[0.15em]"
-            style={{ color: "var(--muted)" }}
-          >
-            · CAPTAL
-          </span>
+          {organizacaoNome && (
+            <span
+              className="font-mono text-[0.625rem] uppercase tracking-[0.15em]"
+              style={{ color: "var(--muted)" }}
+            >
+              · {organizacaoNome}
+            </span>
+          )}
         </div>
         <nav className="flex gap-6">
           <Link
