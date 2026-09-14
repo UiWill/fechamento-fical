@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import crypto from "node:crypto";
 import { extrairDadosBasicos, validarDigitoVerificadorChave, type CriarAgenteTokenInput } from "@afe/shared";
 import { PrismaService } from "../common/prisma/prisma.service";
@@ -29,15 +29,24 @@ export class AgentesService {
     private readonly storage: ObjectStorageService
   ) {}
 
-  async gerarToken(input: CriarAgenteTokenInput) {
+  /**
+   * organizacaoIdDoUsuario vem do JWT de quem está chamando — nunca do
+   * corpo da requisição. Sem essa checagem, uma organização conseguiria
+   * gerar um token válido apontando pra outra organização/empresa (só
+   * sabendo o id), e usá-lo pra injetar documentos fiscais na conta
+   * alheia (achado numa revisão de segurança).
+   */
+  async gerarToken(input: CriarAgenteTokenInput, organizacaoIdDoUsuario: string) {
     if (input.organizacaoId) {
-      const organizacao = await this.prisma.client.organizacao.findUnique({
-        where: { id: input.organizacaoId },
-      });
-      if (!organizacao) throw new NotFoundException(`Organização ${input.organizacaoId} não encontrada`);
+      if (input.organizacaoId !== organizacaoIdDoUsuario) {
+        throw new ForbiddenException("Não é possível gerar token de agente pra outra organização");
+      }
     } else if (input.empresaId) {
       const empresa = await this.prisma.client.empresa.findUnique({ where: { id: input.empresaId } });
       if (!empresa) throw new NotFoundException(`Empresa ${input.empresaId} não encontrada`);
+      if (empresa.organizacaoId !== organizacaoIdDoUsuario) {
+        throw new ForbiddenException("Essa empresa não pertence à sua organização");
+      }
     }
 
     const tokenBruto = crypto.randomBytes(32).toString("base64url");
@@ -81,9 +90,28 @@ export class AgentesService {
     });
   }
 
-  async revogarToken(id: string) {
-    const registro = await this.prisma.client.agenteInstalacaoToken.findUnique({ where: { id } });
+  /**
+   * Confere que o token pertence à organização de quem está chamando —
+   * sem isso, qualquer conta logada (de qualquer organização) poderia
+   * revogar/excluir o token de outra só sabendo o id (IDOR entre
+   * organizações, achado numa revisão de segurança automática).
+   */
+  private async buscarTokenDaOrganizacao(id: string, organizacaoId: string) {
+    const registro = await this.prisma.client.agenteInstalacaoToken.findUnique({
+      where: { id },
+      include: { empresa: { select: { organizacaoId: true } } },
+    });
     if (!registro) throw new NotFoundException(`Token ${id} não encontrado`);
+
+    const orgDoToken = registro.organizacaoId ?? registro.empresa?.organizacaoId;
+    if (orgDoToken !== organizacaoId) {
+      throw new ForbiddenException("Esse token não pertence à sua organização");
+    }
+    return registro;
+  }
+
+  async revogarToken(id: string, organizacaoId: string) {
+    await this.buscarTokenDaOrganizacao(id, organizacaoId);
 
     return this.prisma.client.agenteInstalacaoToken.update({
       where: { id },
@@ -97,9 +125,8 @@ export class AgentesService {
    * já recebidos por ela não são afetados — a FK
    * (agenteInstalacaoTokenId) é SET NULL, nunca cascade delete.
    */
-  async excluirToken(id: string) {
-    const registro = await this.prisma.client.agenteInstalacaoToken.findUnique({ where: { id } });
-    if (!registro) throw new NotFoundException(`Token ${id} não encontrado`);
+  async excluirToken(id: string, organizacaoId: string) {
+    await this.buscarTokenDaOrganizacao(id, organizacaoId);
 
     await this.prisma.client.agenteInstalacaoToken.delete({ where: { id } });
     return { ok: true };

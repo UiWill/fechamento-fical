@@ -11,9 +11,60 @@
 // de assinatura so roda condicionalmente.
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, writeFileSync, chmodSync } from "node:fs";
+import { copyFileSync, mkdirSync, writeFileSync, chmodSync, readSync, writeSync, openSync, closeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const IMAGE_SUBSYSTEM_WINDOWS_CUI = 3; // console - abre janela de terminal preta
+const IMAGE_SUBSYSTEM_WINDOWS_GUI = 2; // "janela" - roda sem abrir janela nenhuma
+
+/**
+ * Troca o "subsistema" do PE de Console pra GUI direto nos bytes do
+ * executavel, sem precisar do Visual Studio Build Tools (que teria o
+ * `editbin`, a ferramenta "oficial" pra isso). O campo Subsystem fica no
+ * mesmo offset (0x44 dentro do Optional Header) tanto em PE32 quanto em
+ * PE32+ (64-bit) - BaseOfData(4 bytes, so existe em PE32) e removido e
+ * ImageBase vira 8 bytes em vez de 4 no PE32+, entao os bytes antes do
+ * Subsystem somam igual nos dois formatos. Console.log/error continuam
+ * existindo no codigo - no Windows, escrever num stdout sem console
+ * anexado so retorna silenciosamente, nao derruba o processo.
+ */
+function removerJanelaDeConsole(caminhoExecutavel) {
+  const fd = openSync(caminhoExecutavel, "r+");
+  try {
+    const bufOffsetPe = Buffer.alloc(4);
+    readSync(fd, bufOffsetPe, 0, 4, 0x3c);
+    const offsetPe = bufOffsetPe.readUInt32LE(0);
+
+    const assinatura = Buffer.alloc(4);
+    readSync(fd, assinatura, 0, 4, offsetPe);
+    if (assinatura.toString("ascii") !== "PE\0\0") {
+      throw new Error(`Assinatura PE inesperada em ${caminhoExecutavel} - abortando pra nao corromper o binario.`);
+    }
+
+    const offsetSubsystem = offsetPe + 4 /* assinatura */ + 20 /* COFF header */ + 0x44;
+    const bufSubsystem = Buffer.alloc(2);
+    readSync(fd, bufSubsystem, 0, 2, offsetSubsystem);
+    const subsystemAtual = bufSubsystem.readUInt16LE(0);
+
+    if (subsystemAtual === IMAGE_SUBSYSTEM_WINDOWS_GUI) {
+      console.log("[build-exe] subsistema já é GUI, nada a fazer.");
+      return;
+    }
+    if (subsystemAtual !== IMAGE_SUBSYSTEM_WINDOWS_CUI) {
+      throw new Error(
+        `Subsystem atual (${subsystemAtual}) não é o esperado (Console=3) - abortando pra não corromper o binário.`
+      );
+    }
+
+    const novoValor = Buffer.alloc(2);
+    novoValor.writeUInt16LE(IMAGE_SUBSYSTEM_WINDOWS_GUI, 0);
+    writeSync(fd, novoValor, 0, 2, offsetSubsystem);
+    console.log("[build-exe] subsistema trocado pra GUI - não abre janela de console mais.");
+  } finally {
+    closeSync(fd);
+  }
+}
 
 const raizApp = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const pastaSea = path.join(raizApp, "dist-sea");
