@@ -13,7 +13,12 @@ export default function NovaEmpresaPage() {
   const [razaoSocial, setRazaoSocial] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [uf, setUf] = useState("MG");
-  const [ambiente, setAmbiente] = useState<"HOMOLOGACAO" | "PRODUCAO">("HOMOLOGACAO");
+  // Produção é o padrão: empresa cadastrada aqui é sempre um cliente real
+  // (homologação é só o ambiente de teste da SEFAZ, sem nenhuma relação
+  // com as notas reais do cliente) — já aconteceu de esquecer de trocar
+  // esse campo no cadastro e a sincronização "funcionar" sem erro nenhum,
+  // só que sempre vazia, porque batia no ambiente de teste errado.
+  const [ambiente, setAmbiente] = useState<"HOMOLOGACAO" | "PRODUCAO">("PRODUCAO");
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -207,8 +212,8 @@ export default function NovaEmpresaPage() {
               onChange={(event) => setAmbiente(event.target.value as "HOMOLOGACAO" | "PRODUCAO")}
               className="campo"
             >
-              <option value="HOMOLOGACAO">Homologação</option>
               <option value="PRODUCAO">Produção</option>
+              <option value="HOMOLOGACAO">Homologação</option>
             </select>
           </div>
         </div>
