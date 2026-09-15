@@ -175,6 +175,22 @@ export async function buscarEmpresa(id: string, token: string): Promise<EmpresaD
   return response.json();
 }
 
+export async function alterarAmbienteEmpresa(
+  id: string,
+  ambiente: "PRODUCAO" | "HOMOLOGACAO",
+  token: string
+): Promise<EmpresaDetalhe> {
+  const response = await fetch(`${API_URL}/empresas/${id}/ambiente`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ambiente }),
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível trocar o ambiente dessa empresa.");
+  }
+  return response.json();
+}
+
 export interface CertificadoResumo {
   id: string;
   nomeArquivoOriginal: string;

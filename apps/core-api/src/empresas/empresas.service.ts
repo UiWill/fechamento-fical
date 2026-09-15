@@ -62,6 +62,21 @@ export class EmpresasService {
   }
 
   /**
+   * Troca produção/homologação — decide direto o tpAmb enviado à SEFAZ
+   * (ver documentos-fiscais.service.ts). Cadastrar uma empresa real como
+   * homologação por engano faz toda sincronização "funcionar" (sem erro
+   * nenhum) mas sempre voltar vazia, porque homologação é um ambiente de
+   * teste da SEFAZ completamente isolado da produção.
+   */
+  async alterarAmbiente(id: string, organizacaoId: string, ambiente: "PRODUCAO" | "HOMOLOGACAO") {
+    const empresa = await this.prisma.client.empresa.findUnique({ where: { id } });
+    if (!empresa || empresa.organizacaoId !== organizacaoId) {
+      throw new NotFoundException(`Empresa ${id} não encontrada`);
+    }
+    return this.prisma.client.empresa.update({ where: { id }, data: { ambiente } });
+  }
+
+  /**
    * Consulta dados públicos do CNPJ (razão social, UF, situação
    * cadastral) via BrasilAPI — agregador de dados abertos da Receita
    * Federal, gratuito e sem necessidade de chave de API. Usado só para

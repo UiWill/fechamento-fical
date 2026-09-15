@@ -7,6 +7,7 @@ import {
   buscarEmpresa,
   buscarCertificado,
   uploadCertificado,
+  alterarAmbienteEmpresa,
   listarDocumentosFiscais,
   sincronizarDocumentos,
   classificarPendentes,
@@ -519,6 +520,8 @@ export default function EmpresaDetalhePage() {
   const [resultadoNsu, setResultadoNsu] = useState<string | null>(null);
   const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "certificado">("entrada");
 
+  const [alterandoAmbiente, setAlterandoAmbiente] = useState(false);
+
   const [ordenacaoEntrada, setOrdenacaoEntrada] = useState<Ordenacao>(ORDENACAO_PADRAO);
   const [filtroTipoEntrada, setFiltroTipoEntrada] = useState<DocumentoFiscal["tipo"] | "TODOS">("TODOS");
   const [ordenacaoSaida, setOrdenacaoSaida] = useState<Ordenacao>(ORDENACAO_PADRAO);
@@ -591,6 +594,28 @@ export default function EmpresaDetalhePage() {
       );
     } finally {
       setSincronizando(false);
+    }
+  }
+
+  async function handleAlterarAmbiente() {
+    if (!token || !empresa) return;
+    const novoAmbiente = empresa.ambiente === "PRODUCAO" ? "HOMOLOGACAO" : "PRODUCAO";
+    const rotulo = novoAmbiente === "PRODUCAO" ? "Produção" : "Homologação";
+    if (
+      !window.confirm(
+        `Trocar essa empresa para ${rotulo}? Isso muda pra sempre qual ambiente da SEFAZ é consultado (produção = notas reais, homologação = ambiente de teste, sem relação nenhuma com as notas reais).`
+      )
+    ) {
+      return;
+    }
+    setAlterandoAmbiente(true);
+    try {
+      const atualizada = await alterarAmbienteEmpresa(params.id, novoAmbiente, token);
+      setEmpresa(atualizada);
+    } catch {
+      window.alert("Não foi possível trocar o ambiente agora.");
+    } finally {
+      setAlterandoAmbiente(false);
     }
   }
 
@@ -808,7 +833,19 @@ export default function EmpresaDetalhePage() {
         </div>
         <p className="chave-mascarada mt-1 text-sm" style={{ color: "var(--muted)" }}>
           {mascararCnpj(empresa.cnpj)} · {empresa.uf} ·{" "}
-          {empresa.ambiente === "PRODUCAO" ? "Produção" : "Homologação"}
+          {empresa.ambiente === "PRODUCAO" ? "Produção" : "Homologação"}{" "}
+          <button
+            type="button"
+            onClick={() => void handleAlterarAmbiente()}
+            disabled={alterandoAmbiente}
+            className="font-mono text-[0.625rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30"
+            style={{ color: "var(--paper)" }}
+            title="Trocar entre produção e homologação da SEFAZ"
+          >
+            {alterandoAmbiente
+              ? "trocando…"
+              : `trocar para ${empresa.ambiente === "PRODUCAO" ? "homologação" : "produção"}`}
+          </button>
         </p>
       </div>
 
