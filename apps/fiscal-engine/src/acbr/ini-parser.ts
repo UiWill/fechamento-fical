@@ -50,23 +50,31 @@ export function readField(
 // do nível superior da resposta.
 export const SECAO_DOCUMENTO = /^(doc(zip)?|resdfe)\d+$/i;
 
+// Além das seções de documento acima, um lote real também pode trazer
+// resumos de EVENTO (`ResEveNNN`/`InfEveNNN` — ex.: uma Ciência da
+// Operação que outro sistema já registrou nessa NF-e) intercalados com os
+// documentos. Cada uma tem seu próprio CStat (ex.: 135 "Evento registrado
+// e vinculado a NF-e") que também não pode vazar pro status do nível
+// superior — mesmo bug que SECAO_DOCUMENTO já evitava pra doc/docZip/resdfe,
+// só que faltava cobrir esse outro nome de seção (achado numa resposta real
+// da SEFAZ que tinha ResEve001..048 e fazia o cStat do lote virar 135 em
+// vez do 138 verdadeiro).
+const SECAO_LIMITE_MERGE = /^(doc(zip)?|resdfe|reseve|infeve)\d+$/i;
+
 /**
  * Campos escalares de resposta (cStat, xMotivo, protocolo...) às vezes vêm
  * soltos em __root__ (sem cabeçalho de seção) e às vezes envolvidos numa
  * seção nomeada (ex.: `[DistribuicaoDFe]`, `[StatusServico]`) — depende da
  * função/versão da lib. Mescla __root__ com as seções que vêm antes da
- * lista de documentos, e PARA no primeiro `ResDFeNNN`/`docNNN` — um lote
- * real pode ter dezenas de documentos e alguns são resumos de EVENTO (não
- * de NF-e), cada um com seu próprio CStat/XMotivo (ex.: 135/136 de
- * manifestação já registrada por outro sistema), que não podem vazar pro
- * status do nível superior mesmo excluídos individualmente — mais simples
- * e seguro parar de mesclar ao ver o primeiro item da lista do que tentar
- * reconhecer todo tipo de seção que pode aparecer depois dele.
+ * lista de documentos/eventos, e PARA na primeira seção de item da lista
+ * (documento ou evento) — mais simples e seguro parar de mesclar ao ver o
+ * primeiro item da lista do que tentar reconhecer todo tipo de seção que
+ * pode aparecer depois dele.
  */
 export function mergedRoot(parsed: ParsedIniSections): Record<string, string> {
   let merged: Record<string, string> = {};
   for (const [nome, valores] of Object.entries(parsed)) {
-    if (SECAO_DOCUMENTO.test(nome)) break;
+    if (SECAO_LIMITE_MERGE.test(nome)) break;
     merged = { ...merged, ...valores };
   }
   return merged;
