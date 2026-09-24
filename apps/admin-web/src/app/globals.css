@@ -586,3 +586,9 @@ select.campo option {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* Logo: versão clara no tema escuro (padrão), colorida no tema claro. */
+.logo-marca { display: inline-flex; align-items: center; }
+.logo-marca-claro { display: none; }
+:root[data-theme="light"] .logo-marca-escuro { display: none; }
+:root[data-theme="light"] .logo-marca-claro { display: block; }

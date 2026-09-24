@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { RevelarAoRolar } from "@/components/RevelarAoRolar";
 import { TituloCortina } from "@/components/TituloCortina";
+import { LogoMarca } from "@/components/LogoMarca";
 
 const EMAIL_CONTATO = "contato@dnotas.com.br";
 
@@ -70,9 +71,7 @@ export default function LandingPage() {
     <div className="landing">
       <header className="landing-nav">
         <div className="landing-faixa flex items-center justify-between py-4">
-          <span className="font-display text-lg italic" style={{ color: "var(--paper)" }}>
-            Fechamento Fiscal Fácil
-          </span>
+          <LogoMarca altura={40} />
           <nav className="hidden items-center gap-7 sm:flex">
             <a
               href="#como-funciona"
@@ -342,9 +341,7 @@ export default function LandingPage() {
 
       <footer style={{ borderTop: "1px solid var(--border)" }}>
         <div className="landing-faixa flex flex-col items-center gap-3 py-8 text-center sm:flex-row sm:justify-between sm:text-left">
-          <span className="font-display text-sm italic" style={{ color: "var(--muted)" }}>
-            Fechamento Fiscal Fácil
-          </span>
+          <LogoMarca altura={28} />
           <div className="flex items-center gap-6">
             <a
               href={`mailto:${EMAIL_CONTATO}`}
