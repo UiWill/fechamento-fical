@@ -64,3 +64,13 @@ completar o passo abaixo — não expira nem falha sozinha, só não avança.
 - `C:\afe\certs\dnotas-wildcard-*.pem` — certificado, chave e cadeia atuais.
 - `infra/windows/Caddyfile` — referencia os arquivos `.pem` acima nos
   blocos `https://...:8443`.
+
+## Segundo domínio: fechafiscal.com.br
+
+O painel também responde em `https://fechafiscal.com.br:8443` (mesma limitação
+de porta, o TSplus segue com a 443). Certificado próprio (não é wildcard, só
+`fechafiscal.com.br`), emitido em 2026-09-23 via win-acme com o mesmo script
+de TXT manual; arquivos `C:\afe\certs\fechafiscal-*.pem`. Vence em
+2026-12-23 e a renovação é a mesma dos passos acima, mas o registro TXT é
+`_acme-challenge.fechafiscal.com.br` (zona no Registro.br, modo avançado).
+O Caddy em uso é `C:\tools\caddy\Caddyfile` (não o `C:\afe\Caddyfile`).
