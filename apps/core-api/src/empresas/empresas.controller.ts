@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { criarEmpresaSchema } from "@afe/shared";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { EmpresasService } from "./empresas.service";
@@ -9,19 +9,14 @@ export class EmpresasController {
 
   private organizacaoIdDoUsuario(request: AuthenticatedRequest): string {
     if (!request.usuario?.organizacaoId) {
-      throw new ForbiddenException("Usuário sem organização não pode alterar empresas");
+      throw new ForbiddenException("Usuário sem organização não pode acessar empresas");
     }
     return request.usuario.organizacaoId;
   }
 
   @Get()
-  listar(@Query("organizacaoId") organizacaoId: string) {
-    return this.service.listarPorOrganizacao(organizacaoId);
-  }
-
-  @Get(":id")
-  buscarPorId(@Param("id") id: string) {
-    return this.service.buscarPorId(id);
+  listar(@Req() request: AuthenticatedRequest) {
+    return this.service.listarPorOrganizacao(this.organizacaoIdDoUsuario(request));
   }
 
   @Get("consulta-cnpj/:cnpj")
@@ -29,20 +24,29 @@ export class EmpresasController {
     return this.service.consultarCnpj(cnpj);
   }
 
+  @Get(":id")
+  buscarPorId(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.service.buscarPorId(id, this.organizacaoIdDoUsuario(request));
+  }
+
   @Post()
-  criar(@Body() body: unknown) {
+  criar(@Body() body: unknown, @Req() request: AuthenticatedRequest) {
     const input = criarEmpresaSchema.parse(body);
+    const organizacaoId = this.organizacaoIdDoUsuario(request);
+    if (input.organizacaoId !== organizacaoId) {
+      throw new ForbiddenException("Não é possível cadastrar empresa em outra organização");
+    }
     return this.service.criar(input);
   }
 
   @Patch(":id/ativar")
-  ativar(@Param("id") id: string) {
-    return this.service.ativar(id);
+  ativar(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.service.ativar(id, this.organizacaoIdDoUsuario(request));
   }
 
   @Patch(":id/desativar")
-  desativar(@Param("id") id: string) {
-    return this.service.desativar(id);
+  desativar(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.service.desativar(id, this.organizacaoIdDoUsuario(request));
   }
 
   @Patch(":id/ambiente")

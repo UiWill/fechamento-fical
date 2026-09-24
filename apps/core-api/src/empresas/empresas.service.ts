@@ -23,7 +23,16 @@ export class EmpresasService {
     });
   }
 
-  async buscarPorId(id: string) {
+  /** Rotas por :id devem responder 404 (não 403) pra empresa de outra organização, pra não revelar que o id existe. */
+  private async empresaDaOrganizacao(id: string, organizacaoId: string) {
+    const empresa = await this.prisma.client.empresa.findUnique({ where: { id }, select: { organizacaoId: true } });
+    if (!empresa || empresa.organizacaoId !== organizacaoId) {
+      throw new NotFoundException(`Empresa ${id} não encontrada`);
+    }
+  }
+
+  async buscarPorId(id: string, organizacaoId: string) {
+    await this.empresaDaOrganizacao(id, organizacaoId);
     const empresa = await this.prisma.client.empresa.findUnique({
       where: { id },
       include: {
@@ -47,14 +56,16 @@ export class EmpresasService {
     return this.prisma.client.empresa.create({ data: input });
   }
 
-  ativar(id: string) {
+  async ativar(id: string, organizacaoId: string) {
+    await this.empresaDaOrganizacao(id, organizacaoId);
     return this.prisma.client.empresa.update({
       where: { id },
       data: { status: "ATIVA", desativadaEm: null },
     });
   }
 
-  desativar(id: string) {
+  async desativar(id: string, organizacaoId: string) {
+    await this.empresaDaOrganizacao(id, organizacaoId);
     return this.prisma.client.empresa.update({
       where: { id },
       data: { status: "INATIVA", desativadaEm: new Date() },
@@ -69,10 +80,7 @@ export class EmpresasService {
    * teste da SEFAZ completamente isolado da produção.
    */
   async alterarAmbiente(id: string, organizacaoId: string, ambiente: "PRODUCAO" | "HOMOLOGACAO") {
-    const empresa = await this.prisma.client.empresa.findUnique({ where: { id } });
-    if (!empresa || empresa.organizacaoId !== organizacaoId) {
-      throw new NotFoundException(`Empresa ${id} não encontrada`);
-    }
+    await this.empresaDaOrganizacao(id, organizacaoId);
     return this.prisma.client.empresa.update({ where: { id }, data: { ambiente } });
   }
 
