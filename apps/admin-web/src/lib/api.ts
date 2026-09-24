@@ -12,6 +12,39 @@ export interface LoginResponse {
   };
 }
 
+export class SessaoExpiradaError extends Error {}
+
+const CHAVES_SESSAO = ["afe_token", "afe_organizacao_id", "afe_organizacao_nome"];
+
+export function limparSessao(): void {
+  try {
+    for (const chave of CHAVES_SESSAO) localStorage.removeItem(chave);
+  } catch {
+    // storage indisponível: nada a limpar
+  }
+}
+
+export function sairDaConta(): void {
+  limparSessao();
+  window.location.href = "/login";
+}
+
+/**
+ * fetch pras rotas autenticadas: se a API responder 401 o token venceu (ou
+ * foi invalidado), então limpa a sessão e volta pro login em vez de deixar
+ * a tela presa numa mensagem de erro genérica. Não usar em login/registrar,
+ * onde 401 significa "senha errada" e não "sessão expirada".
+ */
+async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, init);
+  if (response.status === 401 && typeof window !== "undefined") {
+    limparSessao();
+    window.location.href = "/login";
+    throw new SessaoExpiradaError();
+  }
+  return response;
+}
+
 export class CredenciaisInvalidasError extends Error {}
 export class ApiInalcancavelError extends Error {}
 export class ContaJaExisteError extends Error {}
@@ -83,7 +116,7 @@ export async function listarEmpresas(
   organizacaoId: string,
   token: string
 ): Promise<EmpresaResumo[]> {
-  const response = await fetch(`${API_URL}/empresas?organizacaoId=${organizacaoId}`, {
+  const response = await apiFetch(`${API_URL}/empresas?organizacaoId=${organizacaoId}`, {
     headers: { authorization: `Bearer ${token}` },
     cache: "no-store",
   });
@@ -108,7 +141,7 @@ export async function criarEmpresa(
   input: CriarEmpresaInput,
   token: string
 ): Promise<EmpresaResumo> {
-  const response = await fetch(`${API_URL}/empresas`, {
+  const response = await apiFetch(`${API_URL}/empresas`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -140,7 +173,7 @@ export async function consultarCnpj(
   cnpj: string,
   token: string
 ): Promise<DadosCnpjConsultado> {
-  const response = await fetch(`${API_URL}/empresas/consulta-cnpj/${cnpj}`, {
+  const response = await apiFetch(`${API_URL}/empresas/consulta-cnpj/${cnpj}`, {
     headers: { authorization: `Bearer ${token}` },
   });
 
@@ -165,7 +198,7 @@ export interface EmpresaDetalhe extends EmpresaResumo {
 }
 
 export async function buscarEmpresa(id: string, token: string): Promise<EmpresaDetalhe> {
-  const response = await fetch(`${API_URL}/empresas/${id}`, {
+  const response = await apiFetch(`${API_URL}/empresas/${id}`, {
     headers: { authorization: `Bearer ${token}` },
     cache: "no-store",
   });
@@ -180,7 +213,7 @@ export async function alterarAmbienteEmpresa(
   ambiente: "PRODUCAO" | "HOMOLOGACAO",
   token: string
 ): Promise<EmpresaDetalhe> {
-  const response = await fetch(`${API_URL}/empresas/${id}/ambiente`, {
+  const response = await apiFetch(`${API_URL}/empresas/${id}/ambiente`, {
     method: "PATCH",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify({ ambiente }),
@@ -202,7 +235,7 @@ export async function buscarCertificado(
   empresaId: string,
   token: string
 ): Promise<CertificadoResumo | null> {
-  const response = await fetch(`${API_URL}/certificados/por-empresa/${empresaId}`, {
+  const response = await apiFetch(`${API_URL}/certificados/por-empresa/${empresaId}`, {
     headers: { authorization: `Bearer ${token}` },
     cache: "no-store",
   });
@@ -223,7 +256,7 @@ export async function uploadCertificado(
   input: UploadCertificadoInput,
   token: string
 ): Promise<CertificadoResumo> {
-  const response = await fetch(`${API_URL}/certificados`, {
+  const response = await apiFetch(`${API_URL}/certificados`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -260,7 +293,7 @@ export async function listarDocumentosFiscais(
   empresaId: string,
   token: string
 ): Promise<DocumentoFiscal[]> {
-  const response = await fetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais`, {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais`, {
     headers: { authorization: `Bearer ${token}` },
     cache: "no-store",
   });
@@ -284,7 +317,7 @@ export async function sincronizarDocumentos(
   empresaId: string,
   token: string
 ): Promise<SincronizacaoResultado> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/empresas/${empresaId}/documentos-fiscais/sincronizar`,
     {
       method: "POST",
@@ -313,7 +346,7 @@ export async function listarRegrasFiscais(
   organizacaoId: string,
   token: string
 ): Promise<RegraFiscal[]> {
-  const response = await fetch(`${API_URL}/regras-fiscais?organizacaoId=${organizacaoId}`, {
+  const response = await apiFetch(`${API_URL}/regras-fiscais?organizacaoId=${organizacaoId}`, {
     headers: { authorization: `Bearer ${token}` },
     cache: "no-store",
   });
@@ -336,7 +369,7 @@ export async function criarRegraFiscal(
   input: CriarRegraFiscalInput,
   token: string
 ): Promise<RegraFiscal> {
-  const response = await fetch(`${API_URL}/regras-fiscais`, {
+  const response = await apiFetch(`${API_URL}/regras-fiscais`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify(input),
@@ -359,7 +392,7 @@ export async function classificarPendentes(
   empresaId: string,
   token: string
 ): Promise<ClassificacaoResultado> {
-  const response = await fetch(`${API_URL}/regras-fiscais/classificar/${empresaId}`, {
+  const response = await apiFetch(`${API_URL}/regras-fiscais/classificar/${empresaId}`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}` },
   });
@@ -395,7 +428,7 @@ export async function enviarManifestacao(
   input: { documentoFiscalId: string; tipo: TipoEventoManifestacao; justificativa?: string },
   token: string
 ): Promise<ManifestacaoResultado> {
-  const response = await fetch(`${API_URL}/empresas/${empresaId}/manifestacoes`, {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/manifestacoes`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -424,7 +457,7 @@ export async function gerarExportacaoTxt(
   periodoFim: string,
   token: string
 ): Promise<ExportacaoTxtResultado> {
-  const response = await fetch(`${API_URL}/empresas/${empresaId}/exportacoes-txt`, {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/exportacoes-txt`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -445,7 +478,7 @@ export async function baixarExportacaoTxt(
   exportacaoId: string,
   token: string
 ): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_URL}/empresas/${empresaId}/exportacoes-txt/${exportacaoId}/arquivo`,
     { headers: { authorization: `Bearer ${token}` } }
   );
@@ -477,7 +510,7 @@ export async function baixarXmlsZip(
 ): Promise<void> {
   const params = new URLSearchParams({ direcao, inicio, fim });
   if (tipo) params.set("tipo", tipo);
-  const response = await fetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/xml-zip?${params}`, {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/xml-zip?${params}`, {
     headers: { authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
@@ -498,7 +531,7 @@ export async function baixarXmlsZip(
 }
 
 export async function zerarNsu(empresaId: string, token: string): Promise<void> {
-  const response = await fetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/nsu/zerar`, {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/nsu/zerar`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}` },
   });
@@ -522,7 +555,7 @@ export interface AgenteInstalacao {
 }
 
 export async function listarAgentes(organizacaoId: string, token: string): Promise<AgenteInstalacao[]> {
-  const response = await fetch(`${API_URL}/agentes/tokens?organizacaoId=${organizacaoId}`, {
+  const response = await apiFetch(`${API_URL}/agentes/tokens?organizacaoId=${organizacaoId}`, {
     headers: { authorization: `Bearer ${token}` },
     cache: "no-store",
   });
@@ -545,7 +578,7 @@ export async function gerarTokenAgente(
   input: GerarAgenteTokenInput,
   token: string
 ): Promise<{ id: string; nome: string; tokenRaw: string; criadoEm: string }> {
-  const response = await fetch(`${API_URL}/agentes/tokens`, {
+  const response = await apiFetch(`${API_URL}/agentes/tokens`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -561,7 +594,7 @@ export async function gerarTokenAgente(
 }
 
 export async function revogarTokenAgente(id: string, token: string): Promise<void> {
-  const response = await fetch(`${API_URL}/agentes/tokens/${id}/revogar`, {
+  const response = await apiFetch(`${API_URL}/agentes/tokens/${id}/revogar`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}` },
   });
@@ -571,7 +604,7 @@ export async function revogarTokenAgente(id: string, token: string): Promise<voi
 }
 
 export async function excluirTokenAgente(id: string, token: string): Promise<void> {
-  const response = await fetch(`${API_URL}/agentes/tokens/${id}`, {
+  const response = await apiFetch(`${API_URL}/agentes/tokens/${id}`, {
     method: "DELETE",
     headers: { authorization: `Bearer ${token}` },
   });

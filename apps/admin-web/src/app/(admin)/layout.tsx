@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { sairDaConta } from "@/lib/api";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [organizacaoNome, setOrganizacaoNome] = useState("");
@@ -51,6 +52,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             Agentes desktop
           </Link>
+          <button
+            type="button"
+            onClick={sairDaConta}
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
+            style={{ color: "var(--muted)" }}
+          >
+            Sair
+          </button>
         </nav>
       </header>
       <main className="mx-auto max-w-7xl px-6 py-10">{children}</main>
