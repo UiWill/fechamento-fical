@@ -8,7 +8,6 @@ const TELEFONE_CONTATO = { exibicao: "+55 37 9834-6698", link: "+553798346698" }
 
 // Dados do comprovante de inscrição no CNPJ (Receita Federal, emitido em 25/09/2026).
 const EMPRESA = {
-  razaoSocial: "65.388.897 Luis Roberto de Andrade Lima dos Santos",
   cnpj: "65.388.897/0001-18",
   endereco: "Rua José Geronimo, 70 · Engenho do Ribeiro · Bom Despacho/MG · CEP 35.639-000",
   telefone: "(37) 4922-8922",
@@ -348,40 +347,74 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer style={{ borderTop: "1px solid var(--border)" }}>
-        <div className="landing-faixa flex flex-col items-center gap-3 py-8 text-center sm:flex-row sm:justify-between sm:text-left">
-          <LogoMarca altura={40} />
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-            <a
-              href={`mailto:${EMAIL_CONTATO}`}
-              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
-              style={{ color: "var(--muted)" }}
-            >
-              {EMAIL_CONTATO}
-            </a>
-            <a
-              href={`tel:${TELEFONE_CONTATO.link}`}
-              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
-              style={{ color: "var(--muted)" }}
-            >
-              {TELEFONE_CONTATO.exibicao}
-            </a>
-            <Link
-              href="/login"
-              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
-              style={{ color: "var(--muted)" }}
-            >
-              Já é cliente? Entrar
-            </Link>
+      <footer style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+        <div className="landing-faixa grid gap-12 py-16 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.2fr_1.6fr]">
+          <div className="space-y-5">
+            <LogoMarca altura={64} />
+            <p className="max-w-xs text-[0.9375rem] leading-relaxed" style={{ color: "var(--muted)" }}>
+              Captura as notas de entrada e saída dos seus clientes, classifica
+              e entrega pronto pro Domínio Sistemas.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <p className="font-mono text-xs uppercase tracking-[0.15em]" style={{ color: "var(--muted-2)" }}>
+              Navegação
+            </p>
+            <ul className="space-y-2.5 text-[0.9375rem]">
+              {[
+                ["#como-funciona", "Como funciona"],
+                ["#seguranca", "Segurança"],
+                ["#preco", "Preço"],
+              ].map(([href, rotulo]) => (
+                <li key={href}>
+                  <a href={href} className="transition-opacity hover:opacity-70" style={{ color: "var(--paper)" }}>
+                    {rotulo}
+                  </a>
+                </li>
+              ))}
+              <li>
+                <Link href="/login" className="transition-opacity hover:opacity-70" style={{ color: "var(--paper)" }}>
+                  Já é cliente? Entrar
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          <div className="space-y-4">
+            <p className="font-mono text-xs uppercase tracking-[0.15em]" style={{ color: "var(--muted-2)" }}>
+              Contato
+            </p>
+            <ul className="space-y-2.5 text-[0.9375rem]">
+              <li>
+                <a href={`mailto:${EMAIL_CONTATO}`} className="break-all transition-opacity hover:opacity-70" style={{ color: "var(--paper)" }}>
+                  {EMAIL_CONTATO}
+                </a>
+              </li>
+              <li>
+                <a href={`tel:${TELEFONE_CONTATO.link}`} className="transition-opacity hover:opacity-70" style={{ color: "var(--paper)" }}>
+                  {TELEFONE_CONTATO.exibicao}
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <div className="space-y-4">
+            <p className="font-mono text-xs uppercase tracking-[0.15em]" style={{ color: "var(--muted-2)" }}>
+              Empresa
+            </p>
+            <div className="space-y-1.5 text-[0.9375rem] leading-relaxed" style={{ color: "var(--muted)" }}>
+              <p style={{ color: "var(--paper)" }}>CNPJ {EMPRESA.cnpj}</p>
+              <p>{EMPRESA.endereco}</p>
+              <p>Tel. {EMPRESA.telefone}</p>
+            </div>
           </div>
         </div>
+
         <div style={{ borderTop: "1px solid var(--border)" }}>
-          <div className="landing-faixa space-y-1 py-5 text-center sm:text-left">
-            <p className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
-              {EMPRESA.razaoSocial} · CNPJ {EMPRESA.cnpj}
-            </p>
-            <p className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted-2)" }}>
-              {EMPRESA.endereco} · Tel. {EMPRESA.telefone}
+          <div className="landing-faixa flex flex-col items-center justify-between gap-2 py-6 text-center sm:flex-row sm:text-left">
+            <p className="font-mono text-xs uppercase tracking-[0.12em]" style={{ color: "var(--muted-2)" }}>
+              © {new Date().getFullYear()} Fecha Fiscal · Todos os direitos reservados
             </p>
           </div>
         </div>
