@@ -359,8 +359,7 @@ export default function LandingPage() {
 
       <footer style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
         <div className="landing-faixa grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_2fr]">
-          <div className="space-y-8">
-            <LogoMarca altura={64} />
+          <div>
             <div className="space-y-4">
               <p className="font-mono text-xs uppercase tracking-[0.15em]" style={{ color: "var(--muted-2)" }}>
                 Contato
@@ -418,13 +417,16 @@ export default function LandingPage() {
         </div>
 
         <div style={{ borderTop: "1px solid var(--border)" }}>
-          <div className="landing-faixa space-y-2 py-6 text-center sm:text-left">
-            <p className="text-[0.9375rem] leading-relaxed" style={{ color: "var(--paper)" }}>
-              Fecha Fiscal é um produto desenvolvido e operado por {EMPRESA.razaoSocial} — CNPJ {EMPRESA.cnpj}.
-            </p>
-            <p className="font-mono text-xs uppercase tracking-[0.12em]" style={{ color: "var(--muted-2)" }}>
-              © {new Date().getFullYear()} Fecha Fiscal · Todos os direitos reservados
-            </p>
+          <div className="landing-faixa flex flex-col items-center gap-6 py-12 text-center sm:flex-row sm:gap-8 sm:text-left">
+            <LogoMarca altura={64} />
+            <div className="space-y-2">
+              <p className="text-[0.9375rem] leading-relaxed" style={{ color: "var(--paper)" }}>
+                Fecha Fiscal é um produto desenvolvido e operado por {EMPRESA.razaoSocial} — CNPJ {EMPRESA.cnpj}.
+              </p>
+              <p className="font-mono text-xs uppercase tracking-[0.12em]" style={{ color: "var(--muted-2)" }}>
+                © {new Date().getFullYear()} Fecha Fiscal · Todos os direitos reservados
+              </p>
+            </div>
           </div>
         </div>
       </footer>
