@@ -3,7 +3,7 @@ import { RevelarAoRolar } from "@/components/RevelarAoRolar";
 import { TituloCortina } from "@/components/TituloCortina";
 import { LogoMarca } from "@/components/LogoMarca";
 
-const EMAIL_CONTATO = "luisroberto3524@gmail.com";
+const EMAIL_CONTATO = "adm@fechafiscal.com.br";
 const TELEFONE_CONTATO = { exibicao: "+55 37 9834-6698", link: "+553798346698" };
 
 // Dados do comprovante de inscrição no CNPJ (Receita Federal, emitido em 25/09/2026).
