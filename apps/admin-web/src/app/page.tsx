@@ -4,6 +4,7 @@ import { TituloCortina } from "@/components/TituloCortina";
 import { LogoMarca } from "@/components/LogoMarca";
 
 const EMAIL_CONTATO = "contato@dnotas.com.br";
+const TELEFONE_CONTATO = { exibicao: "+55 37 9834-6698", link: "+553798346698" };
 
 // Dados do comprovante de inscrição no CNPJ (Receita Federal, emitido em 25/09/2026).
 const EMPRESA = {
@@ -350,13 +351,20 @@ export default function LandingPage() {
       <footer style={{ borderTop: "1px solid var(--border)" }}>
         <div className="landing-faixa flex flex-col items-center gap-3 py-8 text-center sm:flex-row sm:justify-between sm:text-left">
           <LogoMarca altura={40} />
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
             <a
               href={`mailto:${EMAIL_CONTATO}`}
               className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
               style={{ color: "var(--muted)" }}
             >
               {EMAIL_CONTATO}
+            </a>
+            <a
+              href={`tel:${TELEFONE_CONTATO.link}`}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
+              style={{ color: "var(--muted)" }}
+            >
+              {TELEFONE_CONTATO.exibicao}
             </a>
             <Link
               href="/login"
