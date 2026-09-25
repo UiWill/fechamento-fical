@@ -612,3 +612,51 @@ export async function excluirTokenAgente(id: string, token: string): Promise<voi
     throw new Error("Não foi possível excluir esse agente.");
   }
 }
+
+export interface TelemetriaAgente {
+  v: number;
+  iniciadoEm: string;
+  pastas: string[];
+  contadores: { lidos: number; aceitos: number; duplicados: number; recusados: number; ignorados: number };
+  filaPendente: number;
+  ultimoEnvioEm: string | null;
+  ultimaNotaAceitaEm: string | null;
+  ultimoErro: { em: string; mensagem: string } | null;
+  varreduraConcluida: boolean;
+  arquivosNaVarredura: number;
+  recusasRecentes: { em: string; arquivo?: string; status: string; detalhe?: string }[];
+}
+
+export interface AtividadeAgente {
+  agente: {
+    id: string;
+    nome: string;
+    status: "ATIVO" | "REVOGADO";
+    ultimoHeartbeatEm: string | null;
+    ultimaVersaoAgente: string | null;
+    telemetria: TelemetriaAgente | null;
+    nomeContato: string | null;
+    telefoneContato: string | null;
+    anydeskId: string | null;
+  };
+  online: boolean;
+  servidor: {
+    hoje: number;
+    ultimas24h: number;
+    total: number;
+    ultimaNotaEm: string | null;
+    ultimasNotas: { chaveAcesso: string; tipo: "NFE" | "NFCE" | "CTE"; emitidoEm: string | null; recebidoEm: string; empresa: string }[];
+    porEmpresa24h: { empresa: string; quantidade: number }[];
+  };
+}
+
+export async function buscarAtividadeAgente(id: string, token: string): Promise<AtividadeAgente> {
+  const response = await apiFetch(`${API_URL}/agentes/tokens/${id}/atividade`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível carregar a atividade desse agente.");
+  }
+  return response.json();
+}

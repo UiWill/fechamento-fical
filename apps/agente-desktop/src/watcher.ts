@@ -1,4 +1,5 @@
 import chokidar from "chokidar";
+import { contarArquivoNaVarredura, marcarVarreduraConcluida } from "./telemetria";
 
 /**
  * Observa as pastas configuradas recursivamente, avisando sobre arquivos
@@ -24,9 +25,12 @@ export function observarPastas(pastas: string[], aoEncontrarArquivo: (caminho: s
   watcher.on("add", (caminho) => {
     const caminhoMinusculo = caminho.toLowerCase();
     if (caminhoMinusculo.endsWith(".xml") || caminhoMinusculo.endsWith(".zip")) {
+      contarArquivoNaVarredura();
       aoEncontrarArquivo(caminho);
     }
   });
+
+  watcher.on("ready", () => marcarVarreduraConcluida());
 
   watcher.on("error", (erro) => {
     console.error(`[watcher] erro: ${erro}`);

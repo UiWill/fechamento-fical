@@ -140,10 +140,109 @@ export class AgentesService {
     return this.prisma.client.empresa.findMany({ where: { organizacaoId: agenteToken.organizacaoId! } });
   }
 
-  async registrarHeartbeat(agenteToken: AgenteAutenticado, versaoAgente: string, ip: string | undefined) {
+  /**
+   * Tudo que o painel mostra de um agente: o que o servidor sabe por conta
+   * própria (notas que esse agente mandou e foram aceitas) mais o resumo
+   * que o próprio agente manda no heartbeat (fila, recusas, varredura).
+   */
+  async atividadeDoAgente(id: string, organizacaoId: string) {
+    await this.buscarTokenDaOrganizacao(id, organizacaoId);
+    const agente = await this.prisma.client.agenteInstalacaoToken.findUniqueOrThrow({
+      where: { id },
+      select: {
+        id: true,
+        nome: true,
+        status: true,
+        ultimoHeartbeatEm: true,
+        ultimaVersaoAgente: true,
+        telemetria: true,
+        nomeContato: true,
+        telefoneContato: true,
+        anydeskId: true,
+      },
+    });
+
+    const agora = Date.now();
+    const desde24h = new Date(agora - 24 * 60 * 60 * 1000);
+    // "Hoje" no fuso de Brasília (UTC-3, sem horário de verão desde 2019).
+    const brasilia = new Date(agora - 3 * 60 * 60 * 1000);
+    const inicioHoje = new Date(
+      Date.UTC(brasilia.getUTCFullYear(), brasilia.getUTCMonth(), brasilia.getUTCDate(), 3, 0, 0)
+    );
+    const doAgente = { agenteInstalacaoTokenId: id };
+
+    const [hoje, ultimas24h, total, ultimasNotas, porEmpresa] = await Promise.all([
+      this.prisma.client.documentoFiscal.count({ where: { ...doAgente, recebidoEm: { gte: inicioHoje } } }),
+      this.prisma.client.documentoFiscal.count({ where: { ...doAgente, recebidoEm: { gte: desde24h } } }),
+      this.prisma.client.documentoFiscal.count({ where: doAgente }),
+      this.prisma.client.documentoFiscal.findMany({
+        where: doAgente,
+        orderBy: { recebidoEm: "desc" },
+        take: 15,
+        select: {
+          chaveAcesso: true,
+          tipo: true,
+          emitidoEm: true,
+          recebidoEm: true,
+          empresa: { select: { razaoSocial: true } },
+        },
+      }),
+      this.prisma.client.documentoFiscal.groupBy({
+        by: ["empresaId"],
+        where: { ...doAgente, recebidoEm: { gte: desde24h } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const empresas = await this.prisma.client.empresa.findMany({
+      where: { id: { in: porEmpresa.map((p) => p.empresaId) } },
+      select: { id: true, razaoSocial: true },
+    });
+    const nomePorId = new Map(empresas.map((e) => [e.id, e.razaoSocial]));
+
+    return {
+      agente,
+      online: agente.ultimoHeartbeatEm ? agora - agente.ultimoHeartbeatEm.getTime() < 3 * 60 * 1000 : false,
+      servidor: {
+        hoje,
+        ultimas24h,
+        total,
+        ultimaNotaEm: ultimasNotas[0]?.recebidoEm ?? null,
+        ultimasNotas: ultimasNotas.map((n) => ({
+          chaveAcesso: n.chaveAcesso,
+          tipo: n.tipo,
+          emitidoEm: n.emitidoEm,
+          recebidoEm: n.recebidoEm,
+          empresa: n.empresa.razaoSocial,
+        })),
+        porEmpresa24h: porEmpresa
+          .map((p) => ({ empresa: nomePorId.get(p.empresaId) ?? p.empresaId, quantidade: p._count._all }))
+          .sort((a, b) => b.quantidade - a.quantidade),
+      },
+    };
+  }
+
+  async registrarHeartbeat(
+    agenteToken: AgenteAutenticado,
+    versaoAgente: string,
+    ip: string | undefined,
+    telemetria?: unknown
+  ) {
+    // O resumo vem do próprio agente (não é confiável nem sensível) e é só
+    // exibido no painel — limita o tamanho pra um agente com bug (ou
+    // alguém com o token) não encher o banco.
+    const telemetriaValida =
+      telemetria && typeof telemetria === "object" && JSON.stringify(telemetria).length <= 30_000
+        ? (telemetria as object)
+        : undefined;
     await this.prisma.client.agenteInstalacaoToken.update({
       where: { id: agenteToken.id },
-      data: { ultimoHeartbeatEm: new Date(), ultimaVersaoAgente: versaoAgente, ultimoIpOrigem: ip },
+      data: {
+        ultimoHeartbeatEm: new Date(),
+        ultimaVersaoAgente: versaoAgente,
+        ultimoIpOrigem: ip,
+        ...(telemetriaValida ? { telemetria: telemetriaValida } : {}),
+      },
     });
     return { ok: true, servidorEm: new Date().toISOString() };
   }

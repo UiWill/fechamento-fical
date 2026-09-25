@@ -4,8 +4,10 @@ import { extrairDadosBasicos, validarDigitoVerificadorChave } from "@afe/shared"
 import { carregarConfig, salvarConfig, type ConfigAgente } from "./config";
 import { enviarLoteDocumentos, type ItemDocumentoUpload } from "./api-client";
 import { notificar } from "./notify";
+import { contarLido, registrarEnvioConcluido, registrarErroDeRede, registrarEvento } from "./telemetria";
 
 const TAMANHO_MAXIMO_LOTE = 50;
+const INTERVALO_MIN_AVISO_MS = 2 * 60_000;
 
 interface ItemPendente extends ItemDocumentoUpload {
   chaveAcesso: string;
@@ -22,6 +24,8 @@ interface ItemPendente extends ItemDocumentoUpload {
 export function criarFilaDeEnvio(token: string) {
   const config = carregarConfig();
   let pendentes: ItemPendente[] = [];
+  let aceitosNaoAvisados = 0;
+  let ultimoAvisoEm = 0;
 
   function jaProcessado(chaveAcesso: string): boolean {
     const estado = config.chavesEnviadas[chaveAcesso];
@@ -39,10 +43,16 @@ export function criarFilaDeEnvio(token: string) {
       // não registra em chavesEnviadas, então se o arquivo mudar depois
       // (ex: terminou de ser escrito) o watcher tenta de novo naturalmente.
       console.warn(`[upload] ignorado (não reconhecido como NF-e/NFC-e/CT-e válido): ${nomeArquivoOriginal}`);
+      registrarEvento({
+        arquivo: nomeArquivoOriginal,
+        status: "IGNORADO",
+        detalhe: "não é uma NF-e/NFC-e/CT-e válida (XML de outro tipo, incompleto ou com chave inválida)",
+      });
       return;
     }
 
     if (jaProcessado(dados.chaveAcesso)) return;
+    contarLido();
 
     pendentes.push({
       nomeArquivoOriginal,
@@ -104,6 +114,11 @@ export function criarFilaDeEnvio(token: string) {
         if (resultado.chaveAcesso) {
           registrarResultado(resultado.chaveAcesso, resultado.status);
         }
+        registrarEvento({
+          arquivo: resultado.nomeArquivoOriginal,
+          status: resultado.status,
+          detalhe: resultado.motivo,
+        });
         if (resultado.status === "ACEITO") {
           aceitos += 1;
           console.log(`[upload] aceito: ${resultado.nomeArquivoOriginal}`);
@@ -114,14 +129,20 @@ export function criarFilaDeEnvio(token: string) {
         }
       }
       salvarConfig(config);
-      if (aceitos > 0) {
-        notificar("Agente Fiscal", `${aceitos} nota(s) de saída enviada(s).`);
+      registrarEnvioConcluido();
+      // Agrupa os avisos: numa varredura grande seriam dezenas de balões seguidos.
+      aceitosNaoAvisados += aceitos;
+      if (aceitosNaoAvisados > 0 && Date.now() - ultimoAvisoEm > INTERVALO_MIN_AVISO_MS) {
+        notificar("Agente Fiscal", `${aceitosNaoAvisados} nota(s) de saída enviada(s).`);
+        aceitosNaoAvisados = 0;
+        ultimoAvisoEm = Date.now();
       }
     } catch (err) {
       // Falha de rede/servidor — devolve os itens pra fila, tenta de novo
       // no próximo ciclo. Nada foi marcado em chavesEnviadas, então é
       // seguro reprocessar.
       pendentes = [...lote, ...pendentes];
+      registrarErroDeRede(err instanceof Error ? err.message : String(err));
       console.error(`[upload] falha ao enviar lote (${lote.length} item(ns)), tentando de novo depois: ${err}`);
     }
   }

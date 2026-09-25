@@ -47,6 +47,14 @@ export class AgentesController {
     return this.service.revogarToken(id, request.usuario.organizacaoId);
   }
 
+  @Get("tokens/:id/atividade")
+  atividade(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    if (!request.usuario?.organizacaoId) {
+      throw new ForbiddenException("Usuário sem organização não pode ver a atividade de agentes");
+    }
+    return this.service.atividadeDoAgente(id, request.usuario.organizacaoId);
+  }
+
   @Delete("tokens/:id")
   excluirToken(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
     if (request.usuario?.papel === "OPERADOR") {

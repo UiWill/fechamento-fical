@@ -24,7 +24,7 @@ export function habilitarVigiaPeriodica(caminhoExecutavel: string): void {
       "/tn",
       NOME_TAREFA,
       "/tr",
-      `"${caminhoExecutavel}"`,
+      `"${caminhoExecutavel}" --vigia`,
       "/sc",
       "minute",
       "/mo",

@@ -8,15 +8,19 @@ import { criarFilaDeEnvio } from "./upload";
 import { enviarHeartbeat, buscarEscopo } from "./api-client";
 import { notificar } from "./notify";
 import { verificarAtualizacao, notificarSeFoiAtualizadoAgora } from "./updater";
+import { instalarLogEmArquivo, configurarTelemetria, registrarHeartbeatOk, resumoParaHeartbeat } from "./telemetria";
+import { iniciarPainelLocal, criarAtalhoNaAreaDeTrabalho } from "./painel-local";
 
 const INTERVALO_FLUSH_MS = 5_000;
-const INTERVALO_HEARTBEAT_MS = 5 * 60_000;
+const INTERVALO_HEARTBEAT_MS = 60_000;
 const INTERVALO_ATUALIZACAO_MS = 6 * 60 * 60_000;
 
 async function main() {
   // Primeira coisa de todas: se já tem outra cópia rodando, essa aqui se
-  // fecha na hora, sem gastar rede nem tempo com mais nada.
+  // fecha na hora, sem gastar rede nem tempo com mais nada (e, se foi uma
+  // pessoa que abriu, mostra a página de status da cópia que já roda).
   encerrarSeJaTiverOutraCopia();
+  instalarLogEmArquivo();
 
   notificarSeFoiAtualizadoAgora();
 
@@ -52,19 +56,22 @@ async function main() {
   }, INTERVALO_ATUALIZACAO_MS);
 
   const fila = criarFilaDeEnvio(config.token!);
+  configurarTelemetria({ versao: config.versaoAgente, pastas: config.pastasMonitoradas, filaPendente: fila.tamanhoFila });
+
+  void iniciarPainelLocal().then((porta) => {
+    if (porta) criarAtalhoNaAreaDeTrabalho(porta);
+  });
 
   observarPastas(config.pastasMonitoradas, (caminho) => fila.enfileirar(caminho));
 
   setInterval(() => void fila.flush(), INTERVALO_FLUSH_MS);
 
-  setInterval(() => {
-    enviarHeartbeat(config.token!, config.versaoAgente).catch((err) =>
-      console.error(`[main] falha no heartbeat: ${err}`)
-    );
-  }, INTERVALO_HEARTBEAT_MS);
-  void enviarHeartbeat(config.token!, config.versaoAgente).catch((err) =>
-    console.error(`[main] falha no heartbeat inicial: ${err}`)
-  );
+  const mandarHeartbeat = () =>
+    enviarHeartbeat(config.token!, config.versaoAgente, resumoParaHeartbeat())
+      .then(() => registrarHeartbeatOk())
+      .catch((err) => console.error(`[main] falha no heartbeat: ${err}`));
+  setInterval(() => void mandarHeartbeat(), INTERVALO_HEARTBEAT_MS);
+  void mandarHeartbeat();
 
   console.log(`[main] agente rodando, observando: ${config.pastasMonitoradas.join(", ")}`);
   notificar("Agente Fiscal", "Iniciado e monitorando notas de saída.");

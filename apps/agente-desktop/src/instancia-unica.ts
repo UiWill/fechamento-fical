@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PASTA_CONFIG } from "./config";
+import { abrirPainelNoNavegador, lerPortaDoPainel } from "./painel-local";
 
 const ARQUIVO_LOCK = path.join(PASTA_CONFIG, "instancia.lock");
 
@@ -27,13 +28,22 @@ function processoVivo(pid: number): boolean {
   }
 }
 
-/** Se já tem outra cópia rodando, encerra este processo na hora (silenciosamente). */
+/**
+ * Se já tem outra cópia rodando, encerra este processo na hora. Quando quem
+ * abriu foi uma pessoa (duplo clique no .exe), abre a página de status da
+ * cópia que já está rodando — a tarefa agendada do vigia passa `--vigia`
+ * pra não ficar abrindo o navegador a cada 5 minutos.
+ */
 export function encerrarSeJaTiverOutraCopia(): void {
   fs.mkdirSync(PASTA_CONFIG, { recursive: true });
 
   if (fs.existsSync(ARQUIVO_LOCK)) {
     const pidAnterior = Number(fs.readFileSync(ARQUIVO_LOCK, "utf8").trim());
     if (pidAnterior && pidAnterior !== process.pid && processoVivo(pidAnterior)) {
+      if (!process.argv.includes("--vigia")) {
+        const porta = lerPortaDoPainel();
+        if (porta) abrirPainelNoNavegador(porta);
+      }
       process.exit(0);
     }
   }

@@ -213,6 +213,9 @@ model AgenteInstalacaoToken {
   ultimoHeartbeatEm  DateTime?
   ultimaVersaoAgente String?
   ultimoIpOrigem     String?
+  // Ultimo resumo de atividade que o proprio agente mandou no heartbeat
+  // (contadores, fila, ultimas recusas) - so pra exibir no painel.
+  telemetria         Json?
   criadoEm           DateTime               @default(now())
   atualizadoEm       DateTime               @updatedAt
 

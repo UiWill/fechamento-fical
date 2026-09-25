@@ -25,8 +25,16 @@ export class AgenteIngestaoController {
 
   @Post("heartbeat")
   @UseGuards(AgenteTokenGuard)
-  heartbeat(@Body() body: { versaoAgente?: string }, @Req() request: AgenteAuthenticatedRequest) {
-    return this.service.registrarHeartbeat(request.agenteToken!, body.versaoAgente ?? "desconhecida", request.ip);
+  heartbeat(
+    @Body() body: { versaoAgente?: string; telemetria?: unknown },
+    @Req() request: AgenteAuthenticatedRequest
+  ) {
+    return this.service.registrarHeartbeat(
+      request.agenteToken!,
+      body.versaoAgente ?? "desconhecida",
+      request.ip,
+      body.telemetria
+    );
   }
 
   @Get("escopo")

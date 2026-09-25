@@ -26,11 +26,11 @@ export async function buscarEscopo(token: string): Promise<{ cnpjs: string[] }> 
   return resposta.json() as Promise<{ cnpjs: string[] }>;
 }
 
-export async function enviarHeartbeat(token: string, versaoAgente: string): Promise<void> {
+export async function enviarHeartbeat(token: string, versaoAgente: string, telemetria?: unknown): Promise<void> {
   const resposta = await fetch(`${API_URL}/agente-ingestao/heartbeat`, {
     method: "POST",
     headers: cabecalhos(token),
-    body: JSON.stringify({ versaoAgente }),
+    body: JSON.stringify({ versaoAgente, telemetria }),
   });
   if (!resposta.ok) throw new Error(`Falha ao enviar heartbeat (${resposta.status})`);
 }
