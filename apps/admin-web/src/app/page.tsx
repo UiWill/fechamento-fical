@@ -5,6 +5,9 @@ import { LogoMarca } from "@/components/LogoMarca";
 
 const EMAIL_CONTATO = "adm@fechafiscal.com.br";
 const TELEFONE_CONTATO = { exibicao: "+55 37 9834-6698", link: "+553798346698" };
+const LINK_WHATSAPP = `https://wa.me/${TELEFONE_CONTATO.link.replace("+", "")}?text=${encodeURIComponent(
+  "Olá! Quero conhecer o Fecha Fiscal e pedir acesso."
+)}`;
 
 // Dados do comprovante de inscrição no CNPJ (Receita Federal, emitido em 25/09/2026).
 const EMPRESA = {
@@ -135,7 +138,9 @@ export default function LandingPage() {
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-6">
               <a
-                href={`mailto:${EMAIL_CONTATO}?subject=Quero conhecer o Fechamento Fiscal Fácil`}
+                href={LINK_WHATSAPP}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="botao-principal"
                 style={{ width: "auto", paddingInline: "1.75rem" }}
               >
@@ -318,7 +323,9 @@ export default function LandingPage() {
                 por CNPJ ativo, por mês
               </p>
               <a
-                href={`mailto:${EMAIL_CONTATO}?subject=Quero conhecer o Fechamento Fiscal Fácil`}
+                href={LINK_WHATSAPP}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="botao-principal mt-7"
                 style={{ width: "auto", paddingInline: "1.75rem" }}
               >
@@ -337,7 +344,9 @@ export default function LandingPage() {
               Pronto pra fechar o mês sem abrir o portal da SEFAZ?
             </TituloCortina>
             <a
-              href={`mailto:${EMAIL_CONTATO}?subject=Quero conhecer o Fechamento Fiscal Fácil`}
+              href={LINK_WHATSAPP}
+                target="_blank"
+                rel="noopener noreferrer"
               className="botao-principal mx-auto mt-8"
               style={{ width: "auto", paddingInline: "2rem" }}
             >
