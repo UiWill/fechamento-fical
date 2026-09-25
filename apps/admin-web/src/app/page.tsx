@@ -358,13 +358,9 @@ export default function LandingPage() {
       </section>
 
       <footer style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
-        <div className="landing-faixa grid gap-12 py-16 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.2fr_1.6fr]">
-          <div className="space-y-5">
+        <div className="landing-faixa grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.2fr_1.6fr]">
+          <div>
             <LogoMarca altura={64} />
-            <p className="max-w-xs text-[0.9375rem] leading-relaxed" style={{ color: "var(--muted)" }}>
-              Captura as notas de entrada e saída dos seus clientes, classifica
-              e entrega pronto pro Domínio Sistemas.
-            </p>
           </div>
 
           <div className="space-y-4">
