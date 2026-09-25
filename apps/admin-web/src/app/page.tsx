@@ -11,6 +11,7 @@ const LINK_WHATSAPP = `https://wa.me/${TELEFONE_CONTATO.link.replace("+", "")}?t
 
 // Dados do comprovante de inscrição no CNPJ (Receita Federal, emitido em 25/09/2026).
 const EMPRESA = {
+  razaoSocial: "65.388.897 LUIS ROBERTO DE ANDRADE LIMA DOS SANTOS",
   cnpj: "65.388.897/0001-18",
   endereco: "10 R RUA JOSE GERONIMO, 70 · ENGENHO DO RIBEIRO · BOM DESPACHO/MG · CEP 35.639-000",
   telefone: "(37) 4922-8922",
@@ -413,6 +414,7 @@ export default function LandingPage() {
               Empresa
             </p>
             <div className="space-y-1.5 text-[0.9375rem] leading-relaxed" style={{ color: "var(--muted)" }}>
+              <p style={{ color: "var(--paper)" }}>{EMPRESA.razaoSocial}</p>
               <p style={{ color: "var(--paper)" }}>CNPJ {EMPRESA.cnpj}</p>
               <p>{EMPRESA.endereco}</p>
               <p>Tel. {EMPRESA.telefone}</p>
@@ -421,7 +423,10 @@ export default function LandingPage() {
         </div>
 
         <div style={{ borderTop: "1px solid var(--border)" }}>
-          <div className="landing-faixa flex flex-col items-center justify-between gap-2 py-6 text-center sm:flex-row sm:text-left">
+          <div className="landing-faixa space-y-2 py-6 text-center sm:text-left">
+            <p className="text-[0.9375rem] leading-relaxed" style={{ color: "var(--paper)" }}>
+              Fecha Fiscal é um produto desenvolvido e operado por {EMPRESA.razaoSocial} — CNPJ {EMPRESA.cnpj}.
+            </p>
             <p className="font-mono text-xs uppercase tracking-[0.12em]" style={{ color: "var(--muted-2)" }}>
               © {new Date().getFullYear()} Fecha Fiscal · Todos os direitos reservados
             </p>
