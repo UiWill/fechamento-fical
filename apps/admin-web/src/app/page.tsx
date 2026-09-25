@@ -5,6 +5,14 @@ import { LogoMarca } from "@/components/LogoMarca";
 
 const EMAIL_CONTATO = "contato@dnotas.com.br";
 
+// Dados do comprovante de inscrição no CNPJ (Receita Federal, emitido em 25/09/2026).
+const EMPRESA = {
+  razaoSocial: "65.388.897 Luis Roberto de Andrade Lima dos Santos",
+  cnpj: "65.388.897/0001-18",
+  endereco: "Rua José Geronimo, 70 · Engenho do Ribeiro · Bom Despacho/MG · CEP 35.639-000",
+  telefone: "(37) 4922-8922",
+};
+
 const FICHA_LINHAS = [
   {
     chave: "3126 0512 3445 6700 0112 5500 1000 4521 8834 1123 2",
@@ -71,7 +79,7 @@ export default function LandingPage() {
     <div className="landing">
       <header className="landing-nav">
         <div className="landing-faixa flex items-center justify-between py-4">
-          <LogoMarca altura={40} />
+          <LogoMarca altura={56} />
           <nav className="hidden items-center gap-7 sm:flex">
             <a
               href="#como-funciona"
@@ -341,7 +349,7 @@ export default function LandingPage() {
 
       <footer style={{ borderTop: "1px solid var(--border)" }}>
         <div className="landing-faixa flex flex-col items-center gap-3 py-8 text-center sm:flex-row sm:justify-between sm:text-left">
-          <LogoMarca altura={28} />
+          <LogoMarca altura={40} />
           <div className="flex items-center gap-6">
             <a
               href={`mailto:${EMAIL_CONTATO}`}
@@ -357,6 +365,16 @@ export default function LandingPage() {
             >
               Já é cliente? Entrar
             </Link>
+          </div>
+        </div>
+        <div style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="landing-faixa space-y-1 py-5 text-center sm:text-left">
+            <p className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+              {EMPRESA.razaoSocial} · CNPJ {EMPRESA.cnpj}
+            </p>
+            <p className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted-2)" }}>
+              {EMPRESA.endereco} · Tel. {EMPRESA.telefone}
+            </p>
           </div>
         </div>
       </footer>
