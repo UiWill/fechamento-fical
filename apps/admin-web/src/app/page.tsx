@@ -9,7 +9,7 @@ const TELEFONE_CONTATO = { exibicao: "+55 37 9834-6698", link: "+553798346698" }
 // Dados do comprovante de inscrição no CNPJ (Receita Federal, emitido em 25/09/2026).
 const EMPRESA = {
   cnpj: "65.388.897/0001-18",
-  endereco: "Rua José Geronimo, 70 · Engenho do Ribeiro · Bom Despacho/MG · CEP 35.639-000",
+  endereco: "10 R RUA JOSE GERONIMO, 70 · ENGENHO DO RIBEIRO · BOM DESPACHO/MG · CEP 35.639-000",
   telefone: "(37) 4922-8922",
 };
 
