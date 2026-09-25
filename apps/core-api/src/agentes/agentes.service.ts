@@ -202,7 +202,10 @@ export class AgentesService {
 
     return {
       agente,
-      online: agente.ultimoHeartbeatEm ? agora - agente.ultimoHeartbeatEm.getTime() < 3 * 60 * 1000 : false,
+      // Agente novo avisa a cada 1 min; o antigo (sem resumo) a cada 5 min.
+      online: agente.ultimoHeartbeatEm
+        ? agora - agente.ultimoHeartbeatEm.getTime() < (agente.telemetria ? 3 : 7) * 60 * 1000
+        : false,
       servidor: {
         hoje,
         ultimas24h,
