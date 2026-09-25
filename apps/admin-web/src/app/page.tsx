@@ -358,9 +358,26 @@ export default function LandingPage() {
       </section>
 
       <footer style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
-        <div className="landing-faixa grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.2fr_1.6fr]">
-          <div>
+        <div className="landing-faixa grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_2fr]">
+          <div className="space-y-8">
             <LogoMarca altura={64} />
+            <div className="space-y-4">
+              <p className="font-mono text-xs uppercase tracking-[0.15em]" style={{ color: "var(--muted-2)" }}>
+                Contato
+              </p>
+              <ul className="space-y-2.5 text-[0.9375rem]">
+                <li>
+                  <a href={`mailto:${EMAIL_CONTATO}`} className="break-all transition-opacity hover:opacity-70" style={{ color: "var(--paper)" }}>
+                    {EMAIL_CONTATO}
+                  </a>
+                </li>
+                <li>
+                  <a href={`tel:${TELEFONE_CONTATO.link}`} className="transition-opacity hover:opacity-70" style={{ color: "var(--paper)" }}>
+                    {TELEFONE_CONTATO.exibicao}
+                  </a>
+                </li>
+              </ul>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -387,25 +404,7 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          <div className="space-y-4">
-            <p className="font-mono text-xs uppercase tracking-[0.15em]" style={{ color: "var(--muted-2)" }}>
-              Contato
-            </p>
-            <ul className="space-y-2.5 text-[0.9375rem]">
-              <li>
-                <a href={`mailto:${EMAIL_CONTATO}`} className="break-all transition-opacity hover:opacity-70" style={{ color: "var(--paper)" }}>
-                  {EMAIL_CONTATO}
-                </a>
-              </li>
-              <li>
-                <a href={`tel:${TELEFONE_CONTATO.link}`} className="transition-opacity hover:opacity-70" style={{ color: "var(--paper)" }}>
-                  {TELEFONE_CONTATO.exibicao}
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <div className="space-y-4">
+          <div className="space-y-4 sm:col-span-2 lg:col-span-1">
             <p className="font-mono text-xs uppercase tracking-[0.15em]" style={{ color: "var(--muted-2)" }}>
               Empresa
             </p>
