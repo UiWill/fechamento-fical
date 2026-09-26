@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -405,6 +405,17 @@ export default function EmpresaDetalhePage() {
   const [zerandoNsu, setZerandoNsu] = useState(false);
   const [resultadoNsu, setResultadoNsu] = useState<string | null>(null);
   const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "cte" | "certificado">("entrada");
+  const [transicaoAba, setTransicaoAba] = useState(false);
+  const timerTransicao = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Troca de aba com uma transição curta (barra de progresso + esqueleto) em vez de a tela ficar parada.
+  function mudarAba(nova: "entrada" | "saida" | "cte" | "certificado") {
+    if (nova === abaDocumentos) return;
+    if (timerTransicao.current) clearTimeout(timerTransicao.current);
+    setAbaDocumentos(nova);
+    setTransicaoAba(true);
+    timerTransicao.current = setTimeout(() => setTransicaoAba(false), 380);
+  }
 
   const [alterandoAmbiente, setAlterandoAmbiente] = useState(false);
   const [manifestarTodasAberto, setManifestarTodasAberto] = useState(false);
@@ -746,7 +757,7 @@ export default function EmpresaDetalhePage() {
       <section className="space-y-3">
         <div className="flex items-center gap-1 border-b" style={{ borderColor: "var(--border)" }}>
           <button
-            onClick={() => setAbaDocumentos("entrada")}
+            onClick={() => mudarAba("entrada")}
             className="px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
             style={{
               color: abaDocumentos === "entrada" ? "var(--paper)" : "var(--muted)",
@@ -757,7 +768,7 @@ export default function EmpresaDetalhePage() {
             Notas de entrada
           </button>
           <button
-            onClick={() => setAbaDocumentos("saida")}
+            onClick={() => mudarAba("saida")}
             className="ml-4 px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
             style={{
               color: abaDocumentos === "saida" ? "var(--paper)" : "var(--muted)",
@@ -768,7 +779,7 @@ export default function EmpresaDetalhePage() {
             Notas de saída
           </button>
           <button
-            onClick={() => setAbaDocumentos("cte")}
+            onClick={() => mudarAba("cte")}
             className="ml-4 px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
             style={{
               color: abaDocumentos === "cte" ? "var(--paper)" : "var(--muted)",
@@ -779,7 +790,7 @@ export default function EmpresaDetalhePage() {
             CT-e distribuição
           </button>
           <button
-            onClick={() => setAbaDocumentos("certificado")}
+            onClick={() => mudarAba("certificado")}
             className="ml-4 flex items-center gap-1.5 px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
             style={{
               color: abaDocumentos === "certificado" ? "var(--paper)" : "var(--muted)",
@@ -802,7 +813,16 @@ export default function EmpresaDetalhePage() {
           </button>
         </div>
 
-        {abaDocumentos === "entrada" && (
+        <div className="barra-carregando" data-ativa={transicaoAba} aria-hidden="true" />
+        {transicaoAba && (
+          <div className="entra-suave space-y-3" aria-busy="true">
+            <div className="skeleton h-10 w-full rounded-lg" />
+            <div className="skeleton h-16 w-full rounded-lg" />
+            <div className="skeleton h-40 w-full rounded-lg" />
+          </div>
+        )}
+
+        {!transicaoAba && abaDocumentos === "entrada" && (
         <div key="entrada" className="desliza-esquerda space-y-3">
           <div className="flex items-center justify-end">
           <div className="flex flex-wrap items-center gap-3">
@@ -1068,7 +1088,7 @@ export default function EmpresaDetalhePage() {
         </div>
         )}
 
-        {abaDocumentos === "saida" && (
+        {!transicaoAba && abaDocumentos === "saida" && (
         <div key="saida" className="desliza-direita space-y-3">
         <p className="text-xs" style={{ color: "var(--muted)" }}>
           Notas emitidas por esta empresa (via PDV/ERP próprio), capturadas
@@ -1231,13 +1251,13 @@ export default function EmpresaDetalhePage() {
         </div>
         )}
 
-        {abaDocumentos === "cte" && token && (
+        {!transicaoAba && abaDocumentos === "cte" && token && (
         <div key="cte" className="desliza-direita space-y-3">
           <SecaoCteDistribuicao empresaId={empresa.id} token={token} temCertificado={Boolean(certificado)} />
         </div>
         )}
 
-        {abaDocumentos === "certificado" && (
+        {!transicaoAba && abaDocumentos === "certificado" && (
         <div key="certificado" className="desliza-direita space-y-3">
           <SecaoCertificado
             empresaId={empresa.id}
