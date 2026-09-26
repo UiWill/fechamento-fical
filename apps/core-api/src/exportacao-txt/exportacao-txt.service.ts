@@ -5,7 +5,7 @@ import {
   BUCKET_EXPORTACOES_TXT,
   ObjectStorageService,
 } from "../common/storage/object-storage.service";
-import { extrairEnderecoEmitente, contarItens } from "../documentos-fiscais/xml-utils";
+import { extrairEnderecoEmitente } from "../documentos-fiscais/xml-utils";
 import { linha0000, linha0010, linha1000, type FornecedorParaLayout } from "./dominio-layout";
 
 const CRLF = "\r\n";
@@ -86,7 +86,7 @@ export class ExportacaoTxtService {
             valorTotal: Number(doc.valorTotal),
             dataEmissao: doc.emitidoEm ?? doc.recebidoEm,
             dataRecebimento: doc.recebidoEm,
-            quantidadeItens: contarItens(xmlTexto) || null,
+            acumulador: doc.acumulador,
           })
         );
       }
@@ -114,7 +114,8 @@ export class ExportacaoTxtService {
           concluidoEm: new Date(),
         },
       });
-      return { ...atualizado, documentosIgnorados };
+      const documentosSemAcumulador = documentos.filter((d) => !d.acumulador).length;
+      return { ...atualizado, documentosIgnorados, documentosSemAcumulador };
     } catch (err) {
       const mensagem = err instanceof Error ? err.message : String(err);
       this.logger.error(`Falha ao gerar TXT da empresa ${empresaId}: ${mensagem}`);

@@ -11,16 +11,13 @@ import {
   listarDocumentosFiscais,
   sincronizarDocumentos,
   classificarPendentes,
-  enviarManifestacao,
   gerarExportacaoTxt,
   baixarExportacaoTxt,
   baixarXmlsZip,
   zerarNsu,
-  ROTULO_EVENTO_MANIFESTACAO,
   type EmpresaDetalhe,
   type CertificadoResumo,
   type DocumentoFiscal,
-  type TipoEventoManifestacao,
 } from "@/lib/api";
 import {
   mascararCnpj,
@@ -37,6 +34,7 @@ import {
   limitesDoMes,
   diasAte,
 } from "@/lib/format";
+import { ModalManifestacao } from "@/components/ModalManifestacao";
 import {
   exportarNotasEntradaPdf,
   exportarNotasEntradaExcel,
@@ -334,11 +332,6 @@ function SecaoCertificado({
   );
 }
 
-const EXIGE_JUSTIFICATIVA: TipoEventoManifestacao[] = [
-  "DESCONHECIMENTO_OPERACAO",
-  "OPERACAO_NAO_REALIZADA",
-];
-
 function ManifestacaoAcao({
   empresaId,
   documento,
@@ -351,13 +344,9 @@ function ManifestacaoAcao({
   onAtualizado: () => void;
 }) {
   const [aberto, setAberto] = useState(false);
-  const [tipo, setTipo] = useState<TipoEventoManifestacao>("CIENCIA_OPERACAO");
-  const [justificativa, setJustificativa] = useState("");
-  const [enviando, setEnviando] = useState(false);
-  const [resultado, setResultado] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
 
-  if (documento.direcao !== "ENTRADA") {
+  // Manifestação do destinatário só existe pra NF-e (modelo 55) de entrada.
+  if (documento.direcao !== "ENTRADA" || documento.tipo !== "NFE") {
     return <span style={{ color: "var(--muted-2)" }}>—</span>;
   }
 
@@ -365,8 +354,8 @@ function ManifestacaoAcao({
     return <span style={{ color: "var(--muted)" }}>já manifestado</span>;
   }
 
-  if (!aberto) {
-    return (
+  return (
+    <>
       <button
         onClick={() => setAberto(true)}
         className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
@@ -374,119 +363,15 @@ function ManifestacaoAcao({
       >
         Manifestar
       </button>
-    );
-  }
-
-  async function handleEnviar() {
-    const precisaJustificativa = EXIGE_JUSTIFICATIVA.includes(tipo);
-    if (precisaJustificativa && justificativa.trim().length < 15) {
-      setErro("A justificativa precisa ter pelo menos 15 caracteres.");
-      return;
-    }
-
-    setEnviando(true);
-    setErro(null);
-    setResultado(null);
-    try {
-      const evento = await enviarManifestacao(
-        empresaId,
-        {
-          documentoFiscalId: documento.id,
-          tipo,
-          justificativa: precisaJustificativa ? justificativa.trim() : undefined,
-        },
-        token
-      );
-      if (evento.status === "AUTORIZADA") {
-        setResultado("Manifestação autorizada pela SEFAZ.");
-        onAtualizado();
-      } else {
-        setErro(evento.motivoSefaz ?? "A SEFAZ rejeitou a manifestação.");
-      }
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : "Não foi possível enviar a manifestação.");
-    } finally {
-      setEnviando(false);
-    }
-  }
-
-  return (
-    <>
-      {/* position: fixed escapa do scroll/overflow da tabela — o formulário
-          nunca deve alterar a largura das colunas, senão a tabela ganha um
-          scroll horizontal próprio. */}
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-6"
-        style={{ background: "rgba(0,0,0,0.8)" }}
-        onClick={(event) => {
-          if (event.target === event.currentTarget) setAberto(false);
-        }}
-      >
-        <div
-          className="entra w-full max-w-[22rem] space-y-3 rounded-lg border p-5"
-          style={{
-            background: "var(--surface-2)",
-            borderColor: "var(--muted-2)",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.7)",
-          }}
-        >
-          <p className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
-            Manifestação do destinatário
-          </p>
-
-          <select
-            value={tipo}
-            onChange={(event) => setTipo(event.target.value as TipoEventoManifestacao)}
-            className="campo text-xs"
-          >
-            {Object.entries(ROTULO_EVENTO_MANIFESTACAO).map(([valor, rotulo]) => (
-              <option key={valor} value={valor}>
-                {rotulo}
-              </option>
-            ))}
-          </select>
-
-          {EXIGE_JUSTIFICATIVA.includes(tipo) && (
-            <textarea
-              value={justificativa}
-              onChange={(event) => setJustificativa(event.target.value)}
-              placeholder="Justificativa (mín. 15 caracteres)"
-              className="campo text-xs"
-              rows={2}
-            />
-          )}
-
-          {resultado && (
-            <p className="text-xs" style={{ color: "var(--paper)" }}>
-              {resultado}
-            </p>
-          )}
-          {erro && (
-            <p className="text-xs" style={{ color: "var(--paper)" }}>
-              {erro}
-            </p>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleEnviar}
-              disabled={enviando}
-              className="botao-principal"
-              style={{ width: "auto", paddingInline: "1rem", paddingBlock: "0.4rem", fontSize: "0.75rem" }}
-            >
-              {enviando && <span className="spinner" />}
-              {enviando ? "Enviando" : "Confirmar"}
-            </button>
-            <button
-              onClick={() => setAberto(false)}
-              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]"
-              style={{ color: "var(--muted)" }}
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
+      {aberto && (
+        <ModalManifestacao
+          empresaId={empresaId}
+          token={token}
+          alvos={[documento]}
+          onFechar={() => setAberto(false)}
+          onConcluido={onAtualizado}
+        />
+      )}
     </>
   );
 }
@@ -521,6 +406,7 @@ export default function EmpresaDetalhePage() {
   const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "certificado">("entrada");
 
   const [alterandoAmbiente, setAlterandoAmbiente] = useState(false);
+  const [manifestarTodasAberto, setManifestarTodasAberto] = useState(false);
 
   const [ordenacaoEntrada, setOrdenacaoEntrada] = useState<Ordenacao>(ORDENACAO_PADRAO);
   const [filtroTipoEntrada, setFiltroTipoEntrada] = useState<DocumentoFiscal["tipo"] | "TODOS">("TODOS");
@@ -659,6 +545,11 @@ export default function EmpresaDetalhePage() {
       if (resultado.documentosIgnorados) {
         partes.push(`${resultado.documentosIgnorados} ignorada(s) por falta de CFOP`);
       }
+      if (resultado.documentosSemAcumulador) {
+        partes.push(
+          `${resultado.documentosSemAcumulador} sem acumulador (classifique as notas em "Classificar pendentes" — precisa haver uma regra fiscal cadastrada pro CFOP)`
+        );
+      }
       setResultadoTxt(partes.join(" · "));
 
       if (resultado.totalDocumentos > 0) {
@@ -685,6 +576,11 @@ export default function EmpresaDetalhePage() {
     (doc) =>
       chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltroSaida &&
       (filtroTipoSaida === "TODOS" || doc.tipo === filtroTipoSaida)
+  );
+
+  // Só NF-e de entrada do mês/filtro atual ainda sem manifestação.
+  const pendentesManifestacao = notasEntradaDoMes.filter(
+    (doc) => doc.tipo === "NFE" && doc.status !== "MANIFESTADO"
   );
 
   const notasEntradaOrdenadas = ordenarDocumentos(documentosEntrada.filter(
@@ -900,7 +796,20 @@ export default function EmpresaDetalhePage() {
         {abaDocumentos === "entrada" && (
         <div key="entrada" className="desliza-esquerda space-y-3">
           <div className="flex items-center justify-end">
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setManifestarTodasAberto(true)}
+              disabled={pendentesManifestacao.length === 0}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed"
+              style={{ color: "var(--paper)" }}
+              title={
+                pendentesManifestacao.length === 0
+                  ? "Nenhuma NF-e pendente de manifestação no mês/filtro selecionado"
+                  : `Manifestar as ${pendentesManifestacao.length} NF-e pendentes de ${rotuloMes(mesFiltro)}`
+              }
+            >
+              Manifestar todas{pendentesManifestacao.length > 0 ? ` (${pendentesManifestacao.length})` : ""}
+            </button>
             <button
               onClick={handleClassificar}
               disabled={classificando}
@@ -1324,6 +1233,16 @@ export default function EmpresaDetalhePage() {
         </div>
         )}
       </section>
+
+      {manifestarTodasAberto && token && (
+        <ModalManifestacao
+          empresaId={empresa.id}
+          token={token}
+          alvos={pendentesManifestacao}
+          onFechar={() => setManifestarTodasAberto(false)}
+          onConcluido={() => void carregarTudo(token)}
+        />
+      )}
 
       <section className="space-y-3">
         <h2

@@ -13,6 +13,7 @@
  * Domínio rejeitar o arquivo, esses são os primeiros suspeitos.
  *
  * FASE 1 (esta implementação): só o bloco de ENTRADA (0000/0010/1000).
+ * Campo 5 do 1000 = acumulador e campo 6 = CFOP de ENTRADA (confirmado no modelo).
  * Ficam de fora, por não termos o dado de origem ainda:
  *  - 1020/1060 (totalizadores de ICMS/CFOP) — não capturamos impostos por
  *    item do XML, só o total da nota.
@@ -89,14 +90,37 @@ export function linha0010(f: FornecedorParaLayout): string {
   });
 }
 
+
+/**
+ * A nota do fornecedor traz o CFOP DELE (de saída: 5.xxx dentro do estado,
+ * 6.xxx fora, 7.xxx exterior). O Domínio espera no registro de entrada o
+ * CFOP de ENTRADA equivalente (1.xxx / 2.xxx / 3.xxx). A troca do primeiro
+ * dígito cobre a grande maioria; as poucas exceções comuns ficam na tabela
+ * abaixo (ex.: 5.405 - substituição tributária - entra como 1.403).
+ */
+const EXCECOES_CFOP_ENTRADA: Record<string, string> = {
+  "405": "403",
+};
+
+export function cfopDeEntrada(cfopEmitente: string): string {
+  const cfop = cfopEmitente.replace(/\D/g, "");
+  if (cfop.length !== 4) return cfopEmitente;
+  const primeiro = cfop.charAt(0);
+  const resto = cfop.slice(1);
+  const novoPrimeiro = primeiro === "5" ? "1" : primeiro === "6" ? "2" : primeiro === "7" ? "3" : primeiro;
+  // 1.xxx / 2.xxx / 3.xxx já são CFOPs de entrada: não mexe.
+  if (novoPrimeiro === primeiro && ["1", "2", "3"].includes(primeiro)) return cfop;
+  return `${novoPrimeiro}${EXCECOES_CFOP_ENTRADA[resto] ?? resto}`;
+}
+
 export interface NotaEntradaParaLayout {
   chaveAcesso: string;
   cfop: string;
   valorTotal: number;
   dataEmissao: Date;
   dataRecebimento: Date;
-  /** Quantidade de itens (<det>) da nota, se conhecida — melhor-esforço, pode ficar de fora. */
-  quantidadeItens: number | null;
+  /** Código do acumulador (da regra fiscal que classificou a nota); vazio se a nota ainda não foi classificada. */
+  acumulador: string | null;
 }
 
 /** Registro 1000 — nota fiscal de entrada. */
@@ -106,13 +130,16 @@ export function linha1000(n: NotaEntradaParaLayout): string {
     throw new Error(`Chave de acesso inválida pra exportação TXT: ${n.chaveAcesso}`);
   }
   const valorFormatado = formatarValorBR(n.valorTotal);
+  const cfopEntrada = cfopDeEntrada(n.cfop);
 
   return montarLinha(100, {
     1: "1000",
     2: "36", // constante observada no arquivo-modelo, significado nao confirmado
     3: chave.cnpjEmitente,
-    5: n.quantidadeItens !== null ? String(n.quantidadeItens) : "",
-    6: n.cfop,
+    // Confirmado no arquivo-modelo: este campo guarda o código do acumulador
+    // (valores como 1, 3, 23, 59, 61, 65) e o seguinte é o CFOP de entrada.
+    5: n.acumulador ?? "",
+    6: cfopEntrada,
     7: "1", // constante observada no arquivo-modelo, significado nao confirmado
     8: String(chave.numeroDocumento),
     9: String(chave.serie),
@@ -128,7 +155,7 @@ export function linha1000(n: NotaEntradaParaLayout): string {
     39: valorFormatado,
     52: "N",
     54: n.chaveAcesso,
-    57: n.cfop,
+    57: cfopEntrada,
     90: "0,00",
   });
 }

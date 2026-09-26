@@ -449,6 +449,7 @@ export interface ExportacaoTxtResultado {
   totalDocumentos: number;
   erro: string | null;
   documentosIgnorados?: number;
+  documentosSemAcumulador?: number;
 }
 
 export async function gerarExportacaoTxt(
