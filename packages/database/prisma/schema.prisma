@@ -88,6 +88,7 @@ model Empresa {
   exportacoesTxt     ExportacaoTxt[]
   itensFatura         ItemFatura[]
   nsuControle         NsuControle?
+  nsuControleCte      NsuControleCte?
   regrasFiscaisOverride RegraFiscal[]
   agenteTokens        AgenteInstalacaoToken[]
 
@@ -108,6 +109,21 @@ model NsuControle {
   empresa    Empresa  @relation(fields: [empresaId], references: [id])
 
   @@map("nsu_controle")
+}
+
+// Mesmo controle do NsuControle, mas da Distribuicao DFe de CT-e (servico e
+// NSU independentes do de NF-e).
+model NsuControleCte {
+  id            String   @id @default(cuid())
+  empresaId     String   @unique
+  ultimoNsu     BigInt   @default(0)
+  ultimoCStat   String?
+  ultimoXMotivo String?
+  atualizadoEm  DateTime @updatedAt
+
+  empresa       Empresa  @relation(fields: [empresaId], references: [id])
+
+  @@map("nsu_controle_cte")
 }
 
 // PFX nunca fica fora do armazenamento de objetos, e nunca em texto puro:
@@ -142,6 +158,9 @@ enum TipoDocumentoFiscal {
 enum DirecaoDocumento {
   ENTRADA
   SAIDA
+  // CT-e recebido pela Distribuicao DFe de CT-e (empresa e remetente,
+  // destinatario, tomador etc.) - fica de fora das abas de entrada/saida.
+  CTE_DISTRIBUICAO
 }
 
 enum StatusDocumentoFiscal {
@@ -168,6 +187,8 @@ model DocumentoFiscal {
   valorTotal      Decimal?               @db.Decimal(14, 2)
   objetoStorageXml String // chave do objeto no armazenamento (bucket afe-documentos-fiscais)
   emitidoEm        DateTime?
+  // Dados extras (hoje so CT-e: papel da empresa, tomador, origem/destino...).
+  detalhe          Json?
   recebidoEm       DateTime               @default(now())
   atualizadoEm     DateTime               @updatedAt
 

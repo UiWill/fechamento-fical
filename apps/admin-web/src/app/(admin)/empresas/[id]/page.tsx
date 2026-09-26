@@ -35,6 +35,7 @@ import {
   diasAte,
 } from "@/lib/format";
 import { ModalManifestacao } from "@/components/ModalManifestacao";
+import { SecaoCteDistribuicao } from "@/components/SecaoCteDistribuicao";
 import {
   exportarNotasEntradaPdf,
   exportarNotasEntradaExcel,
@@ -403,7 +404,7 @@ export default function EmpresaDetalhePage() {
   const [erroXmlSaida, setErroXmlSaida] = useState<string | null>(null);
   const [zerandoNsu, setZerandoNsu] = useState(false);
   const [resultadoNsu, setResultadoNsu] = useState<string | null>(null);
-  const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "certificado">("entrada");
+  const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "cte" | "certificado">("entrada");
 
   const [alterandoAmbiente, setAlterandoAmbiente] = useState(false);
   const [manifestarTodasAberto, setManifestarTodasAberto] = useState(false);
@@ -768,6 +769,17 @@ export default function EmpresaDetalhePage() {
             }}
           >
             Notas de saída
+          </button>
+          <button
+            onClick={() => setAbaDocumentos("cte")}
+            className="ml-4 px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
+            style={{
+              color: abaDocumentos === "cte" ? "var(--paper)" : "var(--muted)",
+              borderBottom: abaDocumentos === "cte" ? "2px solid var(--paper)" : "2px solid transparent",
+              marginBottom: "-1px",
+            }}
+          >
+            CT-e distribuição
           </button>
           <button
             onClick={() => setAbaDocumentos("certificado")}
@@ -1219,6 +1231,12 @@ export default function EmpresaDetalhePage() {
             </div>
           </div>
         )}
+        </div>
+        )}
+
+        {abaDocumentos === "cte" && token && (
+        <div key="cte" className="desliza-direita space-y-3">
+          <SecaoCteDistribuicao empresaId={empresa.id} token={token} temCertificado={Boolean(certificado)} />
         </div>
         )}
 

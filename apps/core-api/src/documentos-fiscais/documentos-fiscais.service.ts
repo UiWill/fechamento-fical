@@ -114,7 +114,8 @@ export class DocumentosFiscaisService {
   async listarPorEmpresa(empresaId: string, organizacaoId: string) {
     await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
     return this.prisma.client.documentoFiscal.findMany({
-      where: { empresaId },
+      // CT-e da distribuição tem aba e lista próprias (cte-distribuicao).
+      where: { empresaId, direcao: { in: ["ENTRADA", "SAIDA"] } },
       // nome do agente desktop que enviou (só existe pra SAIDA) — o
       // admin-web usa isso pra mostrar de qual instalação veio cada nota.
       include: { agenteInstalacaoToken: { select: { nome: true } } },
@@ -308,7 +309,7 @@ export class DocumentosFiscaisService {
    */
   async baixarXmlsEmZip(
     empresaId: string,
-    direcao: "ENTRADA" | "SAIDA",
+    direcao: "ENTRADA" | "SAIDA" | "CTE_DISTRIBUICAO",
     inicio: Date,
     fim: Date,
     organizacaoId: string,

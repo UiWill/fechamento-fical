@@ -76,6 +76,22 @@ export class FiscalEngineClient {
     return response.json() as Promise<DistribuicaoDFeResponse>;
   }
 
+  /** Distribuição DFe de CT-e (serviço separado do de NF-e). Mesmo formato de resposta. */
+  async distribuicaoCTe(input: DistribuicaoDFeRequest): Promise<DistribuicaoDFeResponse> {
+    const response = await fetch(`${this.baseUrl}/cte/distribuicao-dfe`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`fiscal-engine respondeu ${response.status}: ${body}`);
+    }
+
+    return response.json() as Promise<DistribuicaoDFeResponse>;
+  }
+
   async enviarEvento(input: EnviarEventoRequest): Promise<EnviarEventoResponse> {
     const response = await fetch(`${this.baseUrl}/manifestacao`, {
       method: "POST",

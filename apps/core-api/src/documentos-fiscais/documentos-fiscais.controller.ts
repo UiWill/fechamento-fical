@@ -52,8 +52,8 @@ export class DocumentosFiscaisController {
     @Req() request: AuthenticatedRequest,
     @Res() reply: FastifyReply
   ) {
-    if (direcao !== "ENTRADA" && direcao !== "SAIDA") {
-      throw new BadRequestException('direcao deve ser "ENTRADA" ou "SAIDA"');
+    if (direcao !== "ENTRADA" && direcao !== "SAIDA" && direcao !== "CTE_DISTRIBUICAO") {
+      throw new BadRequestException('direcao deve ser "ENTRADA", "SAIDA" ou "CTE_DISTRIBUICAO"');
     }
     if (tipo !== undefined && tipo !== "NFE" && tipo !== "NFCE" && tipo !== "CTE") {
       throw new BadRequestException('tipo deve ser "NFE", "NFCE" ou "CTE"');

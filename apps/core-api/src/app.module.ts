@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
+import { CteDistribuicaoModule } from "./cte-distribuicao/cte-distribuicao.module";
 import { AcessoModule } from "./common/acesso/acesso.module";
 import { PrismaModule } from "./common/prisma/prisma.module";
 import { StorageModule } from "./common/storage/storage.module";
@@ -32,6 +33,7 @@ import { AgentesModule } from "./agentes/agentes.module";
     EmpresasModule,
     CertificadosModule,
     DocumentosFiscaisModule,
+    CteDistribuicaoModule,
     RegrasFiscaisModule,
     ManifestacaoModule,
     ExportacaoTxtModule,

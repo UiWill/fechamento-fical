@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../common/prisma/prisma.service";
+import { CteDistribuicaoService } from "../cte-distribuicao/cte-distribuicao.service";
 import { DocumentosFiscaisService } from "../documentos-fiscais/documentos-fiscais.service";
 
 @Injectable()
@@ -9,7 +10,8 @@ export class SincronizacaoAgendadaService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly documentosFiscais: DocumentosFiscaisService
+    private readonly documentosFiscais: DocumentosFiscaisService,
+    private readonly cteDistribuicao: CteDistribuicaoService
   ) {}
 
   /**
@@ -50,6 +52,19 @@ export class SincronizacaoAgendadaService {
           `[${empresa.razaoSocial}] falha na sincronização noturna: ${
             err instanceof Error ? err.message : err
           }`
+        );
+      }
+
+      // CT-e é outro serviço da SEFAZ, com cota própria: uma falha aqui não
+      // pode atrapalhar a NF-e (nem o contrário).
+      try {
+        const cte = await this.cteDistribuicao.sincronizar(empresa.id);
+        this.logger.log(
+          `[${empresa.razaoSocial}] CT-e: ${cte.documentosNovos} novo(s)${cte.bloqueadoPelaSefaz ? " — BLOQUEADO pela SEFAZ" : ""}`
+        );
+      } catch (err) {
+        this.logger.error(
+          `[${empresa.razaoSocial}] falha na sincronização noturna de CT-e: ${err instanceof Error ? err.message : err}`
         );
       }
     }

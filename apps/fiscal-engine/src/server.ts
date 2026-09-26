@@ -3,6 +3,7 @@ import { healthRoutes } from "./routes/health";
 import { statusServicoRoutes } from "./routes/status-servico";
 import { distribuicaoDfeRoutes } from "./routes/distribuicao-dfe";
 import { manifestacaoRoutes } from "./routes/manifestacao";
+import { cteDistribuicaoRoutes } from "./routes/cte-distribuicao";
 
 export function buildServer() {
   const app = Fastify({
@@ -15,6 +16,7 @@ export function buildServer() {
   app.register(statusServicoRoutes);
   app.register(distribuicaoDfeRoutes);
   app.register(manifestacaoRoutes);
+  app.register(cteDistribuicaoRoutes);
 
   return app;
 }

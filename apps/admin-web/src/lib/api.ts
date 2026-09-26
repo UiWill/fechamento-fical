@@ -503,7 +503,7 @@ export async function baixarExportacaoTxt(
 /** Baixa um .zip com os XMLs do periodo/direcao/tipo filtrados na tela. */
 export async function baixarXmlsZip(
   empresaId: string,
-  direcao: "ENTRADA" | "SAIDA",
+  direcao: "ENTRADA" | "SAIDA" | "CTE_DISTRIBUICAO",
   inicio: string,
   fim: string,
   token: string,
@@ -660,4 +660,66 @@ export async function buscarAtividadeAgente(id: string, token: string): Promise<
     throw new Error("Não foi possível carregar a atividade desse agente.");
   }
   return response.json();
+}
+
+export interface DetalheCte {
+  papeis: string[];
+  tomador: string | null;
+  remetente: string | null;
+  destinatario: string | null;
+  origem: string | null;
+  destino: string | null;
+  tipoCte: string | null;
+  naturezaOperacao: string | null;
+  cfop: string | null;
+  cancelado?: boolean;
+}
+
+export interface CteDistribuicaoItem {
+  id: string;
+  chaveAcesso: string;
+  nomeEmitente: string | null;
+  valorTotal: string | null;
+  emitidoEm: string | null;
+  recebidoEm: string;
+  detalhe: DetalheCte | null;
+}
+
+export interface ControleCte {
+  ultimoNsu: number;
+  ultimoCStat: string | null;
+  ultimoXMotivo: string | null;
+  ultimaSincronizacaoEm: string;
+}
+
+export async function listarCteDistribuicao(
+  empresaId: string,
+  token: string
+): Promise<{ documentos: CteDistribuicaoItem[]; controle: ControleCte | null }> {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/cte-distribuicao`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Não foi possível carregar os CT-e.");
+  return response.json();
+}
+
+export async function sincronizarCte(empresaId: string, token: string): Promise<SincronizacaoResultado> {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/cte-distribuicao/sincronizar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const corpo = await response.json().catch(() => null);
+    throw new Error(corpo?.message || "Não foi possível sincronizar os CT-e agora.");
+  }
+  return response.json();
+}
+
+export async function zerarNsuCte(empresaId: string, token: string): Promise<void> {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/cte-distribuicao/nsu/zerar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Não foi possível zerar o NSU de CT-e.");
 }
