@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
+import { AcessoModule } from "./common/acesso/acesso.module";
 import { PrismaModule } from "./common/prisma/prisma.module";
 import { StorageModule } from "./common/storage/storage.module";
 import { FiscalEngineModule } from "./common/fiscal-engine/fiscal-engine.module";
@@ -22,6 +23,7 @@ import { AgentesModule } from "./agentes/agentes.module";
   imports: [
     ScheduleModule.forRoot(),
     PrismaModule,
+    AcessoModule,
     StorageModule,
     FiscalEngineModule,
     HealthModule,

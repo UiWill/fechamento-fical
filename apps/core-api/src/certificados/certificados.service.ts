@@ -130,11 +130,11 @@ export class CertificadosService {
     return cert;
   }
 
-  listarVencendoEm(dias: number) {
+  listarVencendoEm(dias: number, organizacaoId: string) {
     const limite = new Date();
     limite.setDate(limite.getDate() + dias);
     return this.prisma.client.certificado.findMany({
-      where: { validoAte: { lte: limite }, alertaVencimentoEnviado: false },
+      where: { validoAte: { lte: limite }, alertaVencimentoEnviado: false, empresa: { organizacaoId } },
       include: { empresa: true },
     });
   }
