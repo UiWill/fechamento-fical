@@ -51,7 +51,7 @@ export function linha0000(cnpjEmpresa: string): string {
   return montarLinha(4, { 1: "0000", 2: cnpjEmpresa });
 }
 
-export interface FornecedorParaLayout {
+export interface ParticipanteParaLayout {
   cnpj: string;
   razaoSocial: string;
   endereco: EnderecoEmitente | null;
@@ -59,15 +59,35 @@ export interface FornecedorParaLayout {
   mesReferencia: Date;
 }
 
-/** Registro 0010 — cadastro do fornecedor (participante da nota de entrada). */
-export function linha0010(f: FornecedorParaLayout): string {
+export type FornecedorParaLayout = ParticipanteParaLayout;
+
+/**
+ * Registro 0020 — cadastro de FORNECEDOR (participante das notas de entrada);
+ * o 0010 é o cadastro de CLIENTE (participante das notas de saída). Confirmado
+ * no arquivo-modelo: todo CNPJ dos 1000 está num 0020 e todo dos 2000 num 0010.
+ */
+export function linha0020(f: ParticipanteParaLayout): string {
+  return participante("0020", 35, f, { 30: "N", 31: "N" });
+}
+
+/** Registro 0010 — cadastro de CLIENTE (destinatário das notas de saída). */
+export function linha0010(f: ParticipanteParaLayout): string {
+  return participante("0010", 34, f, { 28: "N" });
+}
+
+function participante(
+  registro: string,
+  tamanho: number,
+  f: ParticipanteParaLayout,
+  flagsExtras: Record<number, string>
+): string {
   const dataCadastro = formatarDataBR(
     new Date(Date.UTC(f.mesReferencia.getUTCFullYear(), f.mesReferencia.getUTCMonth(), 1))
   );
   const end = f.endereco;
 
-  return montarLinha(34, {
-    1: "0010",
+  return montarLinha(tamanho, {
+    1: registro,
     2: f.cnpj,
     3: f.razaoSocial,
     5: end?.logradouro ?? "",
@@ -86,7 +106,7 @@ export function linha0010(f: FornecedorParaLayout): string {
     23: "7",
     24: "N",
     25: "N",
-    28: "N",
+    ...flagsExtras,
   });
 }
 
@@ -157,5 +177,110 @@ export function linha1000(n: NotaEntradaParaLayout): string {
     54: n.chaveAcesso,
     57: cfopEntrada,
     90: "0,00",
+  });
+}
+
+
+// ── Bloco de SAÍDA (2000/2020/2060/2500) — decodificado do mesmo arquivo-modelo ──
+
+/** Formato dos totalizadores 2060 no modelo: sem zeros à direita ("6201,6", "4092", "0"). */
+function numeroCurto(valor: number): string {
+  return String(Math.round(valor * 100) / 100).replace(".", ",");
+}
+
+export interface NotaSaidaParaLayout {
+  chaveAcesso: string;
+  acumulador: string | null;
+  cfop: string;
+  ufDestinatario: string;
+  documentoDestinatario: string;
+  dataEmissao: Date;
+  valorNota: number;
+  valorIpi: number;
+  pisCst: string;
+  aliquotaPis: number | null;
+  aliquotaCofins: number | null;
+}
+
+/** Registro 2000 — nota fiscal de saída. O CFOP vai como está na nota (sem conversão). */
+export function linha2000(n: NotaSaidaParaLayout): string {
+  const chave = decodificarChaveAcesso(n.chaveAcesso);
+  if (!chave) {
+    throw new Error(`Chave de acesso inválida pra exportação TXT: ${n.chaveAcesso}`);
+  }
+  const data = formatarDataBR(n.dataEmissao);
+  return montarLinha(79, {
+    1: "2000",
+    2: "36", // constante observada no arquivo-modelo, significado nao confirmado
+    3: n.documentoDestinatario,
+    4: n.acumulador ?? "",
+    5: n.cfop,
+    7: n.ufDestinatario,
+    8: "1", // "0" nas notas canceladas / de entrada propria no modelo
+    9: String(chave.numeroDocumento),
+    10: String(chave.serie),
+    12: data,
+    13: data,
+    14: formatarValorBR(n.valorNota),
+    18: "T",
+    31: formatarValorBR(n.valorNota - n.valorIpi),
+    37: "00",
+    41: "0",
+    45: n.chaveAcesso,
+    52: n.pisCst,
+    56: n.aliquotaPis !== null ? formatarValorBR(n.aliquotaPis) : "",
+    57: n.aliquotaCofins !== null ? formatarValorBR(n.aliquotaCofins) : "",
+    69: formatarValorBR(n.valorIpi),
+    77: data,
+  });
+}
+
+export interface TotalImpostoParaLayout {
+  /** 1 = ICMS, 2 = IPI. */
+  tipo: 1 | 2;
+  base: number;
+  aliquota: number;
+  valor: number;
+  isentas: number;
+  outras: number;
+  valorContabil: number;
+}
+
+/** Registro 2020 — totalizador de ICMS (tipo 1) ou IPI (tipo 2) da nota, um por combinação de classificação/alíquota. */
+export function linha2020(t: TotalImpostoParaLayout): string {
+  return montarLinha(16, {
+    1: "2020",
+    2: String(t.tipo),
+    3: "0,00",
+    4: formatarValorBR(t.base),
+    5: formatarValorBR(t.aliquota),
+    6: formatarValorBR(t.valor),
+    7: formatarValorBR(t.isentas),
+    8: formatarValorBR(t.outras),
+    9: formatarValorBR(t.valorContabil),
+    10: "0,00",
+    11: "0,00",
+    12: "0,00",
+  });
+}
+
+/** Registro 2060 — totalizador por NCM da nota. */
+export function linha2060(ncm: string, valorProdutos: number, valorIpi: number): string {
+  return montarLinha(9, {
+    1: "2060",
+    2: ncm,
+    3: numeroCurto(valorProdutos),
+    4: numeroCurto(valorProdutos),
+    5: numeroCurto(valorIpi),
+  });
+}
+
+/** Registro 2500 — parcela (duplicata) da nota de saída; identificação "número/parcela". */
+export function linha2500(vencimento: Date | null, valor: number, numeroNota: string, parcela: number): string {
+  return montarLinha(24, {
+    1: "2500",
+    2: vencimento ? formatarDataBR(vencimento) : "",
+    3: formatarValorBR(valor),
+    22: `${numeroNota}/${String(parcela).padStart(2, "0")}`,
   });
 }
