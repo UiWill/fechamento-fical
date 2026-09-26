@@ -584,12 +584,9 @@ export default function EmpresaDetalhePage() {
     (doc) => doc.tipo === "NFE" && doc.status !== "MANIFESTADO"
   );
 
-  const notasEntradaOrdenadas = ordenarDocumentos(documentosEntrada.filter(
-    (doc) => filtroTipoEntrada === "TODOS" || doc.tipo === filtroTipoEntrada
-  ), ordenacaoEntrada);
-  const notasSaidaOrdenadas = ordenarDocumentos(documentosSaida.filter(
-    (doc) => filtroTipoSaida === "TODOS" || doc.tipo === filtroTipoSaida
-  ), ordenacaoSaida);
+  // A lista de baixo mostra só o mês escolhido no seletor (o mesmo dos relatórios).
+  const notasEntradaOrdenadas = ordenarDocumentos(notasEntradaDoMes, ordenacaoEntrada);
+  const notasSaidaOrdenadas = ordenarDocumentos(notasSaidaDoMes, ordenacaoSaida);
 
   function linhasRelatorio() {
     return ordenarDocumentos(notasEntradaDoMes, ordenacaoEntrada).map((doc) => ({
@@ -983,7 +980,7 @@ export default function EmpresaDetalhePage() {
             style={{ borderColor: "var(--border)" }}
           >
             <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Nenhuma nota do tipo selecionado no filtro.
+              Nenhuma nota em {rotuloMes(mesFiltro)}{filtroTipoEntrada !== "TODOS" ? " com esse filtro de tipo" : ""}.
             </p>
           </div>
         ) : (
@@ -1171,7 +1168,7 @@ export default function EmpresaDetalhePage() {
             style={{ borderColor: "var(--border)" }}
           >
             <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Nenhuma nota do tipo selecionado no filtro.
+              Nenhuma nota em {rotuloMes(mesFiltroSaida)}{filtroTipoSaida !== "TODOS" ? " com esse filtro de tipo" : ""}.
             </p>
           </div>
         ) : (
