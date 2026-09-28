@@ -1,9 +1,14 @@
 /**
  * Leitura do XML de uma NF-e de SAÍDA (emitida pela própria empresa) só com
  * o que o TXT de importação do Domínio precisa: destinatário, totais,
- * ICMS/IPI agrupados, NCMs, PIS/COFINS e duplicatas. Regex simples sobre o
+ * ICMS/IPI agrupados, itens, PIS/COFINS e duplicatas. Regex simples sobre o
  * XML (mesma abordagem de xml-utils.ts) — a NF-e tem estrutura previsível e
  * não vale trazer um parser XML só pra isso.
+ *
+ * Campos mapeados 1:1 com a especificação oficial da Domínio Sistemas
+ * ("Leiaute: Domínio Sistemas com Separador", registros 2000/2010/2020/2030 —
+ * suporte.dominioatendimento.com, código 672), não mais por engenharia
+ * reversa: o PDF baixado dessa página tem a tabela de campo completa.
  */
 
 function texto(bloco: string, tag: string): string {
@@ -34,14 +39,28 @@ export interface DestinatarioSaida {
   inscricaoEstadual: string;
 }
 
+/** PIS ou COFINS de um item — mesma forma pros dois tributos. */
+export interface TributoItem {
+  cst: string;
+  base: number;
+  aliquota: number;
+  valor: number;
+}
+
 export interface ItemSaida {
+  codigoProduto: string;
   ncm: string;
   cfop: string;
-  /** vProd - vDesc + frete + seguro + outras despesas + IPI: o "valor contábil" do item. */
+  quantidade: number;
+  valorUnitario: number;
+  /** vProd - vDesc + frete + seguro + outras despesas + IPI: o "valor contábil" do item (registro 2000 campo 62). */
   valorContabil: number;
   valorProdutos: number;
-  icms: { comCst: boolean; cst: string; base: number; aliquota: number; valor: number } | null;
+  valorDesconto: number;
+  icms: { comCst: boolean; cst: string; base: number; baseSt: number; valorSt: number; aliquota: number; valor: number } | null;
   ipi: { tributado: boolean; cst: string; base: number; aliquota: number; valor: number };
+  pis: TributoItem;
+  cofins: TributoItem;
 }
 
 export interface NotaSaidaLida {
@@ -49,6 +68,10 @@ export interface NotaSaidaLida {
   serie: string;
   valorNota: number;
   valorIpi: number;
+  /** Código NFe de <modFrete> (0..9) — convertido pro código de letra da Domínio na hora de montar a linha 2000. */
+  modalidadeFrete: string;
+  /** <infCpl> — vira o registro 2010 (Informações Complementares) quando presente. */
+  informacoesComplementares: string;
   destinatario: DestinatarioSaida;
   itens: ItemSaida[];
   pis: { cst: string; aliquotaPis: number | null; aliquotaCofins: number | null };
@@ -59,6 +82,8 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
   const ide = bloco(xml, "ide");
   const dest = bloco(xml, "dest");
   const ender = bloco(dest, "enderDest");
+  const transp = bloco(xml, "transp");
+  const infAdic = bloco(xml, "infAdic");
 
   const itens: ItemSaida[] = [];
   const dets = xml.match(/<det\s[^>]*>[\s\S]*?<\/det>/gi) ?? [];
@@ -69,16 +94,14 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
     const imposto = bloco(det, "imposto");
     const icmsBloco = bloco(imposto, "ICMS");
     const ipiBloco = bloco(imposto, "IPI");
+    const pisBloco = bloco(imposto, "PIS");
+    const cofinsBloco = bloco(imposto, "COFINS");
 
     const vIpi = numero(ipiBloco, "vIPI");
     const valorProdutos = numero(prod, "vProd");
+    const valorDesconto = numero(prod, "vDesc");
     const valorContabil =
-      valorProdutos -
-      numero(prod, "vDesc") +
-      numero(prod, "vFrete") +
-      numero(prod, "vSeg") +
-      numero(prod, "vOutro") +
-      vIpi;
+      valorProdutos - valorDesconto + numero(prod, "vFrete") + numero(prod, "vSeg") + numero(prod, "vOutro") + vIpi;
 
     const cstIcms = texto(icmsBloco, "CST");
     const icms = icmsBloco
@@ -86,6 +109,8 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
           comCst: cstIcms !== "", // vazio = Simples (CSOSN), que não gera os totalizadores 2020
           cst: cstIcms.slice(-2),
           base: numero(icmsBloco, "vBC"),
+          baseSt: numero(icmsBloco, "vBCST"),
+          valorSt: numero(icmsBloco, "vICMSST"),
           aliquota: numero(icmsBloco, "pICMS"),
           valor: numero(icmsBloco, "vICMS"),
         }
@@ -94,11 +119,28 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
     const cstIpi = texto(ipiBloco, "CST");
     const ipiTributado = /<IPITrib>/i.test(ipiBloco) && vIpi > 0;
 
+    const pisItem: TributoItem = {
+      cst: texto(pisBloco, "CST"),
+      base: numero(pisBloco, "vBC"),
+      aliquota: numero(pisBloco, "pPIS"),
+      valor: numero(pisBloco, "vPIS"),
+    };
+    const cofinsItem: TributoItem = {
+      cst: texto(cofinsBloco, "CST"),
+      base: numero(cofinsBloco, "vBC"),
+      aliquota: numero(cofinsBloco, "pCOFINS"),
+      valor: numero(cofinsBloco, "vCOFINS"),
+    };
+
     itens.push({
+      codigoProduto: texto(prod, "cProd"),
       ncm: texto(prod, "NCM"),
       cfop: texto(prod, "CFOP"),
+      quantidade: numero(prod, "qCom"),
+      valorUnitario: numero(prod, "vUnCom"),
       valorContabil,
-      valorProdutos: valorProdutos - numero(prod, "vDesc"),
+      valorProdutos: valorProdutos - valorDesconto,
+      valorDesconto,
       icms,
       ipi: {
         tributado: ipiTributado,
@@ -107,15 +149,15 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
         aliquota: numero(ipiBloco, "pIPI"),
         valor: vIpi,
       },
+      pis: pisItem,
+      cofins: cofinsItem,
     });
 
     if (indice === 0) {
-      const pisBloco = bloco(imposto, "PIS");
-      const cofinsBloco = bloco(imposto, "COFINS");
       pis = {
-        cst: texto(pisBloco, "CST"),
-        aliquotaPis: /<PISAliq>/i.test(pisBloco) ? numero(pisBloco, "pPIS") : null,
-        aliquotaCofins: /<COFINSAliq>/i.test(cofinsBloco) ? numero(cofinsBloco, "pCOFINS") : null,
+        cst: pisItem.cst,
+        aliquotaPis: /<PISAliq>/i.test(pisBloco) ? pisItem.aliquota : null,
+        aliquotaCofins: /<COFINSAliq>/i.test(cofinsBloco) ? cofinsItem.aliquota : null,
       };
     }
   });
@@ -131,6 +173,8 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
     serie: texto(ide, "serie"),
     valorNota: numero(totais, "vNF"),
     valorIpi: numero(totais, "vIPI"),
+    modalidadeFrete: texto(transp, "modFrete"),
+    informacoesComplementares: texto(infAdic, "infCpl"),
     destinatario: {
       documento: texto(dest, "CNPJ") || texto(dest, "CPF"),
       nome: texto(dest, "xNome"),

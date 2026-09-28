@@ -12,7 +12,9 @@ import {
   linha0020,
   linha1000,
   linha2000,
+  linha2010,
   linha2020,
+  linha2030,
   linha2060,
   linha2500,
   type ParticipanteParaLayout,
@@ -205,6 +207,8 @@ export class ExportacaoTxtService {
           });
         }
 
+        const dataEmissao = doc.emitidoEm ?? doc.recebidoEm;
+
         linhasSaida.push(
           linha2000({
             chaveAcesso: doc.chaveAcesso,
@@ -212,7 +216,9 @@ export class ExportacaoTxtService {
             cfop: doc.cfop ?? nota.itens[0]?.cfop ?? "",
             ufDestinatario: dest.uf,
             documentoDestinatario: dest.documento,
-            dataEmissao: doc.emitidoEm ?? doc.recebidoEm,
+            inscricaoEstadualDestinatario: dest.inscricaoEstadual,
+            modalidadeFrete: nota.modalidadeFrete,
+            dataEmissao,
             valorNota: nota.valorNota || Number(doc.valorTotal ?? 0),
             valorIpi: nota.valorIpi,
             pisCst: nota.pis.cst,
@@ -220,6 +226,11 @@ export class ExportacaoTxtService {
             aliquotaCofins: nota.pis.aliquotaCofins,
           })
         );
+
+        if (nota.informacoesComplementares) {
+          linhasSaida.push(linha2010(nota.informacoesComplementares));
+        }
+
         linhasSaida.push(...totaisImpostos(nota.itens).map(linha2020));
 
         const porNcm = new Map<string, { produtos: number; ipi: number }>();
@@ -228,6 +239,35 @@ export class ExportacaoTxtService {
           acumulado.produtos += item.valorProdutos;
           acumulado.ipi += item.ipi.valor;
           porNcm.set(item.ncm, acumulado);
+
+          linhasSaida.push(
+            linha2030({
+              codigoProduto: item.codigoProduto,
+              quantidade: item.quantidade,
+              valorIpi: item.ipi.valor,
+              baseCalculoIcms: item.icms?.base ?? 0,
+              dataEmissao,
+              cstIcms: item.icms?.cst ?? "",
+              valorBrutoProduto: item.valorProdutos,
+              valorDesconto: item.valorDesconto,
+              baseCalculoIcmsSt: item.icms?.baseSt ?? 0,
+              aliquotaIcms: item.icms?.aliquota ?? 0,
+              valorIcms: item.icms?.valor ?? 0,
+              valorIcmsSt: item.icms?.valorSt ?? 0,
+              valorUnitario: item.valorUnitario,
+              cstIpi: item.ipi.cst,
+              aliquotaIpi: item.ipi.aliquota,
+              cstPis: item.pis.cst,
+              baseCalculoPis: item.pis.base,
+              aliquotaPis: item.pis.aliquota,
+              valorPis: item.pis.valor,
+              cstCofins: item.cofins.cst,
+              baseCalculoCofins: item.cofins.base,
+              aliquotaCofins: item.cofins.aliquota,
+              valorCofins: item.cofins.valor,
+              valorContabil: item.valorContabil,
+            })
+          );
         }
         for (const [ncm, v] of porNcm) linhasSaida.push(linha2060(ncm, v.produtos, v.ipi));
 

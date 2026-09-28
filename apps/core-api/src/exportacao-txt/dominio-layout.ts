@@ -2,24 +2,31 @@
  * Construtores das linhas do layout de importação de Notas Fiscais do
  * Domínio Sistemas (delimitado por "|").
  *
- * IMPORTANTE: não temos a especificação oficial da Domínio — isso foi
+ * O bloco de ENTRADA (0000/0010(cliente)/0020(fornecedor)/1000) foi
  * decodificado por engenharia reversa a partir de um arquivo de exemplo
- * real (ExportacaoDominio-ENDURO-08-2026.txt, na raiz do projeto). Só
- * preenchemos os campos que conseguimos confirmar cruzando com dados que
- * já conhecemos por outra via (chave de acesso, CFOP, valores da nota).
- * Campos cujo significado exato não foi confirmado ficam com o MESMO
- * valor constante observado no arquivo-modelo (comentado onde isso
- * acontece) — é a aposta mais segura possível sem documentação, mas se o
- * Domínio rejeitar o arquivo, esses são os primeiros suspeitos.
+ * real (ExportacaoDominio-ENDURO-08-2026.txt, na raiz do projeto), sem
+ * especificação oficial — por isso os comentários de cada campo dizem o
+ * que foi ou não confirmado.
  *
- * FASE 1 (esta implementação): só o bloco de ENTRADA (0000/0010/1000).
- * Campo 5 do 1000 = acumulador e campo 6 = CFOP de ENTRADA (confirmado no modelo).
- * Ficam de fora, por não termos o dado de origem ainda:
- *  - 1020/1060 (totalizadores de ICMS/CFOP) — não capturamos impostos por
- *    item do XML, só o total da nota.
- *  - 1500 (parcelas/duplicatas) — não capturamos condição de pagamento.
- *  - Bloco 2000... (saída) — ainda não existe captura de NF-e/NFC-e de
- *    saída no sistema (ver docs/SESSAO_2026-09-09_relatorio-entrada-e-sync-sefaz.md).
+ * O bloco de SAÍDA (2000/2010/2020/2030/2060/2500) já usa a especificação
+ * oficial da Domínio ("Leiaute: Domínio Sistemas com Separador", registros
+ * 2000+ — suporte.dominioatendimento.com/central/faces/solucao.html?codigo=672),
+ * cruzada campo a campo com o mesmo arquivo de exemplo pra confirmar o que
+ * cada posição realmente carrega na prática (a doc lista o campo mas nem
+ * sempre deixa claro o formato exato usado). Registro 2030 (itens da nota)
+ * tem 118 campos na especificação — a maioria é de regime específico
+ * (combustíveis, veículos, medicamentos, EFD-Reinf, IBS/CBS da reforma
+ * tributária); só preenchemos os campos comerciais/tributários universais
+ * (ver comentário em `linha2030`). Registros 2081/2082 (documentos
+ * referenciados) ficam de fora — só se aplicam quando a nota referencia
+ * outro documento (ex.: devolução), e o campo "Cliente/Fornecedor" deles
+ * exige casar com um cadastro que não temos como resolver com segurança.
+ *
+ * Ficam de fora por não termos o dado de origem:
+ *  - 1020/1060 (totalizadores de ICMS/CFOP da ENTRADA) — não capturamos
+ *    impostos por item do XML de entrada, só o total da nota.
+ *  - 1500 (parcelas/duplicatas da ENTRADA) — não capturamos condição de
+ *    pagamento nessas notas.
  * Quando esses dados existirem, adicionar novas funções `linhaXXXX` aqui
  * seguindo o mesmo padrão — não precisa mexer no que já existe.
  */
@@ -188,12 +195,29 @@ function numeroCurto(valor: number): string {
   return String(Math.round(valor * 100) / 100).replace(".", ",");
 }
 
+/**
+ * Código de <modFrete> da NFe (0..9) pra letra que a Domínio espera no
+ * campo 18 do registro 2000. Confirmado só o "2" (a maioria das notas do
+ * arquivo-modelo é frete por conta de terceiros, campo = "T"); os outros
+ * seguem a mesma lista de opções documentada no campo (C/F/S/T/R/D).
+ */
+const MODALIDADE_FRETE: Record<string, string> = {
+  "0": "C", // contratação por conta do remetente (CIF)
+  "1": "F", // contratação por conta do destinatário (FOB)
+  "2": "T", // contratação por conta de terceiros
+  "3": "R", // transporte próprio por conta do remetente
+  "4": "D", // transporte próprio por conta do destinatário
+  "9": "S", // sem transporte
+};
+
 export interface NotaSaidaParaLayout {
   chaveAcesso: string;
   acumulador: string | null;
   cfop: string;
   ufDestinatario: string;
   documentoDestinatario: string;
+  inscricaoEstadualDestinatario: string;
+  modalidadeFrete: string;
   dataEmissao: Date;
   valorNota: number;
   valorIpi: number;
@@ -202,7 +226,18 @@ export interface NotaSaidaParaLayout {
   aliquotaCofins: number | null;
 }
 
-/** Registro 2000 — nota fiscal de saída. O CFOP vai como está na nota (sem conversão). */
+/**
+ * Registro 2000 — nota fiscal de saída (spec confirmada: campo 3 =
+ * Inscrição do cliente, 4 = acumulador, 5 = CFOP sem conversão, 7 = UF do
+ * cliente, 9/10 = número/série da chave, 14 = valor contábil, 31 = valor
+ * dos produtos = valor contábil - IPI, 45 = chave, 69 = valor do IPI, 77 =
+ * data de entrega — todos batendo exatamente com o arquivo-modelo).
+ * Campos 2/8/37/41 ficam com o valor constante observado (a doc não deixa
+ * claro o que gera "Código da espécie"/"Segmento"/"Tipo do Título" e o
+ * arquivo-modelo só tem essas notas fiscais eletrônicas comuns, sem
+ * variação pra confirmar). Cancelamento (campo 37="2") não é tratado ainda
+ * — o sistema não recebe evento de cancelamento de nota de saída.
+ */
 export function linha2000(n: NotaSaidaParaLayout): string {
   const chave = decodificarChaveAcesso(n.chaveAcesso);
   if (!chave) {
@@ -211,27 +246,37 @@ export function linha2000(n: NotaSaidaParaLayout): string {
   const data = formatarDataBR(n.dataEmissao);
   return montarLinha(79, {
     1: "2000",
-    2: "36", // constante observada no arquivo-modelo, significado nao confirmado
+    2: "36", // constante observada no arquivo-modelo, significado nao confirmado (Codigo da especie)
     3: n.documentoDestinatario,
     4: n.acumulador ?? "",
     5: n.cfop,
     7: n.ufDestinatario,
-    8: "1", // "0" nas notas canceladas / de entrada propria no modelo
+    8: "1", // constante observada (Segmento) - "0" nas notas canceladas no modelo
     9: String(chave.numeroDocumento),
     10: String(chave.serie),
     12: data,
     13: data,
     14: formatarValorBR(n.valorNota),
-    18: "T",
+    18: MODALIDADE_FRETE[n.modalidadeFrete] ?? "T",
     31: formatarValorBR(n.valorNota - n.valorIpi),
-    37: "00",
-    41: "0",
+    37: "00", // Codigo do modelo do Documento Fiscal - "0" = documento regular
+    41: "0", // constante observada (Tipo do Titulo)
+    43: n.inscricaoEstadualDestinatario,
     45: n.chaveAcesso,
     52: n.pisCst,
     56: n.aliquotaPis !== null ? formatarValorBR(n.aliquotaPis) : "",
     57: n.aliquotaCofins !== null ? formatarValorBR(n.aliquotaCofins) : "",
     69: formatarValorBR(n.valorIpi),
     77: data,
+  });
+}
+
+/** Registro 2010 — informações complementares da nota de saída (o texto de <infCpl> do XML). Só gerado quando a nota tem esse texto. */
+export function linha2010(informacoesComplementares: string): string {
+  return montarLinha(3, {
+    1: "2010",
+    2: "1", // 1 = informação complementar de interesse do fisco
+    3: informacoesComplementares.slice(0, 300),
   });
 }
 
@@ -272,6 +317,77 @@ export function linha2060(ncm: string, valorProdutos: number, valorIpi: number):
     3: numeroCurto(valorProdutos),
     4: numeroCurto(valorProdutos),
     5: numeroCurto(valorIpi),
+  });
+}
+
+export interface ItemSaidaParaLayout {
+  codigoProduto: string;
+  quantidade: number;
+  valorIpi: number;
+  baseCalculoIcms: number;
+  dataEmissao: Date;
+  cstIcms: string;
+  valorBrutoProduto: number;
+  valorDesconto: number;
+  baseCalculoIcmsSt: number;
+  aliquotaIcms: number;
+  valorIcms: number;
+  valorIcmsSt: number;
+  valorUnitario: number;
+  cstIpi: string;
+  aliquotaIpi: number;
+  cstPis: string;
+  baseCalculoPis: number;
+  aliquotaPis: number;
+  valorPis: number;
+  cstCofins: string;
+  baseCalculoCofins: number;
+  aliquotaCofins: number;
+  valorCofins: number;
+  valorContabil: number;
+}
+
+/**
+ * Registro 2030 — item (produto) da nota de saída, registro filho do 2000.
+ * A especificação oficial tem 118 campos; só preenchemos os universais pra
+ * NF-e de mercadoria comum (comercial + ICMS/IPI/PIS/COFINS por item) — os
+ * demais são de regime específico que este sistema não trata ainda:
+ * combustíveis (bico/tanque), veículos (chassi), medicamentos (lote),
+ * EFD-Reinf (receita bruta por atividade) e IBS/CBS (reforma tributária,
+ * campos 111-118). Se algum cliente precisar de um desses, é só adicionar
+ * o campo aqui.
+ */
+export function linha2030(i: ItemSaidaParaLayout): string {
+  const data = formatarDataBR(i.dataEmissao);
+  return montarLinha(62, {
+    1: "2030",
+    2: i.codigoProduto,
+    3: formatarValorBR(i.quantidade),
+    4: formatarValorBR(i.baseCalculoIcms + i.valorIpi), // "Base Cal. + IPI", conforme a especificação
+    5: formatarValorBR(i.valorIpi),
+    6: formatarValorBR(i.baseCalculoIcms),
+    7: "1", // tipo de lancamento: 1 = produto vinculado a nota
+    8: data,
+    9: i.cstIcms,
+    10: formatarValorBR(i.valorBrutoProduto),
+    11: formatarValorBR(i.valorDesconto),
+    12: formatarValorBR(i.baseCalculoIcms),
+    13: formatarValorBR(i.baseCalculoIcmsSt),
+    14: formatarValorBR(i.aliquotaIcms),
+    23: formatarValorBR(i.valorIcms),
+    24: formatarValorBR(i.valorIcmsSt),
+    27: formatarValorBR(i.valorUnitario),
+    29: i.cstIpi,
+    30: formatarValorBR(i.aliquotaIpi),
+    48: i.cstPis,
+    49: formatarValorBR(i.baseCalculoPis),
+    50: formatarValorBR(i.aliquotaPis),
+    51: formatarValorBR(i.valorPis),
+    52: i.cstCofins,
+    53: formatarValorBR(i.baseCalculoCofins),
+    54: formatarValorBR(i.aliquotaCofins),
+    55: formatarValorBR(i.valorCofins),
+    62: formatarValorBR(i.valorContabil),
   });
 }
 
