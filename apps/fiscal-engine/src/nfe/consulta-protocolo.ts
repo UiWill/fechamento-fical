@@ -36,10 +36,14 @@ function montarEnvelope(ambiente: 1 | 2, chaveAcesso: string): string {
     `<xServ>CONSULTAR</xServ>` +
     `<chNFe>${chaveAcesso}</chNFe>` +
     `</consSitNFe>`;
+  // Diferente da Distribuição DFe (CT-e), aqui não tem um wrapper extra com
+  // o nome da operação — nfeDadosMsg É o elemento de despacho reconhecido
+  // pelo servidor direto dentro do soap12:Body (confirmado contra a
+  // implementação de referência em Go do próprio projeto ACBr/frones).
   return (
     `<?xml version="1.0" encoding="utf-8"?>` +
     `<soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">` +
-    `<soap12:Body><nfeConsultaNF xmlns="${NAMESPACE_WSDL}"><nfeDadosMsg>${consSitNFe}</nfeDadosMsg></nfeConsultaNF></soap12:Body>` +
+    `<soap12:Body><nfeDadosMsg xmlns="${NAMESPACE_WSDL}">${consSitNFe}</nfeDadosMsg></soap12:Body>` +
     `</soap12:Envelope>`
   );
 }
