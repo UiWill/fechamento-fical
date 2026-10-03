@@ -84,10 +84,33 @@ function abrirJanelaStatus(): void {
   });
 }
 
+/** Apaga token, pasta e o histórico de chaves já enviadas, e reinicia o app do zero (volta pra tela de configuração). */
+function limparConfiguracaoEReiniciar(): void {
+  const config = carregarConfig();
+  salvarConfig({ token: null, pastasMonitoradas: [], chavesEnviadas: {}, versaoAgente: config.versaoAgente, ultimoHeartbeatEm: null });
+  app.relaunch();
+  app.exit(0);
+}
+
 function montarMenuTray(): Menu {
   return Menu.buildFromTemplate([
     { label: "Abrir painel", click: abrirJanelaStatus },
     { label: "Configurações", click: abrirJanelaSetup },
+    {
+      label: "Reconfigurar (limpar tudo)",
+      click: () => {
+        const resposta = dialog.showMessageBoxSync({
+          type: "warning",
+          title: "Agente Fiscal",
+          message: "Limpar a configuração atual?",
+          detail: "Apaga o código de instalação e a pasta monitorada deste PC — o agente volta pra tela inicial de configuração, como se fosse instalado agora.",
+          buttons: ["Cancelar", "Limpar e reconfigurar"],
+          defaultId: 0,
+          cancelId: 0,
+        });
+        if (resposta === 1) limparConfiguracaoEReiniciar();
+      },
+    },
     { type: "separator" },
     {
       label: pausado ? "Retomar monitoramento" : "Pausar monitoramento",
@@ -134,10 +157,18 @@ function registrarIpc(): void {
     config.token = dados.token;
     config.pastasMonitoradas = [dados.pasta];
     salvarConfig(config);
-    janelaSetup?.close();
-    await iniciarMotor(config);
+    // Reinicia o processo inteiro em vez de só chamar iniciarMotor de novo:
+    // se o motor já estava rodando com a config antiga (ex: token de uma
+    // instalação anterior nesse PC), iniciarMotor desiste cedo (já tem um
+    // observador rodando) e o token/pasta novos nunca entravam em vigor de
+    // verdade. Reiniciar garante que o app sempre sobe com exatamente o
+    // que acabou de ser salvo, do zero.
+    app.relaunch();
+    app.exit(0);
     return { ok: true };
   });
+
+  ipcMain.handle("limpar-configuracao", () => limparConfiguracaoEReiniciar());
 
   ipcMain.handle("obter-configuracao-atual", () => {
     const config = carregarConfig();

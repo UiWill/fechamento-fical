@@ -14,4 +14,5 @@ contextBridge.exposeInMainWorld("agenteApi", {
     ipcRenderer.invoke("salvar-configuracao", dados),
   obterConfiguracaoAtual: (): Promise<{ pasta: string | null }> => ipcRenderer.invoke("obter-configuracao-atual"),
   obterStatus: (): Promise<unknown> => ipcRenderer.invoke("obter-status"),
+  limparConfiguracao: (): Promise<void> => ipcRenderer.invoke("limpar-configuracao"),
 });

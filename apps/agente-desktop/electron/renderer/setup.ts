@@ -5,6 +5,7 @@ const msgToken = document.getElementById("msg-token") as HTMLDivElement;
 const campoPasta = document.getElementById("pasta-selecionada") as HTMLDivElement;
 const btnEscolherPasta = document.getElementById("btn-escolher-pasta") as HTMLButtonElement;
 const btnConcluir = document.getElementById("btn-concluir") as HTMLButtonElement;
+const btnLimpar = document.getElementById("btn-limpar") as HTMLButtonElement;
 
 let tokenValido = "";
 let pastaEscolhida: string | null = null;
@@ -52,6 +53,11 @@ btnConcluir.addEventListener("click", async () => {
   btnConcluir.disabled = true;
   btnConcluir.innerHTML = '<span class="spinner"></span>Salvando…';
   await window.agenteApi.salvarConfiguracao({ token: tokenValido, pasta: pastaEscolhida });
+});
+
+btnLimpar.addEventListener("click", async () => {
+  if (!window.confirm("Apagar o código de instalação e a pasta salva deste PC e começar a configuração do zero?")) return;
+  await window.agenteApi.limparConfiguracao();
 });
 
 // Se a pessoa reabrir a tela de configurações já com uma pasta salva, mostra ela.

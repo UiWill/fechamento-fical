@@ -116,8 +116,13 @@
     padding: 1.1rem 1.75rem;
     border-top: 1px solid var(--border);
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
     gap: 0.6rem;
+  }
+  footer button#btn-limpar {
+    padding: 0;
+    font-size: 0.78rem;
   }
   .spinner {
     display: inline-block;
@@ -153,6 +158,7 @@
     </div>
   </main>
   <footer>
+    <button id="btn-limpar" style="color: var(--muted); background: none; border: none; text-decoration: underline;">Limpar tudo</button>
     <button id="btn-concluir" class="principal" disabled>Concluir configuração</button>
   </footer>
   <script src="setup.js"></script>

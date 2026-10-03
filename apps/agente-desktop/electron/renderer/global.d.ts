@@ -8,6 +8,7 @@ declare global {
       salvarConfiguracao(dados: { token: string; pasta: string }): Promise<{ ok: boolean }>;
       obterConfiguracaoAtual(): Promise<{ pasta: string | null }>;
       obterStatus(): Promise<EstadoAgente>;
+      limparConfiguracao(): Promise<void>;
     };
   }
 
