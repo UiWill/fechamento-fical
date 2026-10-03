@@ -10,6 +10,8 @@ import { notificar } from "./notify";
 import { verificarAtualizacao, notificarSeFoiAtualizadoAgora } from "./updater";
 import { instalarLogEmArquivo, configurarTelemetria, registrarHeartbeatOk, resumoParaHeartbeat } from "./telemetria";
 import { iniciarPainelLocal, criarAtalhoNaAreaDeTrabalho } from "./painel-local";
+import { mostrarErroFatalSeForPessoa } from "./erro-fatal";
+import { renovarLock } from "./instancia-unica";
 
 const INTERVALO_FLUSH_MS = 5_000;
 const INTERVALO_HEARTBEAT_MS = 60_000;
@@ -44,11 +46,17 @@ async function main() {
     console.log(`[main] token autorizado para ${cnpjs.length} CNPJ(s): ${cnpjs.join(", ")}`);
   } catch (err) {
     console.error(`[main] não consegui validar o token com o servidor: ${err}`);
+    mostrarErroFatalSeForPessoa(
+      "Não consegui confirmar o código de instalação com o servidor.\n\n" +
+        "Confira se este computador está com internet e tente abrir o programa de novo. " +
+        "Se o problema continuar, peça um código novo no painel."
+    );
     process.exit(1);
   }
 
   habilitarInicioAutomatico(process.execPath);
   habilitarVigiaPeriodica(process.execPath);
+  setInterval(renovarLock, INTERVALO_HEARTBEAT_MS);
 
   void verificarAtualizacao(config.token!).catch((err) => console.error(`[main] falha ao verificar atualização: ${err}`));
   setInterval(() => {
@@ -79,5 +87,8 @@ async function main() {
 
 main().catch((err) => {
   console.error(`[main] erro fatal: ${err}`);
+  mostrarErroFatalSeForPessoa(
+    `O Agente Fiscal não conseguiu iniciar.\n\n${err instanceof Error ? err.message : String(err)}`
+  );
   process.exit(1);
 });
