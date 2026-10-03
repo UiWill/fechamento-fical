@@ -73,13 +73,24 @@ export class SincronizacaoAgendadaService {
   }
 
   /**
+   * ⚠️ DESLIGADO TEMPORARIAMENTE (2026-10-03): NFE_Consultar (ACBrLibNFe
+   * 1.5.1.485, build MT/Cdecl, a mesma usada pelo resto do fiscal-engine)
+   * derruba o processo inteiro com ECONNRESET ao ser chamada contra a
+   * SEFAZ real — não é mais o erro gracioso "-10 Access violation" da
+   * versão antiga, agora é uma queda de verdade do processo Node (o NSSM
+   * religa sozinho, mas é melhor não deixar isso disparar sozinho de
+   * madrugada sem ninguém olhando). O botão manual "Consultar" na tela
+   * continua disponível pra quem quiser testar com cuidado. Religar esse
+   * @Cron assim que a causa for resolvida (DLL mais nova, variante
+   * ST/Cdecl, ou suporte do fórum ACBr).
+   *
    * Uma vez por dia, consulta na SEFAZ (por chave de acesso) a situação de
    * toda nota de entrada/saída ainda sem cStat=100 — é o que libera a nota
    * pro TXT de exportação (ver exportacao-txt.service.ts). Roda às 6h,
    * depois da última janela de sincronização de Distribuição DFe (0h-5h),
    * pra não disputar nada com ela.
    */
-  @Cron("0 6 * * *")
+  // @Cron("0 6 * * *")
   async consultarSituacaoPendenteDeTodasAsEmpresas() {
     const empresas = await this.prisma.client.empresa.findMany({
       where: { status: "ATIVA", certificado: { isNot: null } },
