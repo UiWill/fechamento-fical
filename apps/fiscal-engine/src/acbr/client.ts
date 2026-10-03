@@ -15,8 +15,6 @@ import type {
   StatusServicoResultado,
   EnviarEventoInput,
   EnviarEventoResultado,
-  ConsultarProtocoloInput,
-  ConsultarProtocoloResultado,
 } from "./types";
 
 /**
@@ -286,57 +284,5 @@ export async function enviarEventoManifestacao(
   } finally {
     await fs.rm(iniPathConfig, { force: true });
     await fs.rm(iniEventoPath, { force: true });
-  }
-}
-
-/**
- * Consulta a situação de uma NF-e/NFC-e na SEFAZ por chave de acesso
- * (confirma se ainda está autorizada, foi cancelada, denegada, etc — ver
- * tabela de cStat em documentos-fiscais.service.ts no core-api).
- *
- * ⚠️ Ainda não exercitada contra a SEFAZ real neste projeto — a assinatura
- * `NFE_Consultar` precisa ser revalidada no primeiro teste (ver aviso em
- * binding.ts).
- */
-export async function consultarProtocolo(
-  input: ConsultarProtocoloInput
-): Promise<ConsultarProtocoloResultado> {
-  const acbr = loadAcbr();
-  const iniPath = await writeTempIni();
-  const uf = siglaUf(input.codigoUf);
-
-  try {
-    return await withCertificadoTemporario(input.certificado.pfxBase64, async (pfxPath) => {
-      const retInit = acbr.inicializar(iniPath, "");
-      if (retInit !== 0) {
-        throw new Error(`NFE_Inicializar falhou (${retInit}): ${acbr.ultimoRetorno()}`);
-      }
-
-      try {
-        acbr.configGravarValor("DFe", "ArquivoPFX", pfxPath);
-        acbr.configGravarValor("DFe", "Senha", input.certificado.senha);
-        acbr.configGravarValor("NFe", "Ambiente", ambienteAcbr(input.ambiente));
-        acbr.configGravarValor("NFe", "UF", uf);
-
-        const { retorno, resposta } = acbr.consultar(input.chaveAcesso);
-        if (retorno !== 0) {
-          throw new Error(`NFE_Consultar falhou (${retorno}): ${acbr.ultimoRetorno()}`);
-        }
-
-        const parsed = parseIniResponse(resposta);
-        const root = mergedRoot(parsed);
-
-        return {
-          cStat: readField(root, "cStat", "CStat"),
-          xMotivo: readField(root, "xMotivo", "XMotivo"),
-          consultadoEm: readField(root, "dhRecbto", "DhRecbto") || undefined,
-          protocolo: readField(root, "nProt", "protocolo") || undefined,
-        };
-      } finally {
-        acbr.finalizar();
-      }
-    });
-  } finally {
-    await fs.rm(iniPath, { force: true });
   }
 }

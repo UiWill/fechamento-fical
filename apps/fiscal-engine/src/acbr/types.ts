@@ -74,20 +74,3 @@ export interface EnviarEventoResultado {
   xMotivo: string;
   protocolo?: string;
 }
-
-export interface ConsultarProtocoloInput {
-  codigoUf: number;
-  /** 1 = produção, 2 = homologação */
-  ambiente: 1 | 2;
-  certificado: CertificadoInput;
-  /** Chave de acesso do documento (44 dígitos) */
-  chaveAcesso: string;
-}
-
-export interface ConsultarProtocoloResultado {
-  cStat: string;
-  xMotivo: string;
-  /** Data/hora que a SEFAZ registra como o momento da consulta (dhRecbto do retorno), quando presente. */
-  consultadoEm?: string;
-  protocolo?: string;
-}

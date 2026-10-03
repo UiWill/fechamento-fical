@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { consultarProtocolo } from "../acbr/client";
+import { consultarProtocolo } from "../nfe/consulta-protocolo";
 import { assertInternalRequest } from "../config";
 
 const bodySchema = z.object({
