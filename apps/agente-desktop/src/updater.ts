@@ -3,15 +3,17 @@
  *
  * Antes (Node SEA, executável único) a atualização copiava um .exe por
  * cima do outro via PowerShell. Agora o app é instalado de verdade (NSIS,
- * em Program Files, via electron-builder) — então "atualizar" passa a ser
- * baixar o instalador novo e rodar ele em modo silencioso (`/S`), que é a
- * forma suportada pelo instalador que o electron-builder gera (ele mesmo
- * sabe fechar o app em execução antes de sobrescrever os arquivos e abrir
- * de novo no final). A versão publicada no servidor (ver
- * agentes.service.ts `publicarVersao`) passa a ser esse instalador, não
- * mais um executável solto.
+ * via electron-builder) — "atualizar" baixa o instalador novo e roda ele
+ * em modo silencioso (`/S`). O modo silencioso do NSIS NÃO fecha o app em
+ * execução sozinho nem reabre no final (isso só existe na "finish page" do
+ * instalador interativo) — por isso tudo é orquestrado por um script
+ * PowerShell destacado (mesmo padrão da versão 1.x): espera nosso processo
+ * sair de vez, só depois roda o instalador, espera ele terminar, e só
+ * então reabre o app. A versão publicada no servidor (ver
+ * agentes.service.ts `publicarVersao`) é esse instalador, não mais um
+ * executável solto.
  */
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
@@ -80,15 +82,43 @@ export async function verificarAtualizacao(token: string): Promise<void> {
   salvarConfig(config);
   fs.writeFileSync(ARQUIVO_FLAG_POS_ATUALIZACAO, info.versao);
 
-  console.log("[updater] rodando instalador silencioso e encerrando...");
-  // /S = modo silencioso do NSIS (electron-builder gera o instalador já
-  // preparado pra isso); ele mesmo fecha o app em execução, substitui os
-  // arquivos em Program Files e reabre no final.
-  const processoInstalador = execFile(instalador, ["/S"], { windowsHide: true });
-  processoInstalador.unref();
+  // Caminho do .exe atual, capturado ANTES de reiniciar — é onde o
+  // instalador vai sobrescrever (electron-builder detecta a instalação já
+  // existente e reaproveita a mesma pasta), então é esse mesmo caminho que
+  // reabre a versão nova depois.
+  const caminhoExeAtual = app.getPath("exe");
+  const pidAtual = process.pid;
+  const scriptAtualizacao = path.join(PASTA_ATUALIZACAO, "atualizar.ps1");
 
-  // Dá um instante pro instalador começar antes de sair — soltando o
-  // processo na hora pode fazer o instalador tentar fechar um processo
-  // que já nem existe mais e se confundir.
-  setTimeout(() => app.quit(), 1500);
+  // IMPORTANTE: não dá pra só rodar o instalador e sair em seguida — o
+  // instalador (NSIS /S) e o nosso próprio processo ficariam os DOIS
+  // mexendo nos mesmos arquivos ao mesmo tempo (nós ainda de pé, segurando
+  // os arquivos; ele tentando sobrescrever), e isso já deixou uma
+  // instalação pela metade (ícone/recurso faltando, app parava de abrir
+  // sem nem mostrar erro). Em vez disso, um script PowerShell DESTACADO
+  // (sobrevive depois que a gente sai) espera nosso processo encerrar de
+  // vez, só DEPOIS roda o instalador (e espera ele terminar de verdade,
+  // "-Wait"), e só então abre o app novo — nada acontece em paralelo.
+  fs.writeFileSync(
+    scriptAtualizacao,
+    [
+      "$ErrorActionPreference = 'SilentlyContinue'",
+      `Wait-Process -Id ${pidAtual} -Timeout 30`,
+      "Start-Sleep -Seconds 1",
+      `Start-Process -FilePath '${instalador}' -ArgumentList '/S' -Wait`,
+      `Start-Process -FilePath '${caminhoExeAtual}'`,
+      `Remove-Item -Path '${instalador}' -Force`,
+      `Remove-Item -Path '${scriptAtualizacao}' -Force`,
+    ].join("\n"),
+    "utf8"
+  );
+
+  console.log("[updater] saindo e deixando o instalador + reabertura por conta do script destacado...");
+  const helper = spawn("powershell.exe", ["-NoProfile", "-WindowStyle", "Hidden", "-File", scriptAtualizacao], {
+    detached: true,
+    stdio: "ignore",
+  });
+  helper.unref();
+
+  app.quit();
 }
