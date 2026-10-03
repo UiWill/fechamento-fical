@@ -52,15 +52,24 @@ export class AgenteIngestaoController {
     return { resultados };
   }
 
+  /**
+   * Checagem de auto-atualização, chamada pelo próprio agente — fica
+   * desligada de propósito (sempre "nenhuma versão nova") desde a troca
+   * pra Electron/instalador NSIS (versão 2.0.0): o auto-update dos agentes
+   * antigos (1.x, Node SEA) foi feito pra copiar um .exe solto por cima do
+   * outro, incompatível com o instalador novo — se oferecêssemos a 2.0.0
+   * aqui, um agente antigo rodando sozinho numa máquina de cliente ia
+   * tentar "atualizar" baixando o instalador e abrindo ele sem ninguém
+   * esperar. Essa rota não sabe nem qual token está chamando (de
+   * propósito, não exige AgenteTokenGuard — ver comentário da classe), e a
+   * telemetria do heartbeat também não é usada aqui, então não dá pra
+   * diferenciar com segurança quem já está na 2.0.0 de quem ainda está na
+   * 1.x só por essa chamada. O download manual (botão no admin-web) é uma
+   * rota separada (`/instalador`) e continua funcionando normal.
+   */
   @Get("versoes/mais-recente")
-  async versaoMaisRecente() {
-    const registro = await this.service.obterVersaoMaisRecente();
-    if (!registro) return { versao: null, obrigatoria: false, urlDownload: null };
-    return {
-      versao: registro.versao,
-      obrigatoria: registro.obrigatoria,
-      urlDownload: `/agente-ingestao/versoes/${registro.versao}/download`,
-    };
+  versaoMaisRecente() {
+    return { versao: null, obrigatoria: false, urlDownload: null };
   }
 
   @Get("versoes/:versao/download")
