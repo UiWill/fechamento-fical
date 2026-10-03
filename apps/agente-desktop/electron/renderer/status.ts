@@ -58,6 +58,7 @@ async function atualizar(): Promise<void> {
   texto("i-pasta", estado.pastas[0] ?? "—");
   texto("i-iniciado", formatarDataHora(estado.iniciadoEm));
   texto("i-ultima-nota", formatarDataHora(estado.ultimaNotaAceitaEm));
+  texto("i-duplicadas", String(estado.contadores.duplicados));
   texto("i-heartbeat", formatarDataHora(estado.ultimoHeartbeatOkEm));
 
   montarListaRecusas(estado.recusas);
