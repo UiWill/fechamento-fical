@@ -71,4 +71,48 @@ export class SincronizacaoAgendadaService {
 
     this.logger.log("Sincronização noturna concluída.");
   }
+
+  /**
+   * Uma vez por dia, consulta na SEFAZ (por chave de acesso) a situação de
+   * toda nota de entrada/saída ainda sem cStat=100 — é o que libera a nota
+   * pro TXT de exportação (ver exportacao-txt.service.ts). Roda às 6h,
+   * depois da última janela de sincronização de Distribuição DFe (0h-5h),
+   * pra não disputar nada com ela.
+   */
+  @Cron("0 6 * * *")
+  async consultarSituacaoPendenteDeTodasAsEmpresas() {
+    const empresas = await this.prisma.client.empresa.findMany({
+      where: { status: "ATIVA", certificado: { isNot: null } },
+      select: { id: true, razaoSocial: true, organizacaoId: true },
+    });
+
+    this.logger.log(`Consulta diária de situação iniciada: ${empresas.length} empresa(s).`);
+
+    for (const empresa of empresas) {
+      for (const direcao of ["ENTRADA", "SAIDA"] as const) {
+        try {
+          const resultado = await this.documentosFiscais.consultarPendentes(
+            empresa.id,
+            empresa.organizacaoId,
+            direcao
+          );
+          if (resultado.total > 0) {
+            this.logger.log(
+              `[${empresa.razaoSocial}] ${direcao}: ${resultado.consultados}/${resultado.total} consultada(s)${
+                resultado.falhas > 0 ? `, ${resultado.falhas} falha(s)` : ""
+              }`
+            );
+          }
+        } catch (err) {
+          this.logger.error(
+            `[${empresa.razaoSocial}] falha na consulta diária de situação (${direcao}): ${
+              err instanceof Error ? err.message : err
+            }`
+          );
+        }
+      }
+    }
+
+    this.logger.log("Consulta diária de situação concluída.");
+  }
 }
