@@ -15,6 +15,9 @@ import {
   baixarExportacaoTxt,
   baixarXmlsZip,
   zerarNsu,
+  consultarSituacaoDocumento,
+  consultarPendentes,
+  ROTULO_CSTAT_CONSULTA,
   type EmpresaDetalhe,
   type CertificadoResumo,
   type DocumentoFiscal,
@@ -155,6 +158,50 @@ function ControleOrdenacaoEFiltro({
         <option value="CTE">CT-e</option>
       </select>
     </div>
+  );
+}
+
+/** Selo clicável de situação na SEFAZ (consulta por chave de acesso) — clicar nele dispara a consulta individual dessa nota. */
+function SeloSituacaoSefaz({
+  doc,
+  consultando,
+  onConsultar,
+}: {
+  doc: DocumentoFiscal;
+  consultando: boolean;
+  onConsultar: () => void;
+}) {
+  if (consultando) {
+    return (
+      <span className="selo" style={{ color: "var(--muted)" }}>
+        <span className="spinner" />
+        consultando…
+      </span>
+    );
+  }
+  if (!doc.cStatConsulta) {
+    return (
+      <button
+        onClick={onConsultar}
+        className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+        style={{ color: "var(--muted)" }}
+        title="Consultar situação na SEFAZ"
+      >
+        Consultar
+      </button>
+    );
+  }
+  const autorizado = doc.cStatConsulta === "100";
+  return (
+    <button
+      onClick={onConsultar}
+      className={`selo ${autorizado ? "selo--ativa" : "selo--inativa"}`}
+      title={`${ROTULO_CSTAT_CONSULTA[doc.cStatConsulta] ?? `cStat ${doc.cStatConsulta}`}${
+        doc.xMotivoConsulta ? ` — ${doc.xMotivoConsulta}` : ""
+      }${doc.consultadoEm ? ` · consultado em ${formatarDataHora(doc.consultadoEm)}` : ""} (clique pra consultar de novo)`}
+    >
+      {ROTULO_CSTAT_CONSULTA[doc.cStatConsulta] ?? `cStat ${doc.cStatConsulta}`}
+    </button>
   );
 }
 
@@ -404,6 +451,12 @@ export default function EmpresaDetalhePage() {
   const [erroXmlSaida, setErroXmlSaida] = useState<string | null>(null);
   const [zerandoNsu, setZerandoNsu] = useState(false);
   const [resultadoNsu, setResultadoNsu] = useState<string | null>(null);
+
+  const [consultandoDocId, setConsultandoDocId] = useState<string | null>(null);
+  const [consultandoPendentesEntrada, setConsultandoPendentesEntrada] = useState(false);
+  const [consultandoPendentesSaida, setConsultandoPendentesSaida] = useState(false);
+  const [resultadoConsultaEntrada, setResultadoConsultaEntrada] = useState<string | null>(null);
+  const [resultadoConsultaSaida, setResultadoConsultaSaida] = useState<string | null>(null);
   const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "cte" | "certificado">("entrada");
   const [transicaoAba, setTransicaoAba] = useState(false);
   const timerTransicao = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -539,6 +592,41 @@ export default function EmpresaDetalhePage() {
     }
   }
 
+  async function handleConsultarDocumento(doc: DocumentoFiscal) {
+    if (!token) return;
+    setConsultandoDocId(doc.id);
+    try {
+      const atualizado = await consultarSituacaoDocumento(params.id, doc.id, token);
+      setDocumentos((atual) => atual.map((d) => (d.id === doc.id ? atualizado : d)));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Não foi possível consultar essa nota agora.");
+    } finally {
+      setConsultandoDocId(null);
+    }
+  }
+
+  async function handleConsultarPendentes(direcao: "ENTRADA" | "SAIDA") {
+    if (!token) return;
+    const setConsultando = direcao === "ENTRADA" ? setConsultandoPendentesEntrada : setConsultandoPendentesSaida;
+    const setResultado = direcao === "ENTRADA" ? setResultadoConsultaEntrada : setResultadoConsultaSaida;
+    setConsultando(true);
+    setResultado(null);
+    try {
+      const resultado = await consultarPendentes(params.id, direcao, token);
+      setResultado(
+        resultado.total === 0
+          ? "Nenhuma nota pendente de consulta."
+          : `${resultado.consultados}/${resultado.total} consultada(s)${resultado.falhas > 0 ? ` · ${resultado.falhas} falha(s)` : ""}.`
+      );
+      const docs = await listarDocumentosFiscais(params.id, token);
+      setDocumentos(docs);
+    } catch {
+      setResultado("Não foi possível consultar as notas pendentes agora.");
+    } finally {
+      setConsultando(false);
+    }
+  }
+
   async function handleGerarExportacaoTxt() {
     if (!token) return;
     setGerandoTxt(true);
@@ -561,6 +649,14 @@ export default function EmpresaDetalhePage() {
         partes.push(
           `${resultado.documentosSemAcumulador} sem acumulador (classifique as notas em "Classificar pendentes" — precisa haver uma regra fiscal cadastrada pro CFOP)`
         );
+      }
+      if (resultado.documentosNaoConsultados) {
+        partes.push(
+          `${resultado.documentosNaoConsultados} ainda não consultada(s) na SEFAZ (use "Consultar pendentes" — só nota autorizada entra no TXT)`
+        );
+      }
+      if (resultado.documentosNaoAutorizados) {
+        partes.push(`${resultado.documentosNaoAutorizados} com situação diferente de autorizada (cancelada/denegada/duplicidade)`);
       }
       setResultadoTxt(partes.join(" · "));
 
@@ -912,6 +1008,11 @@ export default function EmpresaDetalhePage() {
             {erroClassificacao}
           </p>
         )}
+        {resultadoConsultaEntrada && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            {resultadoConsultaEntrada}
+          </p>
+        )}
 
         <div
           className="entra flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4"
@@ -968,6 +1069,15 @@ export default function EmpresaDetalhePage() {
               {baixandoXmlEntrada ? "Baixando…" : "Baixar XML"}
             </button>
             <button
+              onClick={() => void handleConsultarPendentes("ENTRADA")}
+              disabled={consultandoPendentesEntrada}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30"
+              style={{ color: "var(--paper)" }}
+              title="Consulta na SEFAZ a situação (autorizada/cancelada/denegada) de toda nota ainda sem cStat=100"
+            >
+              {consultandoPendentesEntrada ? "Consultando…" : "Consultar pendentes"}
+            </button>
+            <button
               onClick={handleExportarExcel}
               disabled={notasEntradaDoMes.length === 0}
               className="botao-principal disabled:opacity-30 disabled:cursor-not-allowed"
@@ -1016,11 +1126,12 @@ export default function EmpresaDetalhePage() {
                     <th className="w-[9%] px-3 py-3 font-medium">Data</th>
                     <th className="w-[7%] px-3 py-3 font-medium">Tipo</th>
                     <th className="w-[16%] px-3 py-3 font-medium">Empresa (emitente)</th>
-                    <th className="w-[13%] px-3 py-3 font-medium">Chave de acesso</th>
+                    <th className="w-[9%] px-3 py-3 font-medium">Chave de acesso</th>
                     <th className="w-[9%] px-3 py-3 font-medium">Status</th>
                     <th className="w-[10%] px-3 py-3 font-medium">Valor</th>
-                    <th className="w-[15%] px-3 py-3 font-medium">Classificação</th>
-                    <th className="w-[15%] px-3 py-3 font-medium">Manifestação</th>
+                    <th className="w-[13%] px-3 py-3 font-medium">Classificação</th>
+                    <th className="w-[13%] px-3 py-3 font-medium">Manifestação</th>
+                    <th className="w-[8%] px-3 py-3 font-medium">SEFAZ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1078,6 +1189,13 @@ export default function EmpresaDetalhePage() {
                           onAtualizado={() => void carregarTudo(token!)}
                         />
                       </td>
+                      <td className="px-3 py-3">
+                        <SeloSituacaoSefaz
+                          doc={doc}
+                          consultando={consultandoDocId === doc.id}
+                          onConsultar={() => void handleConsultarDocumento(doc)}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1095,6 +1213,11 @@ export default function EmpresaDetalhePage() {
           pelo agente desktop instalado no computador do cliente ou do
           contador — não vêm da SEFAZ.
         </p>
+        {resultadoConsultaSaida && (
+          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
+            {resultadoConsultaSaida}
+          </p>
+        )}
 
         <div
           className="entra flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4"
@@ -1151,6 +1274,15 @@ export default function EmpresaDetalhePage() {
               {baixandoXmlSaida ? "Baixando…" : "Baixar XML"}
             </button>
             <button
+              onClick={() => void handleConsultarPendentes("SAIDA")}
+              disabled={consultandoPendentesSaida}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30"
+              style={{ color: "var(--paper)" }}
+              title="Consulta na SEFAZ a situação (autorizada/cancelada/denegada) de toda nota ainda sem cStat=100"
+            >
+              {consultandoPendentesSaida ? "Consultando…" : "Consultar pendentes"}
+            </button>
+            <button
               onClick={handleExportarSaidaExcel}
               disabled={notasSaidaDoMes.length === 0}
               className="botao-principal disabled:opacity-30 disabled:cursor-not-allowed"
@@ -1204,9 +1336,10 @@ export default function EmpresaDetalhePage() {
                     <th className="w-[9%] px-3 py-3 font-medium">Data</th>
                     <th className="w-[8%] px-3 py-3 font-medium">Tipo</th>
                     <th className="w-[9%] px-3 py-3 font-medium">CFOP</th>
-                    <th className="w-[15%] px-3 py-3 font-medium">Chave de acesso</th>
+                    <th className="w-[13%] px-3 py-3 font-medium">Chave de acesso</th>
                     <th className="w-[11%] px-3 py-3 font-medium">Valor</th>
-                    <th className="w-[42%] px-3 py-3 font-medium">Enviado por</th>
+                    <th className="w-[34%] px-3 py-3 font-medium">Enviado por</th>
+                    <th className="w-[10%] px-3 py-3 font-medium">SEFAZ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1240,6 +1373,13 @@ export default function EmpresaDetalhePage() {
                       </td>
                       <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
                         {doc.agenteInstalacaoToken?.nome ?? "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <SeloSituacaoSefaz
+                          doc={doc}
+                          consultando={consultandoDocId === doc.id}
+                          onConsultar={() => void handleConsultarDocumento(doc)}
+                        />
                       </td>
                     </tr>
                   ))}

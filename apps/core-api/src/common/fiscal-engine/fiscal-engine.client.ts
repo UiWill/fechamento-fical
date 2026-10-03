@@ -44,6 +44,20 @@ export interface EnviarEventoResponse {
   protocolo?: string;
 }
 
+export interface ConsultarProtocoloRequest {
+  codigoUf: number;
+  ambiente: 1 | 2;
+  chaveAcesso: string;
+  certificado: CertificadoParaEngine;
+}
+
+export interface ConsultarProtocoloResponse {
+  cStat: string;
+  xMotivo: string;
+  consultadoEm?: string;
+  protocolo?: string;
+}
+
 /**
  * Cliente HTTP interno para o serviço fiscal-engine. É a única forma do
  * core-api falar com a SEFAZ — nunca chama ACBrLib/koffi diretamente.
@@ -105,5 +119,21 @@ export class FiscalEngineClient {
     }
 
     return response.json() as Promise<EnviarEventoResponse>;
+  }
+
+  /** Consulta a situação (cStat) de uma NF-e/NFC-e na SEFAZ por chave de acesso. */
+  async consultarProtocolo(input: ConsultarProtocoloRequest): Promise<ConsultarProtocoloResponse> {
+    const response = await fetch(`${this.baseUrl}/nfe/consultar-protocolo`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`fiscal-engine respondeu ${response.status}: ${body}`);
+    }
+
+    return response.json() as Promise<ConsultarProtocoloResponse>;
   }
 }

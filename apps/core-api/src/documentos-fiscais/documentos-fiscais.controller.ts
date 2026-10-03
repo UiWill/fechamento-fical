@@ -42,6 +42,29 @@ export class DocumentosFiscaisController {
     return this.service.zerarNsu(empresaId, this.organizacaoIdDoUsuario(request));
   }
 
+  /** Consulta a situação (cStat) de UM documento na SEFAZ e grava o resultado. */
+  @Post(":documentoId/consultar")
+  consultarSituacao(
+    @Param("empresaId") empresaId: string,
+    @Param("documentoId") documentoId: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    return this.service.consultarSituacao(empresaId, this.organizacaoIdDoUsuario(request), documentoId);
+  }
+
+  /** Consulta em lote todos os documentos (ENTRADA ou SAIDA) ainda sem cStat=100. */
+  @Post("consultar-pendentes")
+  consultarPendentes(
+    @Param("empresaId") empresaId: string,
+    @Query("direcao") direcao: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    if (direcao !== "ENTRADA" && direcao !== "SAIDA") {
+      throw new BadRequestException('direcao deve ser "ENTRADA" ou "SAIDA"');
+    }
+    return this.service.consultarPendentes(empresaId, this.organizacaoIdDoUsuario(request), direcao);
+  }
+
   @Get("xml-zip")
   async baixarXmlZip(
     @Param("empresaId") empresaId: string,

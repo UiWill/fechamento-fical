@@ -192,6 +192,13 @@ model DocumentoFiscal {
   recebidoEm       DateTime               @default(now())
   atualizadoEm     DateTime               @updatedAt
 
+  // Consulta de situacao na SEFAZ por chave de acesso (cStat). So entra no
+  // TXT de exportacao quem tiver cStatConsulta = "100" (autorizado) - ver
+  // comentario em exportacao-txt.service.ts. Nulo = nunca consultado ainda.
+  cStatConsulta      String?
+  xMotivoConsulta    String?
+  consultadoEm       DateTime?
+
   // Preenchido só quando o documento veio do agente desktop (SAIDA) — nulo
   // pros documentos de ENTRADA vindos da SEFAZ via Distribuicao DFe.
   agenteInstalacaoTokenId String?

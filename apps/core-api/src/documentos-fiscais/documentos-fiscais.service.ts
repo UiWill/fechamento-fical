@@ -303,6 +303,69 @@ export class DocumentosFiscaisService {
   }
 
   /**
+   * Consulta a situação de UM documento (NF-e/NFC-e) na SEFAZ por chave de
+   * acesso — grava cStat/xMotivo/consultadoEm no próprio DocumentoFiscal.
+   * Só cStat=100 (autorizado) entra no TXT de exportação (ver
+   * exportacao-txt.service.ts) — os demais (cancelado, denegado,
+   * duplicidade) ficam de fora até alguém decidir o que fazer com eles.
+   */
+  async consultarSituacao(empresaId: string, organizacaoId: string, documentoId: string) {
+    const empresa = await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
+    const documento = await this.prisma.client.documentoFiscal.findUnique({ where: { id: documentoId } });
+    if (!documento || documento.empresaId !== empresaId) {
+      throw new NotFoundException(`Documento ${documentoId} não encontrado`);
+    }
+
+    const certificado = await this.certificados.obterParaUso(empresaId);
+    const resultado = await this.fiscalEngine.consultarProtocolo({
+      codigoUf: empresa.codigoUf,
+      ambiente: empresa.ambiente === "PRODUCAO" ? 1 : 2,
+      chaveAcesso: documento.chaveAcesso,
+      certificado,
+    });
+
+    return this.prisma.client.documentoFiscal.update({
+      where: { id: documentoId },
+      data: {
+        cStatConsulta: resultado.cStat,
+        xMotivoConsulta: resultado.xMotivo,
+        consultadoEm: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Consulta em lote todos os documentos de uma direção que ainda não
+   * foram consultados (ou cujo cStat não é 100) — usado pelo botão
+   * "Consultar pendentes" da tela. Roda sequencial com uma pausa pequena
+   * entre cada chamada (não é o mesmo limite de 20/h da Distribuição DFe,
+   * mas não custa não martelar a SEFAZ).
+   */
+  async consultarPendentes(empresaId: string, organizacaoId: string, direcao: "ENTRADA" | "SAIDA") {
+    await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
+
+    const pendentes = await this.prisma.client.documentoFiscal.findMany({
+      where: { empresaId, direcao, tipo: { in: ["NFE", "NFCE"] }, cStatConsulta: { not: "100" } },
+      select: { id: true },
+    });
+
+    let consultados = 0;
+    let falhas = 0;
+    for (const doc of pendentes) {
+      try {
+        await this.consultarSituacao(empresaId, organizacaoId, doc.id);
+        consultados += 1;
+      } catch (err) {
+        falhas += 1;
+        this.logger.warn(`Falha ao consultar documento ${doc.id}: ${err}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+
+    return { total: pendentes.length, consultados, falhas };
+  }
+
+  /**
    * Monta um .zip com os XMLs dos documentos filtrados (mesmo criterio da
    * tela: direcao + periodo) e devolve como stream, pra nao precisar
    * carregar tudo em memoria de uma vez quando o mes tiver muitos documentos.

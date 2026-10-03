@@ -122,8 +122,8 @@ export function SecaoCteDistribuicao({
   return (
     <div className="space-y-3">
       <p className="text-xs" style={{ color: "var(--muted)" }}>
-        CT-e de transporte em que esta empresa aparece como remetente, destinatário, expedidor, recebedor ou tomador —
-        recebidos da SEFAZ (Distribuição DFe de CT-e). Não são notas emitidas por ela.
+        CT-e de transporte em que esta empresa é a <strong>tomadora</strong> (quem paga o frete) — recebidos da SEFAZ
+        (Distribuição DFe de CT-e). Não são notas emitidas por ela.
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

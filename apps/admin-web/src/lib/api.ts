@@ -287,6 +287,55 @@ export interface DocumentoFiscal {
   recebidoEm: string;
   /** Só existe pra documentos de SAIDA — de qual instalação do agente desktop veio. */
   agenteInstalacaoToken: { nome: string } | null;
+  /** Situação na SEFAZ (consulta por chave de acesso) — null = nunca consultado. "100" = autorizado. */
+  cStatConsulta: string | null;
+  xMotivoConsulta: string | null;
+  consultadoEm: string | null;
+}
+
+export const ROTULO_CSTAT_CONSULTA: Record<string, string> = {
+  "100": "Autorizado",
+  "101": "Cancelamento homologado",
+  "110": "Uso denegado",
+  "204": "Duplicidade de NF-e",
+  "539": "Duplicidade (chave diferente)",
+  "302": "Denegado — destinatário irregular",
+  "301": "Denegado — emitente irregular",
+};
+
+export async function consultarSituacaoDocumento(
+  empresaId: string,
+  documentoId: string,
+  token: string
+): Promise<DocumentoFiscal> {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/${documentoId}/consultar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const corpo = await response.json().catch(() => null);
+    throw new Error(corpo?.message || "Não foi possível consultar a situação dessa nota agora.");
+  }
+  return response.json();
+}
+
+export interface ResultadoConsultaPendentes {
+  total: number;
+  consultados: number;
+  falhas: number;
+}
+
+export async function consultarPendentes(
+  empresaId: string,
+  direcao: "ENTRADA" | "SAIDA",
+  token: string
+): Promise<ResultadoConsultaPendentes> {
+  const response = await apiFetch(
+    `${API_URL}/empresas/${empresaId}/documentos-fiscais/consultar-pendentes?direcao=${direcao}`,
+    { method: "POST", headers: { authorization: `Bearer ${token}` } }
+  );
+  if (!response.ok) throw new Error("Não foi possível consultar as notas pendentes agora.");
+  return response.json();
 }
 
 export async function listarDocumentosFiscais(
@@ -450,6 +499,8 @@ export interface ExportacaoTxtResultado {
   erro: string | null;
   documentosIgnorados?: number;
   documentosSemAcumulador?: number;
+  documentosNaoConsultados?: number;
+  documentosNaoAutorizados?: number;
 }
 
 export async function gerarExportacaoTxt(

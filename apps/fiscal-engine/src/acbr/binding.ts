@@ -42,6 +42,15 @@ export interface AcbrFunctions {
   carregarEventoIni: (eArquivoOuIni: string) => number;
   /** Envia o(s) evento(s) já carregados via carregarEventoIni. */
   enviarEvento: (idLote: number) => { retorno: number; resposta: string };
+  /**
+   * Consulta a situação de uma NF-e/NFC-e na SEFAZ por chave de acesso
+   * (cStat 100 = autorizada, 101 = cancelamento homologado, 110 = uso
+   * denegado, etc). ⚠️ Assinatura seguindo o mesmo padrão documentado das
+   * outras funções (resposta + tamanho por ponteiro), mas ainda não
+   * confirmada contra o `ACBrNFe.java`/manual oficial nem exercitada
+   * contra a SEFAZ real neste projeto — revalidar no primeiro teste.
+   */
+  consultar: (chaveOuCertificado: string) => { retorno: number; resposta: string };
 }
 
 const RESPONSE_BUFFER_SIZE = 1024 * 1024; // 1 MB — suficiente para lotes de DFe
@@ -95,6 +104,9 @@ export function loadAcbr(): AcbrFunctions {
     NFE_EnviarEvento: lib.func(
       "int NFE_EnviarEvento(int32_t aIdLote, char *sResposta, int32_t *esTamanho)"
     ),
+    NFE_Consultar: lib.func(
+      "int NFE_Consultar(const char *eChaveOuCertificado, char *sResposta, int32_t *esTamanho)"
+    ),
   };
 
   function readLastReturn(): string {
@@ -136,6 +148,8 @@ export function loadAcbr(): AcbrFunctions {
     carregarEventoIni: (eArquivoOuIni) => fn.NFE_CarregarEventoINI(eArquivoOuIni),
     enviarEvento: (idLote) =>
       callWithResponseBuffer((buf, len) => fn.NFE_EnviarEvento(idLote, buf, len)),
+    consultar: (chaveOuCertificado) =>
+      callWithResponseBuffer((buf, len) => fn.NFE_Consultar(chaveOuCertificado, buf, len)),
   };
 
   return cached;

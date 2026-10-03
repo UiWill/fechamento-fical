@@ -47,7 +47,7 @@ export class CteDistribuicaoService {
   ) {}
 
   async listar(empresaId: string) {
-    const [documentos, controle] = await Promise.all([
+    const [todos, controle] = await Promise.all([
       this.prisma.client.documentoFiscal.findMany({
         where: { empresaId, direcao: "CTE_DISTRIBUICAO" },
         select: {
@@ -63,6 +63,13 @@ export class CteDistribuicaoService {
       }),
       this.prisma.client.nsuControleCte.findUnique({ where: { empresaId } }),
     ]);
+
+    // A SEFAZ manda o CT-e pra todo mundo que aparece nele (remetente,
+    // destinatário, expedidor, recebedor, tomador), mas o que importa pra
+    // essa empresa é só quando ELA é quem paga o frete — os outros papéis
+    // continuam gravados no banco (não descarta o que já consumiu cota de
+    // NSU pra buscar), só não aparecem na tabela.
+    const documentos = todos.filter((doc) => (doc.detalhe as { papeis?: string[] } | null)?.papeis?.includes("Tomador"));
 
     return {
       documentos,

@@ -150,7 +150,7 @@ export class ExportacaoTxtService {
       // Saída: só NF-e (modelo 55) por enquanto — NFC-e/cupom (2081/2082) e CT-e ficam de fora.
       const filtroSaida = { empresaId, direcao: "SAIDA" as const, tipo: "NFE" as const, ...periodo };
 
-      const [documentos, totalEntrada, notasSaida, totalSaida] = await Promise.all([
+      const [candidatosEntrada, totalEntrada, candidatosSaida, totalSaida] = await Promise.all([
         this.prisma.client.documentoFiscal.findMany({
           where: { ...filtroEntrada, cfop: { not: null }, valorTotal: { not: null } },
           orderBy: { emitidoEm: "asc" },
@@ -159,7 +159,20 @@ export class ExportacaoTxtService {
         this.prisma.client.documentoFiscal.findMany({ where: filtroSaida, orderBy: { emitidoEm: "asc" } }),
         this.prisma.client.documentoFiscal.count({ where: filtroSaida }),
       ]);
-      const documentosIgnorados = totalEntrada - documentos.length + (totalSaida - notasSaida.length);
+
+      // Só cStat=100 (autorizado) entra no TXT — notas nunca consultadas,
+      // canceladas ou denegadas ficam de fora até alguém decidir o que
+      // fazer com elas (ver "Consultar pendentes" na tela).
+      const documentos = candidatosEntrada.filter((d) => d.cStatConsulta === "100");
+      const notasSaida = candidatosSaida.filter((d) => d.cStatConsulta === "100");
+      const documentosNaoConsultados =
+        candidatosEntrada.filter((d) => !d.cStatConsulta).length +
+        candidatosSaida.filter((d) => !d.cStatConsulta).length;
+      const documentosNaoAutorizados =
+        candidatosEntrada.filter((d) => d.cStatConsulta && d.cStatConsulta !== "100").length +
+        candidatosSaida.filter((d) => d.cStatConsulta && d.cStatConsulta !== "100").length;
+
+      const documentosIgnorados = totalEntrada - candidatosEntrada.length + (totalSaida - candidatosSaida.length);
 
       const fornecedoresPorCnpj = new Map<string, ParticipanteParaLayout>();
       const linhasNotas: string[] = [];
@@ -302,7 +315,7 @@ export class ExportacaoTxtService {
         },
       });
       const documentosSemAcumulador = documentos.filter((d) => !d.acumulador).length;
-      return { ...atualizado, documentosIgnorados, documentosSemAcumulador };
+      return { ...atualizado, documentosIgnorados, documentosSemAcumulador, documentosNaoConsultados, documentosNaoAutorizados };
     } catch (err) {
       const mensagem = err instanceof Error ? err.message : String(err);
       this.logger.error(`Falha ao gerar TXT da empresa ${empresaId}: ${mensagem}`);
