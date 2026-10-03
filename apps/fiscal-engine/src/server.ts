@@ -5,6 +5,7 @@ import { distribuicaoDfeRoutes } from "./routes/distribuicao-dfe";
 import { manifestacaoRoutes } from "./routes/manifestacao";
 import { cteDistribuicaoRoutes } from "./routes/cte-distribuicao";
 import { consultarProtocoloRoutes } from "./routes/consultar-protocolo";
+import { consultarProtocoloCteRoutes } from "./routes/consultar-protocolo-cte";
 
 export function buildServer() {
   const app = Fastify({
@@ -19,6 +20,7 @@ export function buildServer() {
   app.register(manifestacaoRoutes);
   app.register(cteDistribuicaoRoutes);
   app.register(consultarProtocoloRoutes);
+  app.register(consultarProtocoloCteRoutes);
 
   return app;
 }

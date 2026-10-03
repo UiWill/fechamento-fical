@@ -27,4 +27,14 @@ export class CteDistribuicaoController {
     await this.acesso.empresaDoUsuario(request, empresaId);
     return this.service.zerarNsu(empresaId);
   }
+
+  @Post(":documentoId/consultar")
+  async consultarSituacao(
+    @Param("empresaId") empresaId: string,
+    @Param("documentoId") documentoId: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    await this.acesso.empresaDoUsuario(request, empresaId);
+    return this.service.consultarSituacao(empresaId, documentoId);
+  }
 }

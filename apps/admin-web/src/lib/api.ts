@@ -780,6 +780,9 @@ export interface CteDistribuicaoItem {
   emitidoEm: string | null;
   recebidoEm: string;
   detalhe: DetalheCte | null;
+  cStatConsulta: string | null;
+  xMotivoConsulta: string | null;
+  consultadoEm: string | null;
 }
 
 export interface ControleCte {
@@ -819,4 +822,20 @@ export async function zerarNsuCte(empresaId: string, token: string): Promise<voi
     headers: { authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error("Não foi possível zerar o NSU de CT-e.");
+}
+
+export async function consultarSituacaoCte(
+  empresaId: string,
+  documentoId: string,
+  token: string
+): Promise<CteDistribuicaoItem> {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/cte-distribuicao/${documentoId}/consultar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const corpo = await response.json().catch(() => null);
+    throw new Error(corpo?.message || "Não foi possível consultar essa nota agora.");
+  }
+  return response.json();
 }

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@afe/database";
 import { extrairDadosBasicos } from "@afe/shared";
 import { PrismaService } from "../common/prisma/prisma.service";
@@ -58,6 +58,9 @@ export class CteDistribuicaoService {
           emitidoEm: true,
           recebidoEm: true,
           detalhe: true,
+          cStatConsulta: true,
+          xMotivoConsulta: true,
+          consultadoEm: true,
         },
         orderBy: { recebidoEm: "desc" },
       }),
@@ -82,6 +85,34 @@ export class CteDistribuicaoService {
           }
         : null,
     };
+  }
+
+  /** Consulta a situação (cStat) de UM CT-e já recebido, por chave de acesso — mesmo padrão da NF-e, mas com o webservice próprio de CT-e. */
+  async consultarSituacao(empresaId: string, documentoId: string) {
+    const [empresa, documento] = await Promise.all([
+      this.prisma.client.empresa.findUniqueOrThrow({ where: { id: empresaId } }),
+      this.prisma.client.documentoFiscal.findUnique({ where: { id: documentoId } }),
+    ]);
+    if (!documento || documento.empresaId !== empresaId || documento.direcao !== "CTE_DISTRIBUICAO") {
+      throw new NotFoundException(`CT-e ${documentoId} não encontrado`);
+    }
+
+    const certificado = await this.certificados.obterParaUso(empresaId);
+    const resultado = await this.fiscalEngine.consultarProtocoloCte({
+      codigoUf: empresa.codigoUf,
+      ambiente: empresa.ambiente === "PRODUCAO" ? 1 : 2,
+      chaveAcesso: documento.chaveAcesso,
+      certificado,
+    });
+
+    return this.prisma.client.documentoFiscal.update({
+      where: { id: documentoId },
+      data: {
+        cStatConsulta: resultado.cStat,
+        xMotivoConsulta: resultado.xMotivo,
+        consultadoEm: new Date(),
+      },
+    });
   }
 
   async zerarNsu(empresaId: string) {

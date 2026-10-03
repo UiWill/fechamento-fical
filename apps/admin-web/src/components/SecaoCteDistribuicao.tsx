@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   baixarXmlsZip,
+  consultarSituacaoCte,
   listarCteDistribuicao,
   sincronizarCte,
   zerarNsuCte,
+  ROTULO_CSTAT_CONSULTA,
   type ControleCte,
   type CteDistribuicaoItem,
 } from "@/lib/api";
@@ -41,6 +43,7 @@ export function SecaoCteDistribuicao({
   const [sincronizando, setSincronizando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [baixando, setBaixando] = useState(false);
+  const [consultandoId, setConsultandoId] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -111,6 +114,18 @@ export function SecaoCteDistribuicao({
       setErro("Não foi possível baixar os XMLs agora.");
     } finally {
       setBaixando(false);
+    }
+  }
+
+  async function handleConsultar(item: CteDistribuicaoItem) {
+    setConsultandoId(item.id);
+    try {
+      const atualizado = await consultarSituacaoCte(empresaId, item.id, token);
+      setItens((atual) => atual.map((i) => (i.id === item.id ? atualizado : i)));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Não foi possível consultar essa nota agora.");
+    } finally {
+      setConsultandoId(null);
     }
   }
 
@@ -227,6 +242,7 @@ export function SecaoCteDistribuicao({
                   <th className="px-3 py-3 font-medium">Papel da empresa</th>
                   <th className="px-3 py-3 font-medium">Origem → Destino</th>
                   <th className="px-3 py-3 font-medium">Valor</th>
+                  <th className="px-3 py-3 font-medium">Situação</th>
                   <th className="px-3 py-3 font-medium">Chave</th>
                 </tr>
               </thead>
@@ -255,6 +271,26 @@ export function SecaoCteDistribuicao({
                     </td>
                     <td className="whitespace-nowrap px-3 py-3" style={{ color: "var(--paper)" }}>
                       {formatarMoeda(i.valorTotal)}
+                    </td>
+                    <td className="px-3 py-3">
+                      {consultandoId === i.id ? (
+                        <span className="font-mono text-[0.6875rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+                          <span className="spinner" /> consultando…
+                        </span>
+                      ) : i.cStatConsulta ? (
+                        <button
+                          onClick={() => void handleConsultar(i)}
+                          className={CLASSE_BOTAO_LINK}
+                          style={{ color: i.cStatConsulta === "100" ? "var(--paper)" : "var(--muted)" }}
+                          title={`${i.consultadoEm ? `consultado em ${formatarDataHora(i.consultadoEm)}` : ""} (clique pra consultar de novo)`}
+                        >
+                          {ROTULO_CSTAT_CONSULTA[i.cStatConsulta] ?? `cStat ${i.cStatConsulta}`}
+                        </button>
+                      ) : (
+                        <button onClick={() => void handleConsultar(i)} className={CLASSE_BOTAO_LINK} style={{ color: "var(--muted)" }}>
+                          Consultar
+                        </button>
+                      )}
                     </td>
                     <td
                       className="chave-mascarada px-3 py-3 text-xs"
