@@ -48,7 +48,8 @@ export interface TributoItem {
 }
 
 /**
- * Tributação da Reforma (LC 214/2025) — grupo <gIBSCBS>, presente só em
+ * Tributação da Reforma (LC 214/2025) — grupo <IBSCBS> (CST/cClassTrib) com
+ * o sub-grupo <gIBSCBS> (vBC + gIBSUF/gIBSMun/gCBS) dentro, presente só em
  * notas emitidas já com o leiaute novo (produção obrigatória 05/10/2026).
  * `undefined` quando o item não tem o grupo (nota emitida antes da
  * adoção) — a tela de apuração mostra as colunas em branco nesse caso,
@@ -117,7 +118,12 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
     const ipiBloco = bloco(imposto, "IPI");
     const pisBloco = bloco(imposto, "PIS");
     const cofinsBloco = bloco(imposto, "COFINS");
-    const ibsCbsBloco = bloco(imposto, "gIBSCBS");
+    // <IBSCBS> é o grupo de fora (tem CST/cClassTrib direto), <gIBSCBS> é um
+    // sub-grupo dele só com os valores (vBC + gIBSUF/gIBSMun/gCBS) —
+    // confirmado contra XML real (CST e cClassTrib NÃO ficam dentro de
+    // gIBSCBS, são irmãos dele).
+    const ibsCbsExterno = bloco(imposto, "IBSCBS");
+    const ibsCbsBloco = bloco(ibsCbsExterno, "gIBSCBS");
 
     const vIpi = numero(ipiBloco, "vIPI");
     const valorProdutos = numero(prod, "vProd");
@@ -159,8 +165,8 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
     // a transição) — ausente em notas emitidas antes da adoção.
     const ibsCbs: IbsCbsItem | undefined = ibsCbsBloco
       ? {
-          cst: texto(ibsCbsBloco, "CST"),
-          cClassTrib: texto(ibsCbsBloco, "cClassTrib"),
+          cst: texto(ibsCbsExterno, "CST"),
+          cClassTrib: texto(ibsCbsExterno, "cClassTrib"),
           base: numero(ibsCbsBloco, "vBC"),
           ibsUf: {
             aliquota: numero(bloco(ibsCbsBloco, "gIBSUF"), "pIBSUF"),
