@@ -20,7 +20,11 @@ async function bootstrap() {
     new FastifyAdapter({ bodyLimit: 20 * 1024 * 1024 })
   );
 
-  app.enableCors();
+  // Sem "methods" explícito, o padrão do @fastify/cors é só GET,HEAD,POST
+  // (diferente do pacote "cors" do Express) — sem isso, toda rota
+  // DELETE/PUT/PATCH (ex: excluir agente) falha no preflight do navegador
+  // mesmo existindo e funcionando certinho no backend.
+  app.enableCors({ methods: "GET,HEAD,PUT,PATCH,POST,DELETE" });
 
   const port = Number(process.env.CORE_API_PORT ?? 3000);
   await app.listen(port, "0.0.0.0");
