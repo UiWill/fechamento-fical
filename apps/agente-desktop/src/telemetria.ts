@@ -31,7 +31,7 @@ const TAMANHO_MAX_LOG = 2 * 1024 * 1024;
 const MAX_EVENTOS = 200;
 const MAX_RECUSAS = 30;
 
-const ARQUIVO_LOG = path.join(PASTA_CONFIG, "agente.log");
+export const ARQUIVO_LOG = path.join(PASTA_CONFIG, "agente.log");
 
 const estado = {
   iniciadoEm: new Date().toISOString(),

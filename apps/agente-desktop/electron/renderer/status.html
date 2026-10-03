@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
+<title>Agente Fiscal</title>
+<style>
+  :root {
+    --void: #0a0a0a;
+    --surface: #141414;
+    --surface-2: #1b1b1a;
+    --border: #2a2a28;
+    --paper: #f5f5f3;
+    --muted: #8a8a85;
+    --muted-2: #56564f;
+    --verde: #7ed08a;
+    --vermelho: #e08a8a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--void);
+    color: var(--paper);
+    font-family: -apple-system, "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.85rem;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-user-select: none;
+  }
+  header {
+    padding: 1.25rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+  .selo {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .bolinha { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted); }
+  .selo.online .bolinha { background: var(--verde); }
+  .selo.offline .bolinha { background: var(--vermelho); }
+  main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .grade {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .cartao {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+  }
+  .cartao .rotulo { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .cartao .valor { font-size: 1.3rem; font-weight: 600; margin-top: 0.2rem; }
+  section h2 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0 0 0.6rem;
+  }
+  .linha-info {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+  .linha-info:last-child { border-bottom: none; }
+  .linha-info span:first-child { color: var(--muted); }
+  ul.eventos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+  ul.eventos li {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.76rem;
+  }
+  ul.eventos li .arq { color: var(--paper); }
+  ul.eventos li .detalhe { color: var(--muted); display: block; margin-top: 0.15rem; }
+  .vazio { color: var(--muted); font-size: 0.78rem; padding: 0.5rem 0; }
+  footer {
+    padding: 0.9rem 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--muted-2);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Agente Fiscal</h1>
+    <div id="selo-status" class="selo"><span class="bolinha"></span><span id="selo-texto">Carregando…</span></div>
+  </header>
+  <main>
+    <div class="grade">
+      <div class="cartao"><div class="rotulo">Enviadas</div><div class="valor" id="v-aceitos">—</div></div>
+      <div class="cartao"><div class="rotulo">Na fila</div><div class="valor" id="v-fila">—</div></div>
+    </div>
+    <section>
+      <h2>Informações</h2>
+      <div class="linha-info"><span>Versão</span><span id="i-versao">—</span></div>
+      <div class="linha-info"><span>Pasta monitorada</span><span id="i-pasta">—</span></div>
+      <div class="linha-info"><span>Rodando desde</span><span id="i-iniciado">—</span></div>
+      <div class="linha-info"><span>Última nota enviada</span><span id="i-ultima-nota">—</span></div>
+      <div class="linha-info"><span>Última comunicação com o servidor</span><span id="i-heartbeat">—</span></div>
+    </section>
+    <section>
+      <h2>Avisos recentes</h2>
+      <ul class="eventos" id="lista-recusas"></ul>
+      <div class="vazio" id="vazio-recusas">Nenhum aviso — tudo certo.</div>
+    </section>
+  </main>
+  <footer>
+    <span id="rodape-erro"></span>
+    <span>agente.log</span>
+  </footer>
+  <script src="status.js"></script>
+</body>
+</html>

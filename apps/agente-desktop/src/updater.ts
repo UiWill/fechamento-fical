@@ -1,12 +1,18 @@
 /**
  * Atualização automática e silenciosa — sem perguntar nada pro cliente.
- * Baixa a versão nova, e como o Windows não deixa sobrescrever um .exe
- * rodando, dispara um script PowerShell destacado que espera este
- * processo terminar, copia o novo por cima, reabre, e só então avisa (a
- * notificação vem do processo NOVO, depois de confirmar que subiu — nunca
- * pergunta antes).
+ *
+ * Antes (Node SEA, executável único) a atualização copiava um .exe por
+ * cima do outro via PowerShell. Agora o app é instalado de verdade (NSIS,
+ * em Program Files, via electron-builder) — então "atualizar" passa a ser
+ * baixar o instalador novo e rodar ele em modo silencioso (`/S`), que é a
+ * forma suportada pelo instalador que o electron-builder gera (ele mesmo
+ * sabe fechar o app em execução antes de sobrescrever os arquivos e abrir
+ * de novo no final). A versão publicada no servidor (ver
+ * agentes.service.ts `publicarVersao`) passa a ser esse instalador, não
+ * mais um executável solto.
  */
-import { spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -39,8 +45,8 @@ export function notificarSeFoiAtualizadoAgora(): void {
 }
 
 export async function verificarAtualizacao(token: string): Promise<void> {
-  if (process.platform !== "win32") {
-    return; // auto-atualização só faz sentido no binário empacotado (Windows)
+  if (process.platform !== "win32" || !app.isPackaged) {
+    return; // auto-atualização só faz sentido no app instalado (Windows)
   }
 
   const config = carregarConfig();
@@ -57,7 +63,7 @@ export async function verificarAtualizacao(token: string): Promise<void> {
   console.log(`[updater] nova versão disponível: ${info.versao} (atual: ${config.versaoAgente})`);
 
   fs.mkdirSync(PASTA_ATUALIZACAO, { recursive: true });
-  const novoExecutavel = path.join(PASTA_ATUALIZACAO, `agente-fiscal-${info.versao}.exe`);
+  const instalador = path.join(PASTA_ATUALIZACAO, `agente-fiscal-setup-${info.versao}.exe`);
 
   let conteudo: Buffer;
   try {
@@ -66,7 +72,7 @@ export async function verificarAtualizacao(token: string): Promise<void> {
     console.error(`[updater] falha ao baixar a versão ${info.versao}: ${err}`);
     return;
   }
-  fs.writeFileSync(novoExecutavel, conteudo);
+  fs.writeFileSync(instalador, conteudo);
 
   // Grava a versão nova ANTES de reiniciar — se o processo novo checar de
   // novo, já não acha versão mais nova (evita loop de atualização).
@@ -74,29 +80,15 @@ export async function verificarAtualizacao(token: string): Promise<void> {
   salvarConfig(config);
   fs.writeFileSync(ARQUIVO_FLAG_POS_ATUALIZACAO, info.versao);
 
-  const executavelAtual = process.execPath;
-  const scriptAtualizacao = path.join(PASTA_ATUALIZACAO, "atualizar.ps1");
-  const pidAtual = process.pid;
+  console.log("[updater] rodando instalador silencioso e encerrando...");
+  // /S = modo silencioso do NSIS (electron-builder gera o instalador já
+  // preparado pra isso); ele mesmo fecha o app em execução, substitui os
+  // arquivos em Program Files e reabre no final.
+  const processoInstalador = execFile(instalador, ["/S"], { windowsHide: true });
+  processoInstalador.unref();
 
-  fs.writeFileSync(
-    scriptAtualizacao,
-    [
-      "$ErrorActionPreference = 'SilentlyContinue'",
-      `Wait-Process -Id ${pidAtual} -Timeout 30`,
-      "Start-Sleep -Seconds 1",
-      `Copy-Item -Path '${novoExecutavel}' -Destination '${executavelAtual}' -Force`,
-      `Start-Process -FilePath '${executavelAtual}'`,
-      `Remove-Item -Path '${novoExecutavel}' -Force`,
-      `Remove-Item -Path '${scriptAtualizacao}' -Force`,
-    ].join("\n")
-  );
-
-  console.log("[updater] aplicando atualização e reiniciando...");
-  const helper = spawn("powershell.exe", ["-NoProfile", "-WindowStyle", "Hidden", "-File", scriptAtualizacao], {
-    detached: true,
-    stdio: "ignore",
-  });
-  helper.unref();
-
-  process.exit(0);
+  // Dá um instante pro instalador começar antes de sair — soltando o
+  // processo na hora pode fazer o instalador tentar fechar um processo
+  // que já nem existe mais e se confundir.
+  setTimeout(() => app.quit(), 1500);
 }

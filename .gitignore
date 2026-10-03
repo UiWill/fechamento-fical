@@ -5,6 +5,8 @@ node_modules/
 # build output
 dist/
 dist-sea/
+dist-electron/
+dist-installer/
 build/
 .next/
 .turbo/

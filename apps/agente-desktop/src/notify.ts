@@ -1,44 +1,19 @@
 /**
- * Notificação nativa do Windows (balão) via PowerShell/WinForms — mesmo
- * princípio do setup.ts (usar só o que já vem com o Windows). Evitamos
- * bibliotecas tipo node-notifier de propósito: elas dependem de um
- * executável auxiliar (ex: SnoreToast) que fica num caminho relativo
- * dentro de node_modules — isso quebra assim que o agente é empacotado
- * num .exe único (Node SEA), onde não existe mais node_modules do lado de
- * fora. Rodado destacado (spawn + unref) pra não travar o processo
- * principal esperando o balão sumir.
+ * Notificação nativa do Windows — agora via API do próprio Electron
+ * (`Notification`), que usa o Central de Ações do Windows de verdade (as
+ * mesmas notificações de qualquer app instalado). Antes disso rodávamos
+ * PowerShell/WinForms pra simular um balão porque o executável era Node
+ * puro sem esse tipo de API — não precisa mais desse rodeio.
  */
-import { spawn } from "node:child_process";
-
-function escaparAspasSimples(texto: string): string {
-  return texto.replace(/'/g, "''");
-}
+import { Notification } from "electron";
 
 export function notificar(titulo: string, mensagem: string): void {
-  if (process.platform !== "win32") {
+  if (!Notification.isSupported()) {
     console.log(`[notify] ${titulo}: ${mensagem}`);
     return;
   }
-
-  const script = `
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
-    $icone = New-Object System.Windows.Forms.NotifyIcon
-    $icone.Icon = [System.Drawing.SystemIcons]::Information
-    $icone.Visible = $true
-    $icone.BalloonTipTitle = '${escaparAspasSimples(titulo)}'
-    $icone.BalloonTipText = '${escaparAspasSimples(mensagem)}'
-    $icone.ShowBalloonTip(5000)
-    Start-Sleep -Seconds 6
-    $icone.Dispose()
-  `;
-
   try {
-    const processo = spawn("powershell.exe", ["-NoProfile", "-WindowStyle", "Hidden", "-Command", script], {
-      detached: true,
-      stdio: "ignore",
-    });
-    processo.unref();
+    new Notification({ title: titulo, body: mensagem }).show();
   } catch (err) {
     // Notificação é só um "extra" — nunca deve derrubar o agente.
     console.error(`[notify] falha ao notificar: ${err}`);

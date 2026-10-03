@@ -2,9 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
     "module": "commonjs",
     "target": "ES2022"
   },
-  "include": ["src"]
+  "include": ["src", "electron/main.ts", "electron/preload.ts"]
 }
