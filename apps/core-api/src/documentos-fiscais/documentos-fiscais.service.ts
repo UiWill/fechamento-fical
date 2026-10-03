@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import archiver from "archiver";
 import type { Readable } from "node:stream";
 import { PrismaService } from "../common/prisma/prisma.service";
@@ -314,6 +314,14 @@ export class DocumentosFiscaisService {
     const documento = await this.prisma.client.documentoFiscal.findUnique({ where: { id: documentoId } });
     if (!documento || documento.empresaId !== empresaId) {
       throw new NotFoundException(`Documento ${documentoId} não encontrado`);
+    }
+    if (documento.tipo === "CTE") {
+      // O serviço de consulta usado aqui (NFeConsultaProtocolo4) só aceita
+      // chave de modelo 55/65 — mandar uma chave de CT-e (modelo 57) pra
+      // ele sempre volta cStat 618 ("Chave de Acesso inválida"), que não
+      // tem nada a ver com a nota em si, é só o webservice errado. Consulta
+      // de situação de CT-e ainda não foi implementada (ver cte-distribuicao).
+      throw new BadRequestException("Consulta de situação de CT-e ainda não está disponível.");
     }
 
     const certificado = await this.certificados.obterParaUso(empresaId);
