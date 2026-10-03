@@ -260,8 +260,15 @@ async function main(): Promise<void> {
     app.quit();
     return;
   }
-  app.on("second-instance", () => {
-    if (!EH_VIGIA) abrirJanelaStatus();
+  // "argv" aqui é da SEGUNDA tentativa (a que acabou de tentar abrir e
+  // perdeu a trava), não da nossa — checar EH_VIGIA (calculado uma vez do
+  // NOSSO próprio process.argv, lá em cima) sempre dava "não é vigia" pra
+  // instância principal e abria a tela sozinha a cada 5 minutos, toda vez
+  // que a tarefa agendada de vigia tentava religar (ver watchdog.ts) e
+  // encontrava o app já rodando. Precisa checar o argv de quem tentou abrir
+  // agora, não o nosso.
+  app.on("second-instance", (_evento, argvDaTentativa) => {
+    if (!argvDaTentativa.includes("--vigia")) abrirJanelaStatus();
   });
 
   await app.whenReady();
