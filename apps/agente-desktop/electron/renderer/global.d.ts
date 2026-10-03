@@ -9,6 +9,8 @@ declare global {
       obterConfiguracaoAtual(): Promise<{ pasta: string | null }>;
       obterStatus(): Promise<EstadoAgente>;
       limparConfiguracao(): Promise<void>;
+      obterVersaoMaisRecente(): Promise<{ versaoAtual: string; versaoMaisRecente: string | null }>;
+      atualizarAgora(): Promise<{ ok: true } | { ok: false; erro: string }>;
     };
   }
 

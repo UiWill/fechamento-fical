@@ -15,4 +15,7 @@ contextBridge.exposeInMainWorld("agenteApi", {
   obterConfiguracaoAtual: (): Promise<{ pasta: string | null }> => ipcRenderer.invoke("obter-configuracao-atual"),
   obterStatus: (): Promise<unknown> => ipcRenderer.invoke("obter-status"),
   limparConfiguracao: (): Promise<void> => ipcRenderer.invoke("limpar-configuracao"),
+  obterVersaoMaisRecente: (): Promise<{ versaoAtual: string; versaoMaisRecente: string | null }> =>
+    ipcRenderer.invoke("obter-versao-mais-recente"),
+  atualizarAgora: (): Promise<{ ok: true } | { ok: false; erro: string }> => ipcRenderer.invoke("atualizar-agora"),
 });

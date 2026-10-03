@@ -13,7 +13,7 @@
 import { app, BrowserWindow, Tray, Menu, ipcMain, dialog, shell, nativeImage } from "electron";
 import path from "node:path";
 import { carregarConfig, salvarConfig, type ConfigAgente } from "../src/config";
-import { buscarEscopo, enviarHeartbeat } from "../src/api-client";
+import { buscarEscopo, enviarHeartbeat, buscarVersaoMaisRecente } from "../src/api-client";
 import { observarPastas } from "../src/watcher";
 import { criarFilaDeEnvio } from "../src/upload";
 import { notificar } from "../src/notify";
@@ -176,6 +176,29 @@ function registrarIpc(): void {
   });
 
   ipcMain.handle("obter-status", () => estadoCompleto());
+
+  ipcMain.handle("obter-versao-mais-recente", async () => {
+    const config = carregarConfig();
+    if (!config.token) return { versaoAtual: config.versaoAgente, versaoMaisRecente: null };
+    try {
+      const info = await buscarVersaoMaisRecente(config.token);
+      return { versaoAtual: config.versaoAgente, versaoMaisRecente: info.versao };
+    } catch (err) {
+      console.error(`[main] falha ao consultar versão mais recente: ${err}`);
+      return { versaoAtual: config.versaoAgente, versaoMaisRecente: null };
+    }
+  });
+
+  ipcMain.handle("atualizar-agora", async () => {
+    const config = carregarConfig();
+    if (!config.token) return { ok: false as const, erro: "Agente ainda não configurado." };
+    try {
+      await verificarAtualizacao(config.token);
+      return { ok: true as const };
+    } catch (err) {
+      return { ok: false as const, erro: err instanceof Error ? err.message : String(err) };
+    }
+  });
 }
 
 /** Liga o "motor" de verdade — observar pastas, enviar em lote, heartbeat, checar atualização. Chamado uma vez após a configuração existir. */

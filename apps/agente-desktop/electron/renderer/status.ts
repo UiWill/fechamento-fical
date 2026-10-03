@@ -1,6 +1,7 @@
 /// <reference path="./global.d.ts" />
 
 const INTERVALO_ATUALIZACAO_MS = 3000;
+const INTERVALO_VERSAO_MS = 60_000;
 const OFFLINE_APOS_MS = 3 * 60_000; // sem heartbeat ok por mais que isso, considera offline
 
 function formatarDataHora(iso: string | null): string {
@@ -64,5 +65,55 @@ async function atualizar(): Promise<void> {
   texto("rodape-erro", estado.ultimoErro ? `Último erro: ${estado.ultimoErro.mensagem}` : "");
 }
 
+function compararVersoes(a: string, b: string): number {
+  const partesA = a.split(".").map(Number);
+  const partesB = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(partesA.length, partesB.length); i++) {
+    const diferenca = (partesA[i] ?? 0) - (partesB[i] ?? 0);
+    if (diferenca !== 0) return diferenca;
+  }
+  return 0;
+}
+
+let atualizando = false;
+
+async function verificarVersao(): Promise<void> {
+  if (atualizando) return;
+  const btn = document.getElementById("btn-atualizar") as HTMLButtonElement;
+  try {
+    const { versaoAtual, versaoMaisRecente } = await window.agenteApi.obterVersaoMaisRecente();
+    if (!versaoMaisRecente) {
+      texto("i-versao-recente", "não foi possível verificar");
+      btn.style.display = "none";
+      return;
+    }
+    const temNova = compararVersoes(versaoMaisRecente, versaoAtual) > 0;
+    texto("i-versao-recente", versaoMaisRecente + (temNova ? "" : " (já atualizado)"));
+    btn.style.display = temNova ? "inline-block" : "none";
+  } catch {
+    texto("i-versao-recente", "não foi possível verificar");
+    btn.style.display = "none";
+  }
+}
+
+document.getElementById("btn-atualizar")?.addEventListener("click", async () => {
+  if (atualizando) return;
+  atualizando = true;
+  const btn = document.getElementById("btn-atualizar") as HTMLButtonElement;
+  btn.disabled = true;
+  btn.textContent = "Atualizando…";
+  const resultado = await window.agenteApi.atualizarAgora();
+  if (!resultado.ok) {
+    atualizando = false;
+    btn.disabled = false;
+    btn.textContent = "Atualizar agora";
+    window.alert(`Não foi possível atualizar agora: ${resultado.erro}`);
+  }
+  // Se deu certo, o app vai reiniciar sozinho (instalador silencioso) — não
+  // precisa reabilitar o botão, essa janela está com os dias contados.
+});
+
 void atualizar();
+void verificarVersao();
 setInterval(() => void atualizar(), INTERVALO_ATUALIZACAO_MS);
+setInterval(() => void verificarVersao(), INTERVALO_VERSAO_MS);

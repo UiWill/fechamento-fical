@@ -98,6 +98,19 @@
   ul.eventos li .arq { color: var(--paper); }
   ul.eventos li .detalhe { color: var(--muted); display: block; margin-top: 0.15rem; }
   .vazio { color: var(--muted); font-size: 0.78rem; padding: 0.5rem 0; }
+  .linha-info button {
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--paper);
+    font-size: 0.72rem;
+    padding: 0.3rem 0.7rem;
+  }
+  .linha-info button:hover { opacity: 0.85; }
+  .linha-info button:disabled { opacity: 0.4; cursor: default; }
+  .linha-info .valor-com-acao { display: flex; align-items: center; gap: 0.5rem; }
   footer {
     padding: 0.9rem 1.5rem;
     border-top: 1px solid var(--border);
@@ -121,6 +134,13 @@
     <section>
       <h2>Informações</h2>
       <div class="linha-info"><span>Versão</span><span id="i-versao">—</span></div>
+      <div class="linha-info">
+        <span>Última versão disponível</span>
+        <span class="valor-com-acao">
+          <span id="i-versao-recente">verificando…</span>
+          <button id="btn-atualizar" style="display: none;">Atualizar agora</button>
+        </span>
+      </div>
       <div class="linha-info"><span>Pasta monitorada</span><span id="i-pasta">—</span></div>
       <div class="linha-info"><span>Rodando desde</span><span id="i-iniciado">—</span></div>
       <div class="linha-info"><span>Última nota enviada</span><span id="i-ultima-nota">—</span></div>
