@@ -616,13 +616,21 @@ export interface AgenteInstalacao {
   nomeContato: string | null;
   telefoneContato: string | null;
   criadoEm: string;
+  ocultoEm: string | null;
 }
 
-export async function listarAgentes(organizacaoId: string, token: string): Promise<AgenteInstalacao[]> {
-  const response = await apiFetch(`${API_URL}/agentes/tokens?organizacaoId=${organizacaoId}`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+export async function listarAgentes(
+  organizacaoId: string,
+  token: string,
+  incluirOcultos = false
+): Promise<AgenteInstalacao[]> {
+  const response = await apiFetch(
+    `${API_URL}/agentes/tokens?organizacaoId=${organizacaoId}${incluirOcultos ? "&incluirOcultos=true" : ""}`,
+    {
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    }
+  );
   if (!response.ok) {
     throw new Error("Não foi possível carregar os agentes.");
   }
@@ -674,6 +682,27 @@ export async function excluirTokenAgente(id: string, token: string): Promise<voi
   });
   if (!response.ok) {
     throw new Error("Não foi possível excluir esse agente.");
+  }
+}
+
+/** Tira o agente da listagem principal sem apagar nada — reversível com restaurarTokenAgente. */
+export async function ocultarTokenAgente(id: string, token: string): Promise<void> {
+  const response = await apiFetch(`${API_URL}/agentes/tokens/${id}/ocultar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível ocultar esse agente.");
+  }
+}
+
+export async function restaurarTokenAgente(id: string, token: string): Promise<void> {
+  const response = await apiFetch(`${API_URL}/agentes/tokens/${id}/restaurar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível restaurar esse agente.");
   }
 }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Query, Req } from "@nestjs/common";
 import { criarAgenteTokenSchema } from "@afe/shared";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { AgentesService } from "./agentes.service";
@@ -32,11 +32,11 @@ export class AgentesController {
   }
 
   @Get("tokens")
-  listarTokens(@Req() request: AuthenticatedRequest) {
+  listarTokens(@Query("incluirOcultos") incluirOcultos: string | undefined, @Req() request: AuthenticatedRequest) {
     if (!request.usuario?.organizacaoId) {
       throw new ForbiddenException("Usuário sem organização não tem agentes pra listar");
     }
-    return this.service.listarTokens(request.usuario.organizacaoId);
+    return this.service.listarTokens(request.usuario.organizacaoId, incluirOcultos === "true");
   }
 
   @Post("tokens/:id/revogar")
@@ -45,6 +45,22 @@ export class AgentesController {
       throw new ForbiddenException("Usuário sem organização não pode revogar token de agente");
     }
     return this.service.revogarToken(id, request.usuario.organizacaoId);
+  }
+
+  @Post("tokens/:id/ocultar")
+  ocultarToken(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    if (!request.usuario?.organizacaoId) {
+      throw new ForbiddenException("Usuário sem organização não pode ocultar agente");
+    }
+    return this.service.ocultarToken(id, request.usuario.organizacaoId);
+  }
+
+  @Post("tokens/:id/restaurar")
+  restaurarToken(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    if (!request.usuario?.organizacaoId) {
+      throw new ForbiddenException("Usuário sem organização não pode restaurar agente");
+    }
+    return this.service.restaurarToken(id, request.usuario.organizacaoId);
   }
 
   @Get("tokens/:id/atividade")

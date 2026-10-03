@@ -66,13 +66,16 @@ export class AgentesService {
     return { id: criado.id, nome: criado.nome, tokenRaw: tokenBruto, criadoEm: criado.criadoEm };
   }
 
-  listarTokens(organizacaoId: string) {
+  listarTokens(organizacaoId: string, incluirOcultos: boolean) {
     // Um token pode estar preso direto na organizacao (escopo "toda a
     // carteira") OU numa empresa especifica dela (escopo "um CNPJ") — sem
     // o segundo braço do OR, os tokens de empresa especifica nunca
     // apareciam aqui (bug anterior: so buscava por organizacaoId).
     return this.prisma.client.agenteInstalacaoToken.findMany({
-      where: { OR: [{ organizacaoId }, { empresa: { organizacaoId } }] },
+      where: {
+        OR: [{ organizacaoId }, { empresa: { organizacaoId } }],
+        ...(incluirOcultos ? {} : { ocultoEm: null }),
+      },
       select: {
         id: true,
         nome: true,
@@ -85,6 +88,7 @@ export class AgentesService {
         nomeContato: true,
         telefoneContato: true,
         criadoEm: true,
+        ocultoEm: true,
       },
       orderBy: { criadoEm: "desc" },
     });
@@ -116,6 +120,23 @@ export class AgentesService {
     return this.prisma.client.agenteInstalacaoToken.update({
       where: { id },
       data: { status: "REVOGADO", revogadoEm: new Date() },
+    });
+  }
+
+  /** Tira da listagem principal sem apagar nada — reversível (ver restaurarToken). */
+  async ocultarToken(id: string, organizacaoId: string) {
+    await this.buscarTokenDaOrganizacao(id, organizacaoId);
+    return this.prisma.client.agenteInstalacaoToken.update({
+      where: { id },
+      data: { ocultoEm: new Date() },
+    });
+  }
+
+  async restaurarToken(id: string, organizacaoId: string) {
+    await this.buscarTokenDaOrganizacao(id, organizacaoId);
+    return this.prisma.client.agenteInstalacaoToken.update({
+      where: { id },
+      data: { ocultoEm: null },
     });
   }
 

@@ -9,6 +9,8 @@ import {
   gerarTokenAgente,
   revogarTokenAgente,
   excluirTokenAgente,
+  ocultarTokenAgente,
+  restaurarTokenAgente,
   buscarAtividadeAgente,
   type AtividadeAgente,
   type EmpresaResumo,
@@ -463,10 +465,14 @@ export default function AgentesPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [atividadeAberta, setAtividadeAberta] = useState<{ id: string; nome: string } | null>(null);
+  const [mostrarOcultos, setMostrarOcultos] = useState(false);
 
-  const carregar = useCallback(async (t: string, orgId: string) => {
+  const carregar = useCallback(async (t: string, orgId: string, incluirOcultos: boolean) => {
     try {
-      const [empresasData, agentesData] = await Promise.all([listarEmpresas(orgId, t), listarAgentes(orgId, t)]);
+      const [empresasData, agentesData] = await Promise.all([
+        listarEmpresas(orgId, t),
+        listarAgentes(orgId, t, incluirOcultos),
+      ]);
       setEmpresas(empresasData);
       setAgentes(agentesData);
     } catch {
@@ -485,13 +491,20 @@ export default function AgentesPage() {
     }
     setToken(t);
     setOrganizacaoId(orgId);
-    void carregar(t, orgId);
+    void carregar(t, orgId, mostrarOcultos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, carregar]);
+
+  function handleAlternarOcultos() {
+    const novoValor = !mostrarOcultos;
+    setMostrarOcultos(novoValor);
+    if (token && organizacaoId) void carregar(token, organizacaoId, novoValor);
+  }
 
   async function handleRevogar(id: string) {
     if (!token) return;
     await revogarTokenAgente(id, token);
-    if (organizacaoId) void carregar(token, organizacaoId);
+    if (organizacaoId) void carregar(token, organizacaoId, mostrarOcultos);
   }
 
   async function handleExcluir(id: string, nome: string) {
@@ -499,8 +512,25 @@ export default function AgentesPage() {
     if (!window.confirm(`Excluir a instalação "${nome}"? Isso não pode ser desfeito (mas os documentos já recebidos por ela continuam salvos).`)) {
       return;
     }
-    await excluirTokenAgente(id, token);
-    if (organizacaoId) void carregar(token, organizacaoId);
+    try {
+      await excluirTokenAgente(id, token);
+    } catch {
+      window.alert('Não foi possível excluir de vez — clique em "Ocultar" pra tirar da lista sem apagar.');
+      return;
+    }
+    if (organizacaoId) void carregar(token, organizacaoId, mostrarOcultos);
+  }
+
+  async function handleOcultar(id: string) {
+    if (!token) return;
+    await ocultarTokenAgente(id, token);
+    if (organizacaoId) void carregar(token, organizacaoId, mostrarOcultos);
+  }
+
+  async function handleRestaurar(id: string) {
+    if (!token) return;
+    await restaurarTokenAgente(id, token);
+    if (organizacaoId) void carregar(token, organizacaoId, mostrarOcultos);
   }
 
   function escopoDoAgente(agente: AgenteInstalacao): string {
@@ -520,13 +550,22 @@ export default function AgentesPage() {
             Agentes desktop
           </h1>
         </div>
-        <button
-          onClick={() => setModalAberto(true)}
-          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
-          style={{ color: "var(--paper)" }}
-        >
-          + Gerar token
-        </button>
+        <div className="flex items-center gap-5">
+          <button
+            onClick={handleAlternarOcultos}
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+            style={{ color: "var(--muted)" }}
+          >
+            {mostrarOcultos ? "Esconder ocultados" : "Mostrar ocultados"}
+          </button>
+          <button
+            onClick={() => setModalAberto(true)}
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
+            style={{ color: "var(--paper)" }}
+          >
+            + Gerar token
+          </button>
+        </div>
       </div>
 
       {erro && (
@@ -563,9 +602,18 @@ export default function AgentesPage() {
             </thead>
             <tbody>
               {agentes.map((agente) => (
-                <tr key={agente.id} className="entra-suave border-t" style={{ borderColor: "var(--border)" }}>
+                <tr
+                  key={agente.id}
+                  className="entra-suave border-t"
+                  style={{ borderColor: "var(--border)", opacity: agente.ocultoEm ? 0.5 : 1 }}
+                >
                   <td className="px-4 py-3" style={{ color: "var(--paper)" }}>
                     {agente.nome}
+                    {agente.ocultoEm && (
+                      <span className="ml-2 font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+                        oculto
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
                     {escopoDoAgente(agente)}
@@ -614,6 +662,23 @@ export default function AgentesPage() {
                           Revogar
                         </button>
                       )}
+                      {agente.ocultoEm ? (
+                        <button
+                          onClick={() => void handleRestaurar(agente.id)}
+                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          Restaurar
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => void handleOcultar(agente.id)}
+                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          Ocultar
+                        </button>
+                      )}
                       <button
                         onClick={() => void handleExcluir(agente.id, agente.nome)}
                         className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
@@ -645,7 +710,7 @@ export default function AgentesPage() {
           organizacaoId={organizacaoId}
           token={token}
           onFechar={() => setModalAberto(false)}
-          onCriado={() => void carregar(token, organizacaoId)}
+          onCriado={() => void carregar(token, organizacaoId, mostrarOcultos)}
         />
       )}
     </div>

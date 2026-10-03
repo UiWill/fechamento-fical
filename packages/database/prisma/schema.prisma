@@ -238,6 +238,10 @@ model AgenteInstalacaoToken {
   nomeContato        String?
   telefoneContato    String?
   revogadoEm         DateTime?
+  // Tira da listagem principal sem apagar de vez (pra quando "Excluir" não
+  // resolve, ex: dado que ainda não deveria sumir, ou só pra limpar a tela
+  // de entradas antigas/de teste sem perder o histórico).
+  ocultoEm           DateTime?
   ultimoHeartbeatEm  DateTime?
   ultimaVersaoAgente String?
   ultimoIpOrigem     String?
