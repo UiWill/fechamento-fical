@@ -224,6 +224,8 @@ export interface NotaSaidaParaLayout {
   pisCst: string;
   aliquotaPis: number | null;
   aliquotaCofins: number | null;
+  /** cStat=101 (cancelamento homologado) na consulta de situação — ver registros filhos (2020/2030/2060/2500) não são gerados pra nota cancelada. */
+  cancelada?: boolean;
 }
 
 /**
@@ -235,8 +237,13 @@ export interface NotaSaidaParaLayout {
  * Campos 2/8/37/41 ficam com o valor constante observado (a doc não deixa
  * claro o que gera "Código da espécie"/"Segmento"/"Tipo do Título" e o
  * arquivo-modelo só tem essas notas fiscais eletrônicas comuns, sem
- * variação pra confirmar). Cancelamento (campo 37="2") não é tratado ainda
- * — o sistema não recebe evento de cancelamento de nota de saída.
+ * variação pra confirmar).
+ *
+ * Nota cancelada (cStat=101 na consulta de situação — ver
+ * documentos-fiscais.service.ts `consultarSituacao`) sai como uma linha
+ * especial, formato confirmado no arquivo-modelo: valor zerado, campo 16
+ * = "NF CANCELADA", campo 8 = "0", campo 37 = "2", sem IE/PIS/COFINS/IPI
+ * preenchidos — e sem nenhum registro filho (2020/2030/2060/2500).
  */
 export function linha2000(n: NotaSaidaParaLayout): string {
   const chave = decodificarChaveAcesso(n.chaveAcesso);
@@ -244,6 +251,31 @@ export function linha2000(n: NotaSaidaParaLayout): string {
     throw new Error(`Chave de acesso inválida pra exportação TXT: ${n.chaveAcesso}`);
   }
   const data = formatarDataBR(n.dataEmissao);
+
+  if (n.cancelada) {
+    return montarLinha(79, {
+      1: "2000",
+      2: "36",
+      3: n.documentoDestinatario,
+      4: n.acumulador ?? "",
+      5: n.cfop,
+      7: n.ufDestinatario,
+      8: "0",
+      9: String(chave.numeroDocumento),
+      10: String(chave.serie),
+      12: data,
+      13: data,
+      14: "0",
+      16: "NF CANCELADA",
+      18: MODALIDADE_FRETE[n.modalidadeFrete] ?? "T",
+      31: "0",
+      37: "2",
+      41: "0",
+      45: n.chaveAcesso,
+      77: data,
+    });
+  }
+
   return montarLinha(79, {
     1: "2000",
     2: "36", // constante observada no arquivo-modelo, significado nao confirmado (Codigo da especie)

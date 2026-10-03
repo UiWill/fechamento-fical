@@ -246,14 +246,24 @@ generate`, e só suba o serviço de novo depois do build terminar.
 
 ## Backups
 
-Ainda não automatizado — antes de operar com clientes reais em produção,
-configurar pelo menos:
-- Backup diário do PostgreSQL (`pg_dump`, agendado via Task Scheduler,
-  copiado para fora do servidor).
-- Backup do diretório de armazenamento de objetos local
-  (`C:\afe\object-storage` — substituiu o MinIO, que descontinuou os
-  binários pra Windows) — retenção legal de XMLs fiscais é de vários
-  anos, não pode depender só deste disco.
+Automatizado via `infra/windows/backup-diario.ps1` (Tarefa Agendada
+`AfeBackupDiario`, registrada por `install-backup.ps1`, roda todo dia às
+5h30): `pg_dump` do Postgres (compactado, mantém os últimos 14 dias) +
+espelho via `robocopy /MIR` de `C:\afe\object-storage`. Tudo fica em
+`C:\afe\backups` — log em `C:\afe\backups\backup.log`.
+
+**Isso protege contra**: exclusão acidental, migração ruim, corrupção do
+banco. **NÃO protege contra perda do servidor inteiro** (disco morrer,
+reimagem acidental — já aconteceu uma vez, em 2026-09) — os backups ficam
+no mesmo disco do servidor. Falta ainda copiar `C:\afe\backups`
+periodicamente pra **fora** do servidor (outro disco, nuvem, outro
+computador) — isso é a parte que falta pra proteção de verdade contra
+perda total, e depende de escolher onde guardar (não é só técnico, é
+decisão de custo/lugar).
+
+Reinstalar/reconfigurar a tarefa: `powershell -File
+infra\windows\install-backup.ps1` (como administrador). Rodar uma vez na
+hora pra conferir: `Start-ScheduledTask -TaskName AfeBackupDiario`.
 
 ## Comandos úteis
 

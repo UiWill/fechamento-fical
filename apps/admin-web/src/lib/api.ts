@@ -29,6 +29,18 @@ export function sairDaConta(): void {
   window.location.href = "/login";
 }
 
+export async function trocarSenha(senhaAtual: string, novaSenha: string, token: string): Promise<void> {
+  const response = await fetch(`${API_URL}/auth/trocar-senha`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ senhaAtual, novaSenha }),
+  });
+  if (!response.ok) {
+    const corpo = await response.json().catch(() => null);
+    throw new Error(corpo?.message || "Não foi possível trocar a senha agora.");
+  }
+}
+
 /**
  * fetch pras rotas autenticadas: se a API responder 401 o token venceu (ou
  * foi invalidado), então limpa a sessão e volta pro login em vez de deixar

@@ -160,17 +160,21 @@ export class ExportacaoTxtService {
         this.prisma.client.documentoFiscal.count({ where: filtroSaida }),
       ]);
 
-      // Só cStat=100 (autorizado) entra no TXT — notas nunca consultadas,
-      // canceladas ou denegadas ficam de fora até alguém decidir o que
-      // fazer com elas (ver "Consultar pendentes" na tela).
+      // Só cStat=100 (autorizado) entra no TXT normalmente — cStat=101
+      // (cancelamento homologado) também entra, mas como linha especial
+      // "NF CANCELADA" (só na saída — ver linha2000 em dominio-layout.ts).
+      // Notas nunca consultadas ou com outra situação (denegada,
+      // duplicidade) ficam de fora até alguém decidir o que fazer com elas
+      // (ver "Consultar pendentes" na tela).
+      const CSTAT_ENTRA_NO_TXT = new Set(["100", "101"]);
       const documentos = candidatosEntrada.filter((d) => d.cStatConsulta === "100");
-      const notasSaida = candidatosSaida.filter((d) => d.cStatConsulta === "100");
+      const notasSaida = candidatosSaida.filter((d) => d.cStatConsulta && CSTAT_ENTRA_NO_TXT.has(d.cStatConsulta));
       const documentosNaoConsultados =
         candidatosEntrada.filter((d) => !d.cStatConsulta).length +
         candidatosSaida.filter((d) => !d.cStatConsulta).length;
       const documentosNaoAutorizados =
         candidatosEntrada.filter((d) => d.cStatConsulta && d.cStatConsulta !== "100").length +
-        candidatosSaida.filter((d) => d.cStatConsulta && d.cStatConsulta !== "100").length;
+        candidatosSaida.filter((d) => d.cStatConsulta && !CSTAT_ENTRA_NO_TXT.has(d.cStatConsulta)).length;
 
       const documentosIgnorados = totalEntrada - candidatosEntrada.length + (totalSaida - candidatosSaida.length);
 
@@ -221,6 +225,7 @@ export class ExportacaoTxtService {
         }
 
         const dataEmissao = doc.emitidoEm ?? doc.recebidoEm;
+        const cancelada = doc.cStatConsulta === "101";
 
         linhasSaida.push(
           linha2000({
@@ -237,8 +242,12 @@ export class ExportacaoTxtService {
             pisCst: nota.pis.cst,
             aliquotaPis: nota.pis.aliquotaPis,
             aliquotaCofins: nota.pis.aliquotaCofins,
+            cancelada,
           })
         );
+
+        // Nota cancelada não tem registro filho — só a linha 2000 especial acima.
+        if (cancelada) continue;
 
         if (nota.informacoesComplementares) {
           linhasSaida.push(linha2010(nota.informacoesComplementares));

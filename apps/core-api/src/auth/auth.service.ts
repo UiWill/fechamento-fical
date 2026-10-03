@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { RegistrarContaInput } from "@afe/shared";
@@ -99,5 +99,27 @@ export class AuthService {
     });
 
     return this.assinarToken(usuario, input.razaoSocial);
+  }
+
+  /** Troca a própria senha — exige a senha atual, mesmo já estando logado (confirma que é mesmo a pessoa, não alguém com a sessão aberta). */
+  async trocarSenha(usuarioId: string, senhaAtual: string, novaSenha: string) {
+    if (novaSenha.length < 8) {
+      throw new BadRequestException("A nova senha precisa ter pelo menos 8 caracteres");
+    }
+
+    const usuario = await this.prisma.client.usuario.findUnique({ where: { id: usuarioId } });
+    if (!usuario) {
+      throw new UnauthorizedException("Usuário não encontrado");
+    }
+
+    const senhaValida = await bcrypt.compare(senhaAtual, usuario.senhaHash);
+    if (!senhaValida) {
+      throw new UnauthorizedException("Senha atual incorreta");
+    }
+
+    const senhaHash = await bcrypt.hash(novaSenha, 12);
+    await this.prisma.client.usuario.update({ where: { id: usuarioId }, data: { senhaHash } });
+
+    return { ok: true };
   }
 }

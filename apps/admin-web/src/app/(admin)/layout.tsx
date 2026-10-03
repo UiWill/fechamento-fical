@@ -52,6 +52,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             Agentes desktop
           </Link>
+          <Link
+            href="/trocar-senha"
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
+            style={{ color: "var(--muted)" }}
+          >
+            Trocar senha
+          </Link>
           <button
             type="button"
             onClick={sairDaConta}
