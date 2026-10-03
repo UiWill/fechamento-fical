@@ -68,6 +68,30 @@ export class DocumentosFiscaisController {
     return this.service.consultarPendentes(empresaId, this.organizacaoIdDoUsuario(request), direcao, periodo);
   }
 
+  /**
+   * Itens (produtos) de notas de saída autorizadas num período — base das
+   * telas de Apuração do ICMS e Apuração do IBS/CBS (mesma lista, as duas
+   * telas só escolhem colunas diferentes pra mostrar).
+   */
+  @Get("apuracao/itens")
+  apuracaoItens(
+    @Param("empresaId") empresaId: string,
+    @Query("inicio") inicio: string,
+    @Query("fim") fim: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    if (!inicio || !fim) {
+      throw new BadRequestException('"inicio" e "fim" são obrigatórios');
+    }
+    return this.service.apuracaoItens(empresaId, this.organizacaoIdDoUsuario(request), new Date(inicio), new Date(fim));
+  }
+
+  /** Extrai e persiste os itens de documentos de SAÍDA que ainda não têm — histórico anterior à feature, ou falhas pontuais na ingestão. */
+  @Post("itens/reprocessar")
+  reprocessarItens(@Param("empresaId") empresaId: string, @Req() request: AuthenticatedRequest) {
+    return this.service.reprocessarItens(empresaId, this.organizacaoIdDoUsuario(request));
+  }
+
   @Get("xml-zip")
   async baixarXmlZip(
     @Param("empresaId") empresaId: string,

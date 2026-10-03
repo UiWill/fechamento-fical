@@ -55,6 +55,9 @@ export const criarRegraFiscalSchema = z.object({
   organizacaoId: z.string().cuid(),
   empresaId: z.string().cuid().nullable().optional(),
   cfopEntrada: z.string().min(1),
+  // CFOP esperado na saída quando essa entrada é revendida/transferida —
+  // alimenta a checagem de divergência nas telas de Apuração do ICMS/IBS-CBS.
+  cfopSaidaEsperado: z.string().length(4).optional(),
   descricao: z.string().min(1),
   observacao: z.string().optional(),
   acumulador: z.string().optional(),

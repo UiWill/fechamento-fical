@@ -20,6 +20,7 @@ export default function RegrasFiscaisPage() {
   const [erro, setErro] = useState<string | null>(null);
 
   const [cfopEntrada, setCfopEntrada] = useState("");
+  const [cfopSaidaEsperado, setCfopSaidaEsperado] = useState("");
   const [descricao, setDescricao] = useState("");
   const [observacao, setObservacao] = useState("");
   const [acumulador, setAcumulador] = useState("");
@@ -65,7 +66,11 @@ export default function RegrasFiscaisPage() {
     setErroForm(null);
 
     if (!/^\d{4}$/.test(cfopEntrada)) {
-      setErroForm("CFOP deve ter 4 dígitos.");
+      setErroForm("CFOP de entrada deve ter 4 dígitos.");
+      return;
+    }
+    if (cfopSaidaEsperado && !/^\d{4}$/.test(cfopSaidaEsperado)) {
+      setErroForm("CFOP de saída esperado deve ter 4 dígitos.");
       return;
     }
     if (!descricao.trim()) {
@@ -80,6 +85,7 @@ export default function RegrasFiscaisPage() {
           organizacaoId,
           empresaId: empresaId || null,
           cfopEntrada,
+          cfopSaidaEsperado: cfopSaidaEsperado || undefined,
           descricao: descricao.trim(),
           observacao: observacao.trim() || undefined,
           acumulador: acumulador.trim() || undefined,
@@ -87,6 +93,7 @@ export default function RegrasFiscaisPage() {
         token
       );
       setCfopEntrada("");
+      setCfopSaidaEsperado("");
       setDescricao("");
       setObservacao("");
       setAcumulador("");
@@ -112,7 +119,10 @@ export default function RegrasFiscaisPage() {
           Cada CFOP de entrada mapeia pra uma observação e/ou acumulador. Deixe "empresa" em
           branco pra criar a regra padrão da organização (vale pra todo CNPJ que não tiver
           uma regra própria); escolha uma empresa quando o mesmo CFOP precisar de tratamento
-          diferente só pra ela — a regra da empresa sempre tem prioridade sobre a padrão.
+          diferente só pra ela — a regra da empresa sempre tem prioridade sobre a padrão. O
+          "CFOP de saída esperado" é opcional e alimenta a checagem de divergência nas telas
+          de Apuração do ICMS e Apuração do IBS/CBS (destaca quando o CFOP real de um item
+          não é um dos esperados por nenhuma regra ativa).
         </p>
       </div>
 
@@ -131,6 +141,18 @@ export default function RegrasFiscaisPage() {
             placeholder="1102"
             className="campo"
             required
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+            CFOP de saída esperado (opcional)
+          </label>
+          <input
+            value={cfopSaidaEsperado}
+            onChange={(e) => setCfopSaidaEsperado(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="5102"
+            className="campo"
           />
         </div>
 
@@ -224,7 +246,8 @@ export default function RegrasFiscaisPage() {
                 className="font-mono text-[0.625rem] uppercase tracking-[0.1em]"
                 style={{ color: "var(--muted)", background: "var(--surface)" }}
               >
-                <th className="px-4 py-3 font-medium">CFOP</th>
+                <th className="px-4 py-3 font-medium">CFOP entrada</th>
+                <th className="px-4 py-3 font-medium">CFOP saída esperado</th>
                 <th className="px-4 py-3 font-medium">Descrição</th>
                 <th className="px-4 py-3 font-medium">Observação</th>
                 <th className="px-4 py-3 font-medium">Acumulador</th>
@@ -240,6 +263,9 @@ export default function RegrasFiscaisPage() {
                 >
                   <td className="chave-mascarada px-4 py-3" style={{ color: "var(--paper)" }}>
                     {regra.cfopEntrada}
+                  </td>
+                  <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
+                    {regra.cfopSaidaEsperado ?? "—"}
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--paper)" }}>
                     {regra.descricao}

@@ -402,6 +402,7 @@ export interface RegraFiscal {
   organizacaoId: string;
   empresaId: string | null;
   cfopEntrada: string;
+  cfopSaidaEsperado: string | null;
   descricao: string;
   observacao: string | null;
   acumulador: string | null;
@@ -426,6 +427,7 @@ export interface CriarRegraFiscalInput {
   organizacaoId: string;
   empresaId?: string | null;
   cfopEntrada: string;
+  cfopSaidaEsperado?: string;
   descricao: string;
   observacao?: string;
   acumulador?: string;
@@ -597,6 +599,73 @@ export async function baixarXmlsZip(
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+export interface ItemApuracao {
+  id: string;
+  documentoFiscalId: string;
+  nNF: number;
+  dhEmi: string | null;
+  nItem: number;
+  cProd: string;
+  xProd: string;
+  ncm: string;
+  cfop: string;
+  quantidade: string;
+  valorUnitario: string;
+  valorProdutos: string;
+  icmsCst: string | null;
+  icmsBase: string | null;
+  icmsAliquota: string | null;
+  icmsValor: string | null;
+  ipiCst: string | null;
+  ipiBase: string | null;
+  ipiAliquota: string | null;
+  ipiValor: string | null;
+  pisCst: string | null;
+  pisBase: string | null;
+  pisAliquota: string | null;
+  pisValor: string | null;
+  cofinsCst: string | null;
+  cofinsBase: string | null;
+  cofinsAliquota: string | null;
+  cofinsValor: string | null;
+  ibsCbsCst: string | null;
+  cClassTrib: string | null;
+  ibsCbsBase: string | null;
+  ibsUfAliquota: string | null;
+  ibsUfValor: string | null;
+  ibsMunAliquota: string | null;
+  ibsMunValor: string | null;
+  cbsAliquota: string | null;
+  cbsValor: string | null;
+  cfopDivergente: boolean;
+}
+
+export async function listarApuracaoItens(
+  empresaId: string,
+  inicio: string,
+  fim: string,
+  token: string
+): Promise<ItemApuracao[]> {
+  const response = await apiFetch(
+    `${API_URL}/empresas/${empresaId}/documentos-fiscais/apuracao/itens?inicio=${inicio}&fim=${fim}`,
+    { headers: { authorization: `Bearer ${token}` }, cache: "no-store" }
+  );
+  if (!response.ok) throw new Error("Não foi possível carregar a apuração agora.");
+  return response.json();
+}
+
+export async function reprocessarItensDocumentoFiscal(
+  empresaId: string,
+  token: string
+): Promise<{ total: number; iniciado: boolean }> {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/itens/reprocessar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Não foi possível reprocessar os itens agora.");
+  return response.json();
 }
 
 export async function zerarNsu(empresaId: string, token: string): Promise<void> {

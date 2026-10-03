@@ -39,6 +39,8 @@ import {
 } from "@/lib/format";
 import { ModalManifestacao } from "@/components/ModalManifestacao";
 import { SecaoCteDistribuicao } from "@/components/SecaoCteDistribuicao";
+import { SecaoApuracaoIcms } from "@/components/SecaoApuracaoIcms";
+import { SecaoApuracaoIbsCbs } from "@/components/SecaoApuracaoIbsCbs";
 import {
   exportarNotasEntradaPdf,
   exportarNotasEntradaExcel,
@@ -457,12 +459,14 @@ export default function EmpresaDetalhePage() {
   const [consultandoPendentesSaida, setConsultandoPendentesSaida] = useState(false);
   const [resultadoConsultaEntrada, setResultadoConsultaEntrada] = useState<string | null>(null);
   const [resultadoConsultaSaida, setResultadoConsultaSaida] = useState<string | null>(null);
-  const [abaDocumentos, setAbaDocumentos] = useState<"entrada" | "saida" | "cte" | "certificado">("entrada");
+  const [abaDocumentos, setAbaDocumentos] = useState<
+    "entrada" | "saida" | "cte" | "apuracao-icms" | "apuracao-ibs-cbs" | "certificado"
+  >("entrada");
   const [transicaoAba, setTransicaoAba] = useState(false);
   const timerTransicao = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Troca de aba com uma transição curta (barra de progresso + esqueleto) em vez de a tela ficar parada.
-  function mudarAba(nova: "entrada" | "saida" | "cte" | "certificado") {
+  function mudarAba(nova: "entrada" | "saida" | "cte" | "apuracao-icms" | "apuracao-ibs-cbs" | "certificado") {
     if (nova === abaDocumentos) return;
     if (timerTransicao.current) clearTimeout(timerTransicao.current);
     setAbaDocumentos(nova);
@@ -896,6 +900,28 @@ export default function EmpresaDetalhePage() {
             }}
           >
             CT-e distribuição
+          </button>
+          <button
+            onClick={() => mudarAba("apuracao-icms")}
+            className="ml-4 px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
+            style={{
+              color: abaDocumentos === "apuracao-icms" ? "var(--paper)" : "var(--muted)",
+              borderBottom: abaDocumentos === "apuracao-icms" ? "2px solid var(--paper)" : "2px solid transparent",
+              marginBottom: "-1px",
+            }}
+          >
+            Apuração ICMS
+          </button>
+          <button
+            onClick={() => mudarAba("apuracao-ibs-cbs")}
+            className="ml-4 px-1 pb-2 font-mono text-[0.6875rem] uppercase tracking-[0.15em] transition-opacity hover:opacity-80"
+            style={{
+              color: abaDocumentos === "apuracao-ibs-cbs" ? "var(--paper)" : "var(--muted)",
+              borderBottom: abaDocumentos === "apuracao-ibs-cbs" ? "2px solid var(--paper)" : "2px solid transparent",
+              marginBottom: "-1px",
+            }}
+          >
+            Apuração IBS/CBS
           </button>
           <button
             onClick={() => mudarAba("certificado")}
@@ -1406,6 +1432,18 @@ export default function EmpresaDetalhePage() {
         {!transicaoAba && abaDocumentos === "cte" && token && (
         <div key="cte" className="desliza-direita space-y-3">
           <SecaoCteDistribuicao empresaId={empresa.id} token={token} temCertificado={Boolean(certificado)} />
+        </div>
+        )}
+
+        {!transicaoAba && abaDocumentos === "apuracao-icms" && token && (
+        <div key="apuracao-icms" className="desliza-direita space-y-3">
+          <SecaoApuracaoIcms empresaId={empresa.id} token={token} />
+        </div>
+        )}
+
+        {!transicaoAba && abaDocumentos === "apuracao-ibs-cbs" && token && (
+        <div key="apuracao-ibs-cbs" className="desliza-direita space-y-3">
+          <SecaoApuracaoIbsCbs empresaId={empresa.id} token={token} />
         </div>
         )}
 

@@ -9,6 +9,7 @@ import {
 } from "../common/storage/object-storage.service";
 import type { AgenteAutenticado } from "./agente-token.guard";
 import { hashTokenAgente } from "./agente-token.guard";
+import { ItensDocumentoFiscalService } from "../documentos-fiscais/itens-documento-fiscal.service";
 
 export type StatusItemUpload = "ACEITO" | "DUPLICADO" | "CNPJ_NAO_AUTORIZADO" | "INVALIDO";
 
@@ -26,7 +27,8 @@ export class AgentesService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storage: ObjectStorageService
+    private readonly storage: ObjectStorageService,
+    private readonly itensDocumentoFiscal: ItensDocumentoFiscalService
   ) {}
 
   /**
@@ -342,6 +344,17 @@ export class AgentesService {
           agenteInstalacaoTokenId: agenteToken.id,
         },
       });
+
+      if (dados.tipo === "NFE" || dados.tipo === "NFCE") {
+        try {
+          await this.itensDocumentoFiscal.extrairEPersistirItens(criado.id, xml);
+        } catch (err) {
+          // Não derruba o upload da nota por isso — fica sem itens até o
+          // próximo reprocessamento em lote (ver documentos-fiscais.controller.ts).
+          this.logger.warn(`Falha ao extrair itens do documento ${criado.id}: ${err}`);
+        }
+      }
+
       return {
         nomeArquivoOriginal,
         status: "ACEITO",

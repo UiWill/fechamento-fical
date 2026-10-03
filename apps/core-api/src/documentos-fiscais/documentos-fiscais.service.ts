@@ -9,6 +9,7 @@ import {
 import { CertificadosService } from "../certificados/certificados.service";
 import { FiscalEngineClient } from "../common/fiscal-engine/fiscal-engine.client";
 import { extrairDadosBasicos } from "./xml-utils";
+import { ItensDocumentoFiscalService } from "./itens-documento-fiscal.service";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -92,7 +93,8 @@ export class DocumentosFiscaisService {
     private readonly prisma: PrismaService,
     private readonly storage: ObjectStorageService,
     private readonly certificados: CertificadosService,
-    private readonly fiscalEngine: FiscalEngineClient
+    private readonly fiscalEngine: FiscalEngineClient,
+    private readonly itensDocumentoFiscal: ItensDocumentoFiscalService
   ) {}
 
   /**
@@ -433,6 +435,103 @@ export class DocumentosFiscaisService {
       `Consulta em lote concluída pra empresa ${empresaId}: ${consultados} consultada(s), ${falhas} falha(s) de ${documentoIds.length} total.`
     );
     return { consultados, falhas };
+  }
+
+  /**
+   * Itens (produtos) de notas de SAÍDA autorizadas (cStat=100) num
+   * período — base das telas de Apuração do ICMS e Apuração do IBS/CBS.
+   * As duas telas usam a mesma busca, só mudam as colunas que o
+   * admin-web decide exibir; aqui devolvemos tudo de uma vez.
+   */
+  async apuracaoItens(empresaId: string, organizacaoId: string, inicio: Date, fim: Date) {
+    const empresa = await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
+
+    const itens = await this.prisma.client.itemDocumentoFiscal.findMany({
+      where: {
+        documentoFiscal: {
+          empresaId,
+          direcao: "SAIDA",
+          tipo: { in: ["NFE", "NFCE"] },
+          cStatConsulta: "100",
+          emitidoEm: { gte: inicio, lte: fim },
+        },
+      },
+      include: { documentoFiscal: { select: { chaveAcesso: true, emitidoEm: true } } },
+      orderBy: [{ documentoFiscal: { emitidoEm: "asc" } }, { nItem: "asc" }],
+    });
+
+    // "De/para" (cfopEntrada -> cfopSaidaEsperado) define, pra cada
+    // empresa, quais CFOPs de saída são esperados quando a regra tem o
+    // campo preenchido. Sem rastreio de estoque (que entrada virou qual
+    // saída), a checagem possível aqui é: o CFOP de saída desse item está
+    // entre os valores que ALGUMA regra ativa da empresa/organização
+    // espera ver na saída? Se a empresa não configurou nenhum
+    // cfopSaidaEsperado ainda, ninguém é marcado como divergente (regra
+    // nova, opcional, não quebra quem não configurou nada).
+    const regras = await this.prisma.client.regraFiscal.findMany({
+      where: {
+        organizacaoId: empresa.organizacaoId,
+        ativa: true,
+        cfopSaidaEsperado: { not: null },
+        OR: [{ empresaId }, { empresaId: null }],
+      },
+      select: { cfopSaidaEsperado: true },
+    });
+    const cfopsSaidaEsperados = new Set(regras.map((r) => r.cfopSaidaEsperado));
+
+    return itens.map((item) => {
+      const numeroNota = Number(item.documentoFiscal.chaveAcesso.slice(25, 34));
+      return {
+        ...item,
+        nNF: numeroNota,
+        dhEmi: item.documentoFiscal.emitidoEm,
+        cfopDivergente: cfopsSaidaEsperados.size > 0 && !cfopsSaidaEsperados.has(item.cfop),
+      };
+    });
+  }
+
+  /**
+   * Reprocessa (extrai e persiste) os itens de documentos de SAÍDA
+   * (NF-e/NFC-e) que ainda não têm nenhuma linha em ItemDocumentoFiscal —
+   * cobre tanto histórico anterior à feature de Apuração quanto qualquer
+   * nota que falhou na extração automática da ingestão. Mesmo padrão
+   * "conta e dispara em segundo plano" de consultarPendentes — milhares
+   * de documentos não cabem numa chamada HTTP síncrona.
+   */
+  async reprocessarItens(empresaId: string, organizacaoId: string) {
+    await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
+
+    const documentos = await this.prisma.client.documentoFiscal.findMany({
+      where: {
+        empresaId,
+        direcao: "SAIDA",
+        tipo: { in: ["NFE", "NFCE"] },
+        itens: { none: {} },
+      },
+      select: { id: true, objetoStorageXml: true },
+    });
+
+    void this.executarReprocessamentoItens(documentos);
+
+    return { total: documentos.length, iniciado: documentos.length > 0 };
+  }
+
+  private async executarReprocessamentoItens(
+    documentos: { id: string; objetoStorageXml: string }[]
+  ): Promise<void> {
+    let processados = 0;
+    let falhas = 0;
+    for (const doc of documentos) {
+      try {
+        const xml = await this.storage.getObject(BUCKET_DOCUMENTOS_FISCAIS, doc.objetoStorageXml);
+        await this.itensDocumentoFiscal.extrairEPersistirItens(doc.id, xml.toString("utf8"));
+        processados += 1;
+      } catch (err) {
+        falhas += 1;
+        this.logger.warn(`Falha ao reprocessar itens do documento ${doc.id}: ${err}`);
+      }
+    }
+    this.logger.log(`Reprocessamento de itens concluído: ${processados} processado(s), ${falhas} falha(s) de ${documentos.length} total.`);
   }
 
   /**

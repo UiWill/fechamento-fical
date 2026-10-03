@@ -47,8 +47,26 @@ export interface TributoItem {
   valor: number;
 }
 
+/**
+ * Tributação da Reforma (LC 214/2025) — grupo <gIBSCBS>, presente só em
+ * notas emitidas já com o leiaute novo (produção obrigatória 05/10/2026).
+ * `undefined` quando o item não tem o grupo (nota emitida antes da
+ * adoção) — a tela de apuração mostra as colunas em branco nesse caso,
+ * não é erro.
+ */
+export interface IbsCbsItem {
+  cst: string;
+  cClassTrib: string;
+  base: number;
+  ibsUf: { aliquota: number; valor: number };
+  ibsMun: { aliquota: number; valor: number };
+  cbs: { aliquota: number; valor: number };
+}
+
 export interface ItemSaida {
+  nItem: number;
   codigoProduto: string;
+  nomeProduto: string;
   ncm: string;
   cfop: string;
   quantidade: number;
@@ -61,11 +79,13 @@ export interface ItemSaida {
   ipi: { tributado: boolean; cst: string; base: number; aliquota: number; valor: number };
   pis: TributoItem;
   cofins: TributoItem;
+  ibsCbs?: IbsCbsItem;
 }
 
 export interface NotaSaidaLida {
   numero: string;
   serie: string;
+  dataEmissao: Date | null;
   valorNota: number;
   valorIpi: number;
   /** Código NFe de <modFrete> (0..9) — convertido pro código de letra da Domínio na hora de montar a linha 2000. */
@@ -90,12 +110,14 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
   let pis: NotaSaidaLida["pis"] = { cst: "", aliquotaPis: null, aliquotaCofins: null };
 
   dets.forEach((det, indice) => {
+    const nItem = Number(/nItem\s*=\s*"(\d+)"/.exec(det)?.[1] ?? indice + 1);
     const prod = bloco(det, "prod");
     const imposto = bloco(det, "imposto");
     const icmsBloco = bloco(imposto, "ICMS");
     const ipiBloco = bloco(imposto, "IPI");
     const pisBloco = bloco(imposto, "PIS");
     const cofinsBloco = bloco(imposto, "COFINS");
+    const ibsCbsBloco = bloco(imposto, "gIBSCBS");
 
     const vIpi = numero(ipiBloco, "vIPI");
     const valorProdutos = numero(prod, "vProd");
@@ -132,8 +154,33 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
       valor: numero(cofinsBloco, "vCOFINS"),
     };
 
+    // Reforma Tributária: <gIBSCBS><gIBSUF>...</gIBSUF><gIBSMun>...</gIBSMun><gCBS>...</gCBS></gIBSCBS>
+    // dentro de <imposto>, irmão de ICMS/IPI/PIS/COFINS (coexistem durante
+    // a transição) — ausente em notas emitidas antes da adoção.
+    const ibsCbs: IbsCbsItem | undefined = ibsCbsBloco
+      ? {
+          cst: texto(ibsCbsBloco, "CST"),
+          cClassTrib: texto(ibsCbsBloco, "cClassTrib"),
+          base: numero(ibsCbsBloco, "vBC"),
+          ibsUf: {
+            aliquota: numero(bloco(ibsCbsBloco, "gIBSUF"), "pIBSUF"),
+            valor: numero(bloco(ibsCbsBloco, "gIBSUF"), "vIBSUF"),
+          },
+          ibsMun: {
+            aliquota: numero(bloco(ibsCbsBloco, "gIBSMun"), "pIBSMun"),
+            valor: numero(bloco(ibsCbsBloco, "gIBSMun"), "vIBSMun"),
+          },
+          cbs: {
+            aliquota: numero(bloco(ibsCbsBloco, "gCBS"), "pCBS"),
+            valor: numero(bloco(ibsCbsBloco, "gCBS"), "vCBS"),
+          },
+        }
+      : undefined;
+
     itens.push({
+      nItem,
       codigoProduto: texto(prod, "cProd"),
+      nomeProduto: texto(prod, "xProd"),
       ncm: texto(prod, "NCM"),
       cfop: texto(prod, "CFOP"),
       quantidade: numero(prod, "qCom"),
@@ -151,6 +198,7 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
       },
       pis: pisItem,
       cofins: cofinsItem,
+      ibsCbs,
     });
 
     if (indice === 0) {
@@ -168,9 +216,11 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
   });
 
   const totais = bloco(xml, "ICMSTot");
+  const dhEmi = texto(ide, "dhEmi") || texto(ide, "dEmi");
   return {
     numero: texto(ide, "nNF"),
     serie: texto(ide, "serie"),
+    dataEmissao: dhEmi ? new Date(dhEmi) : null,
     valorNota: numero(totais, "vNF"),
     valorIpi: numero(totais, "vIPI"),
     modalidadeFrete: texto(transp, "modFrete"),

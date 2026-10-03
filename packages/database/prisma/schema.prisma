@@ -15,12 +15,12 @@ datasource db {
 // ── Tenant e usuários ──────────────────────────────────────────────────────
 
 model Organizacao {
-  id            String   @id @default(cuid())
-  razaoSocial   String
-  cnpj          String   @unique
-  emailContato  String
-  criadoEm      DateTime @default(now())
-  atualizadoEm  DateTime @updatedAt
+  id           String   @id @default(cuid())
+  razaoSocial  String
+  cnpj         String   @unique
+  emailContato String
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
 
   empresas      Empresa[]
   regrasFiscais RegraFiscal[]
@@ -39,17 +39,17 @@ enum PapelUsuario {
 }
 
 model Usuario {
-  id             String       @id @default(cuid())
-  organizacaoId  String?
-  nome           String
-  email          String       @unique
-  senhaHash      String
-  papel          PapelUsuario @default(OPERADOR)
-  ativo          Boolean      @default(true)
-  criadoEm       DateTime     @default(now())
-  atualizadoEm   DateTime     @updatedAt
+  id            String       @id @default(cuid())
+  organizacaoId String?
+  nome          String
+  email         String       @unique
+  senhaHash     String
+  papel         PapelUsuario @default(OPERADOR)
+  ativo         Boolean      @default(true)
+  criadoEm      DateTime     @default(now())
+  atualizadoEm  DateTime     @updatedAt
 
-  organizacao    Organizacao? @relation(fields: [organizacaoId], references: [id])
+  organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
 
   @@index([organizacaoId])
   @@map("usuarios")
@@ -68,29 +68,29 @@ enum AmbienteFiscal {
 }
 
 model Empresa {
-  id             String         @id @default(cuid())
-  organizacaoId  String
-  cnpj           String         @unique
-  razaoSocial    String
-  uf             String // sigla, ex: MG
-  codigoUf       Int // código IBGE, ex: 31
-  ambiente       AmbienteFiscal @default(HOMOLOGACAO)
-  status         StatusEmpresa  @default(ATIVA)
-  ativadaEm      DateTime       @default(now())
-  desativadaEm   DateTime?
-  criadoEm       DateTime       @default(now())
-  atualizadoEm   DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  organizacaoId String
+  cnpj          String         @unique
+  razaoSocial   String
+  uf            String // sigla, ex: MG
+  codigoUf      Int // código IBGE, ex: 31
+  ambiente      AmbienteFiscal @default(HOMOLOGACAO)
+  status        StatusEmpresa  @default(ATIVA)
+  ativadaEm     DateTime       @default(now())
+  desativadaEm  DateTime?
+  criadoEm      DateTime       @default(now())
+  atualizadoEm  DateTime       @updatedAt
 
-  organizacao       Organizacao          @relation(fields: [organizacaoId], references: [id])
-  certificado        Certificado?
-  documentosFiscais  DocumentoFiscal[]
-  manifestacoes      ManifestacaoEvento[]
-  exportacoesTxt     ExportacaoTxt[]
-  itensFatura         ItemFatura[]
-  nsuControle         NsuControle?
-  nsuControleCte      NsuControleCte?
+  organizacao           Organizacao             @relation(fields: [organizacaoId], references: [id])
+  certificado           Certificado?
+  documentosFiscais     DocumentoFiscal[]
+  manifestacoes         ManifestacaoEvento[]
+  exportacoesTxt        ExportacaoTxt[]
+  itensFatura           ItemFatura[]
+  nsuControle           NsuControle?
+  nsuControleCte        NsuControleCte?
   regrasFiscaisOverride RegraFiscal[]
-  agenteTokens        AgenteInstalacaoToken[]
+  agenteTokens          AgenteInstalacaoToken[]
 
   @@index([organizacaoId])
   @@index([status])
@@ -99,14 +99,14 @@ model Empresa {
 
 // Controle de paginação da Distribuição DFe (substitui data/nsu/{cnpj}.json do nfe_marketplace)
 model NsuControle {
-  id         String   @id @default(cuid())
-  empresaId  String   @unique
-  ultimoNsu  BigInt   @default(0)
-  ultimoCStat    String?
-  ultimoXMotivo  String?
-  atualizadoEm DateTime @updatedAt
+  id            String   @id @default(cuid())
+  empresaId     String   @unique
+  ultimoNsu     BigInt   @default(0)
+  ultimoCStat   String?
+  ultimoXMotivo String?
+  atualizadoEm  DateTime @updatedAt
 
-  empresa    Empresa  @relation(fields: [empresaId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
 
   @@map("nsu_controle")
 }
@@ -121,7 +121,7 @@ model NsuControleCte {
   ultimoXMotivo String?
   atualizadoEm  DateTime @updatedAt
 
-  empresa       Empresa  @relation(fields: [empresaId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
 
   @@map("nsu_controle_cte")
 }
@@ -130,18 +130,18 @@ model NsuControleCte {
 // - conteudoCriptografado: caminho do objeto no bucket afe-certificados (arquivo já cifrado)
 // - senhaCriptografada: senha do PFX cifrada com a mesma chave de envelope (CERT_MASTER_KEY)
 model Certificado {
-  id                    String    @id @default(cuid())
-  empresaId             String    @unique
-  nomeArquivoOriginal   String
-  objetoStorage         String // chave do objeto no armazenamento (bucket afe-certificados)
-  senhaCriptografada     String
-  ivCriptografia         String // IV usado na cifra AES-GCM (envelope encryption)
-  validoAte              DateTime
+  id                      String   @id @default(cuid())
+  empresaId               String   @unique
+  nomeArquivoOriginal     String
+  objetoStorage           String // chave do objeto no armazenamento (bucket afe-certificados)
+  senhaCriptografada      String
+  ivCriptografia          String // IV usado na cifra AES-GCM (envelope encryption)
+  validoAte               DateTime
   alertaVencimentoEnviado Boolean  @default(false)
-  criadoEm               DateTime @default(now())
+  criadoEm                DateTime @default(now())
   atualizadoEm            DateTime @updatedAt
 
-  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id])
 
   @@index([validoAte])
   @@map("certificados")
@@ -172,45 +172,105 @@ enum StatusDocumentoFiscal {
 }
 
 model DocumentoFiscal {
-  id              String                 @id @default(cuid())
-  empresaId       String
-  chaveAcesso     String                 @unique // 44 dígitos
-  tipo            TipoDocumentoFiscal
-  direcao         DirecaoDocumento
-  nsu             BigInt?
-  status          StatusDocumentoFiscal  @default(RECEBIDO)
-  cfop            String?
-  observacao      String?
-  acumulador      String?
-  classificadoEm  DateTime?
-  nomeEmitente    String?
-  valorTotal      Decimal?               @db.Decimal(14, 2)
+  id               String                @id @default(cuid())
+  empresaId        String
+  chaveAcesso      String                @unique // 44 dígitos
+  tipo             TipoDocumentoFiscal
+  direcao          DirecaoDocumento
+  nsu              BigInt?
+  status           StatusDocumentoFiscal @default(RECEBIDO)
+  cfop             String?
+  observacao       String?
+  acumulador       String?
+  classificadoEm   DateTime?
+  nomeEmitente     String?
+  valorTotal       Decimal?              @db.Decimal(14, 2)
   objetoStorageXml String // chave do objeto no armazenamento (bucket afe-documentos-fiscais)
   emitidoEm        DateTime?
   // Dados extras (hoje so CT-e: papel da empresa, tomador, origem/destino...).
   detalhe          Json?
-  recebidoEm       DateTime               @default(now())
-  atualizadoEm     DateTime               @updatedAt
+  recebidoEm       DateTime              @default(now())
+  atualizadoEm     DateTime              @updatedAt
 
   // Consulta de situacao na SEFAZ por chave de acesso (cStat). So entra no
   // TXT de exportacao quem tiver cStatConsulta = "100" (autorizado) - ver
   // comentario em exportacao-txt.service.ts. Nulo = nunca consultado ainda.
-  cStatConsulta      String?
-  xMotivoConsulta    String?
-  consultadoEm       DateTime?
+  cStatConsulta   String?
+  xMotivoConsulta String?
+  consultadoEm    DateTime?
 
   // Preenchido só quando o documento veio do agente desktop (SAIDA) — nulo
   // pros documentos de ENTRADA vindos da SEFAZ via Distribuicao DFe.
   agenteInstalacaoTokenId String?
   agenteInstalacaoToken   AgenteInstalacaoToken? @relation(fields: [agenteInstalacaoTokenId], references: [id])
 
-  empresa         Empresa               @relation(fields: [empresaId], references: [id])
-  manifestacoes   ManifestacaoEvento[]
+  empresa       Empresa               @relation(fields: [empresaId], references: [id])
+  manifestacoes ManifestacaoEvento[]
+  itens         ItemDocumentoFiscal[]
 
   @@index([empresaId, direcao, status])
   @@index([empresaId, tipo])
   @@index([agenteInstalacaoTokenId])
   @@map("documentos_fiscais")
+}
+
+/**
+ * Item (produto) de uma nota de SAÍDA, um por <det> do XML — extraído e
+ * persistido na ingestão (agente desktop) pra alimentar as telas de
+ * Apuração do ICMS e Apuração do IBS/CBS sem precisar reler o XML toda
+ * vez. CT-e não gera linhas aqui (não tem essa estrutura de item/imposto).
+ */
+model ItemDocumentoFiscal {
+  id                String  @id @default(cuid())
+  documentoFiscalId String
+  nItem             Int
+  cProd             String
+  xProd             String
+  ncm               String
+  cfop              String
+  quantidade        Decimal @db.Decimal(14, 4)
+  valorUnitario     Decimal @db.Decimal(14, 4)
+  valorProdutos     Decimal @db.Decimal(14, 2)
+
+  icmsCst      String?
+  icmsBase     Decimal? @db.Decimal(14, 2)
+  icmsAliquota Decimal? @db.Decimal(7, 4)
+  icmsValor    Decimal? @db.Decimal(14, 2)
+
+  ipiCst      String?
+  ipiBase     Decimal? @db.Decimal(14, 2)
+  ipiAliquota Decimal? @db.Decimal(7, 4)
+  ipiValor    Decimal? @db.Decimal(14, 2)
+
+  pisCst      String?
+  pisBase     Decimal? @db.Decimal(14, 2)
+  pisAliquota Decimal? @db.Decimal(7, 4)
+  pisValor    Decimal? @db.Decimal(14, 2)
+
+  cofinsCst      String?
+  cofinsBase     Decimal? @db.Decimal(14, 2)
+  cofinsAliquota Decimal? @db.Decimal(7, 4)
+  cofinsValor    Decimal? @db.Decimal(14, 2)
+
+  // Reforma Tributária (LC 214/2025) — nulo pra toda nota emitida antes da
+  // empresa adotar o grupo gIBSCBS, e segue nulo pra sempre em notas
+  // anteriores à Reforma (produção obrigatória a partir de 05/10/2026).
+  ibsCbsCst      String?
+  cClassTrib     String?
+  ibsCbsBase     Decimal? @db.Decimal(14, 2)
+  ibsUfAliquota  Decimal? @db.Decimal(7, 4)
+  ibsUfValor     Decimal? @db.Decimal(14, 2)
+  ibsMunAliquota Decimal? @db.Decimal(7, 4)
+  ibsMunValor    Decimal? @db.Decimal(14, 2)
+  cbsAliquota    Decimal? @db.Decimal(7, 4)
+  cbsValor       Decimal? @db.Decimal(14, 2)
+
+  criadoEm DateTime @default(now())
+
+  documentoFiscal DocumentoFiscal @relation(fields: [documentoFiscalId], references: [id], onDelete: Cascade)
+
+  @@index([documentoFiscalId])
+  @@map("itens_documentos_fiscais")
 }
 
 // ── Agente desktop (captura de NF-e/NFC-e/CT-e de SAÍDA) ────────────────────
@@ -280,10 +340,10 @@ model VersaoAgente {
 // ── Manifestação do destinatário ────────────────────────────────────────────
 
 enum TipoEventoManifestacao {
-  CIENCIA_OPERACAO        // 210210
-  CONFIRMACAO_OPERACAO    // 210200
+  CIENCIA_OPERACAO // 210210
+  CONFIRMACAO_OPERACAO // 210200
   DESCONHECIMENTO_OPERACAO // 210220
-  OPERACAO_NAO_REALIZADA  // 210240
+  OPERACAO_NAO_REALIZADA // 210240
 }
 
 enum StatusManifestacao {
@@ -294,18 +354,18 @@ enum StatusManifestacao {
 }
 
 model ManifestacaoEvento {
-  id                 String                 @id @default(cuid())
-  empresaId          String
-  documentoFiscalId  String
-  tipoEvento         TipoEventoManifestacao
-  status             StatusManifestacao     @default(PENDENTE)
-  protocoloSefaz      String?
-  motivoSefaz          String?
-  enviadoEm            DateTime?
-  criadoEm             DateTime               @default(now())
+  id                String                 @id @default(cuid())
+  empresaId         String
+  documentoFiscalId String
+  tipoEvento        TipoEventoManifestacao
+  status            StatusManifestacao     @default(PENDENTE)
+  protocoloSefaz    String?
+  motivoSefaz       String?
+  enviadoEm         DateTime?
+  criadoEm          DateTime               @default(now())
 
-  empresa            Empresa           @relation(fields: [empresaId], references: [id])
-  documentoFiscal    DocumentoFiscal   @relation(fields: [documentoFiscalId], references: [id])
+  empresa         Empresa         @relation(fields: [empresaId], references: [id])
+  documentoFiscal DocumentoFiscal @relation(fields: [documentoFiscalId], references: [id])
 
   @@index([empresaId, status])
   @@map("manifestacao_eventos")
@@ -315,16 +375,20 @@ model ManifestacaoEvento {
 
 // Regra pertence à Organizacao (padrão) e pode ter override por Empresa específica.
 model RegraFiscal {
-  id             String   @id @default(cuid())
-  organizacaoId  String
-  empresaId      String? // null = regra padrão da organização; preenchido = override por CNPJ
-  cfopEntrada    String
-  descricao      String
-  observacao     String?
-  acumulador     String?
-  ativa          Boolean  @default(true)
-  criadoEm       DateTime @default(now())
-  atualizadoEm   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  organizacaoId     String
+  empresaId         String? // null = regra padrão da organização; preenchido = override por CNPJ
+  cfopEntrada       String
+  // CFOP que o item correspondente deveria ter na SAÍDA, quando essa
+  // entrada vira revenda/transferência etc. — nulo = regra só classifica
+  // entrada, sem checagem de divergência nas telas de apuração.
+  cfopSaidaEsperado String?
+  descricao         String
+  observacao        String?
+  acumulador        String?
+  ativa             Boolean  @default(true)
+  criadoEm          DateTime @default(now())
+  atualizadoEm      DateTime @updatedAt
 
   organizacao Organizacao @relation(fields: [organizacaoId], references: [id])
   empresa     Empresa?    @relation(fields: [empresaId], references: [id])
@@ -371,14 +435,14 @@ enum StatusFatura {
 }
 
 model Fatura {
-  id             String       @id @default(cuid())
-  organizacaoId  String
-  referenciaMes  Int // 1-12
-  referenciaAno  Int
-  valorTotal     Decimal      @db.Decimal(10, 2)
-  status         StatusFatura @default(ABERTA)
-  geradaEm       DateTime     @default(now())
-  pagaEm         DateTime?
+  id            String       @id @default(cuid())
+  organizacaoId String
+  referenciaMes Int // 1-12
+  referenciaAno Int
+  valorTotal    Decimal      @db.Decimal(10, 2)
+  status        StatusFatura @default(ABERTA)
+  geradaEm      DateTime     @default(now())
+  pagaEm        DateTime?
 
   organizacao Organizacao  @relation(fields: [organizacaoId], references: [id])
   itens       ItemFatura[]
@@ -388,10 +452,10 @@ model Fatura {
 }
 
 model ItemFatura {
-  id         String  @id @default(cuid())
-  faturaId   String
-  empresaId  String
-  valor      Decimal @db.Decimal(10, 2)
+  id        String  @id @default(cuid())
+  faturaId  String
+  empresaId String
+  valor     Decimal @db.Decimal(10, 2)
 
   fatura  Fatura  @relation(fields: [faturaId], references: [id])
   empresa Empresa @relation(fields: [empresaId], references: [id])
@@ -403,14 +467,14 @@ model ItemFatura {
 // ── Auditoria (obrigatório dado o caráter fiscal do sistema) ───────────────
 
 model AuditLog {
-  id             String      @id @default(cuid())
-  organizacaoId  String?
-  usuarioId      String?
-  acao           String
-  entidade       String
-  entidadeId     String?
-  detalhes       Json?
-  criadoEm       DateTime    @default(now())
+  id            String   @id @default(cuid())
+  organizacaoId String?
+  usuarioId     String?
+  acao          String
+  entidade      String
+  entidadeId    String?
+  detalhes      Json?
+  criadoEm      DateTime @default(now())
 
   organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
 
