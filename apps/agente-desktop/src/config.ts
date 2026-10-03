@@ -51,7 +51,13 @@ export function carregarConfig(): ConfigAgente {
   if (!fs.existsSync(ARQUIVO_CONFIG)) return { ...CONFIG_PADRAO };
   try {
     const bruto = fs.readFileSync(ARQUIVO_CONFIG, "utf8");
-    return { ...CONFIG_PADRAO, ...JSON.parse(bruto) };
+    // versaoAgente sempre vem do build atual (VERSAO_PADRAO), nunca do
+    // arquivo salvo — sem isso, um config.json deixado por uma instalação
+    // anterior (ex: trocar de versão 1.x pra 2.x no mesmo PC) fazia o
+    // programa achar pra sempre que ainda era a versão velha, mesmo
+    // rodando o .exe novo, até o primeiro ciclo de auto-atualização bem
+    // sucedido reescrever o campo.
+    return { ...CONFIG_PADRAO, ...JSON.parse(bruto), versaoAgente: VERSAO_PADRAO };
   } catch {
     // Config corrompida — melhor comecar do zero (vai revarrer a pasta e
     // reenviar tudo, mas o servidor trata reenvio como DUPLICADO) do que
