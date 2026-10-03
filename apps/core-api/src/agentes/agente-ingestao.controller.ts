@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import { uploadDocumentoAgenteSchema } from "@afe/shared";
 import { Public } from "../auth/public.decorator";
@@ -53,23 +53,27 @@ export class AgenteIngestaoController {
   }
 
   /**
-   * Checagem de auto-atualização, chamada pelo próprio agente — fica
-   * desligada de propósito (sempre "nenhuma versão nova") desde a troca
-   * pra Electron/instalador NSIS (versão 2.0.0): o auto-update dos agentes
-   * antigos (1.x, Node SEA) foi feito pra copiar um .exe solto por cima do
-   * outro, incompatível com o instalador novo — se oferecêssemos a 2.0.0
-   * aqui, um agente antigo rodando sozinho numa máquina de cliente ia
-   * tentar "atualizar" baixando o instalador e abrindo ele sem ninguém
-   * esperar. Essa rota não sabe nem qual token está chamando (de
-   * propósito, não exige AgenteTokenGuard — ver comentário da classe), e a
-   * telemetria do heartbeat também não é usada aqui, então não dá pra
-   * diferenciar com segurança quem já está na 2.0.0 de quem ainda está na
-   * 1.x só por essa chamada. O download manual (botão no admin-web) é uma
-   * rota separada (`/instalador`) e continua funcionando normal.
+   * Checagem de auto-atualização, chamada pelo próprio agente. Só responde
+   * com uma versão de verdade pra quem já manda "versaoAtual" começando
+   * com "2." (agente novo, Electron/instalador NSIS) — qualquer agente
+   * antigo (1.x, Node SEA) nunca manda esse parâmetro (código antigo,
+   * travado), então continua recebendo "nenhuma versão nova" como sempre,
+   * do mesmo jeito que ficou nos primeiros dias da troca pra 2.0.0: o
+   * auto-update do 1.x copia um .exe solto por cima do outro, incompatível
+   * com o instalador novo, e ia quebrar se recebesse um instalador NSIS
+   * pra "copiar por cima". Uma vez que a máquina recebe manualmente
+   * qualquer versão 2.x (reinstalação única, inevitável nessa transição),
+   * o auto-update volta a funcionar sozinho dali pra frente. O download
+   * manual (botão no admin-web) é uma rota separada (`/instalador`) e
+   * continua funcionando normal pra qualquer um.
    */
   @Get("versoes/mais-recente")
-  versaoMaisRecente() {
-    return { versao: null, obrigatoria: false, urlDownload: null };
+  async versaoMaisRecente(@Query("versaoAtual") versaoAtual?: string) {
+    if (!versaoAtual || !/^2\./.test(versaoAtual)) {
+      return { versao: null, obrigatoria: false, urlDownload: null };
+    }
+    const registro = await this.service.obterVersaoMaisRecente();
+    return { versao: registro?.versao ?? null, obrigatoria: registro?.obrigatoria ?? false, urlDownload: null };
   }
 
   @Get("versoes/:versao/download")

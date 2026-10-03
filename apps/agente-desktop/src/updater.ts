@@ -52,7 +52,7 @@ export async function verificarAtualizacao(token: string): Promise<void> {
   const config = carregarConfig();
   let info;
   try {
-    info = await buscarVersaoMaisRecente(token);
+    info = await buscarVersaoMaisRecente(token, config.versaoAgente);
   } catch (err) {
     console.error(`[updater] falha ao verificar versão: ${err}`);
     return;

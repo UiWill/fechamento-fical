@@ -181,7 +181,7 @@ function registrarIpc(): void {
     const config = carregarConfig();
     if (!config.token) return { versaoAtual: config.versaoAgente, versaoMaisRecente: null };
     try {
-      const info = await buscarVersaoMaisRecente(config.token);
+      const info = await buscarVersaoMaisRecente(config.token, config.versaoAgente);
       return { versaoAtual: config.versaoAgente, versaoMaisRecente: info.versao };
     } catch (err) {
       console.error(`[main] falha ao consultar versão mais recente: ${err}`);
