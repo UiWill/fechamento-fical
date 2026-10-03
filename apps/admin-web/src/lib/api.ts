@@ -333,17 +333,22 @@ export async function consultarSituacaoDocumento(
 
 export interface ResultadoConsultaPendentes {
   total: number;
-  consultados: number;
-  falhas: number;
+  iniciado: boolean;
 }
 
 export async function consultarPendentes(
   empresaId: string,
   direcao: "ENTRADA" | "SAIDA",
-  token: string
+  token: string,
+  periodo?: { inicio: string; fim: string }
 ): Promise<ResultadoConsultaPendentes> {
+  const params = new URLSearchParams({ direcao });
+  if (periodo) {
+    params.set("inicio", periodo.inicio);
+    params.set("fim", periodo.fim);
+  }
   const response = await apiFetch(
-    `${API_URL}/empresas/${empresaId}/documentos-fiscais/consultar-pendentes?direcao=${direcao}`,
+    `${API_URL}/empresas/${empresaId}/documentos-fiscais/consultar-pendentes?${params.toString()}`,
     { method: "POST", headers: { authorization: `Bearer ${token}` } }
   );
   if (!response.ok) throw new Error("Não foi possível consultar as notas pendentes agora.");

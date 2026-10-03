@@ -19,6 +19,8 @@ export interface ConsultarProtocoloInput {
   /** 1 = produção, 2 = homologação */
   ambiente: 1 | 2;
   chaveAcesso: string;
+  /** "55" = NF-e, "65" = NFC-e — cada uma usa infraestrutura própria em várias UFs (ver webservices-por-uf.ts). */
+  modelo: "55" | "65";
   certificado: { pfxBase64: string; senha: string };
 }
 
@@ -91,7 +93,7 @@ function texto(xml: string, tag: string): string {
 
 export async function consultarProtocolo(input: ConsultarProtocoloInput): Promise<ConsultarProtocoloResultado> {
   const tls = pfxParaPem(input.certificado.pfxBase64, input.certificado.senha);
-  const url = urlConsultaProtocolo(input.codigoUf, input.ambiente);
+  const url = urlConsultaProtocolo(input.codigoUf, input.ambiente, input.modelo);
   const envelope = montarEnvelope(input.ambiente, input.chaveAcesso);
   const resposta = await chamarSefaz(url, envelope, tls);
 

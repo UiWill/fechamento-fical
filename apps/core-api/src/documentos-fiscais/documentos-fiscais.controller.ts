@@ -52,17 +52,20 @@ export class DocumentosFiscaisController {
     return this.service.consultarSituacao(empresaId, this.organizacaoIdDoUsuario(request), documentoId);
   }
 
-  /** Consulta em lote todos os documentos (ENTRADA ou SAIDA) ainda sem cStat=100. */
+  /** Consulta em lote os documentos (ENTRADA ou SAIDA) ainda sem cStat=100, opcionalmente só num período. */
   @Post("consultar-pendentes")
   consultarPendentes(
     @Param("empresaId") empresaId: string,
     @Query("direcao") direcao: string,
+    @Query("inicio") inicio: string | undefined,
+    @Query("fim") fim: string | undefined,
     @Req() request: AuthenticatedRequest
   ) {
     if (direcao !== "ENTRADA" && direcao !== "SAIDA") {
       throw new BadRequestException('direcao deve ser "ENTRADA" ou "SAIDA"');
     }
-    return this.service.consultarPendentes(empresaId, this.organizacaoIdDoUsuario(request), direcao);
+    const periodo = inicio && fim ? { inicio: new Date(inicio), fim: new Date(fim) } : undefined;
+    return this.service.consultarPendentes(empresaId, this.organizacaoIdDoUsuario(request), direcao, periodo);
   }
 
   @Get("xml-zip")

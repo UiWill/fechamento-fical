@@ -48,6 +48,8 @@ export interface ConsultarProtocoloRequest {
   codigoUf: number;
   ambiente: 1 | 2;
   chaveAcesso: string;
+  /** "55" = NF-e, "65" = NFC-e — cada uma usa infraestrutura própria em várias UFs. */
+  modelo: "55" | "65";
   certificado: CertificadoParaEngine;
 }
 

@@ -98,7 +98,7 @@ export class SincronizacaoAgendadaService {
     for (const empresa of empresas) {
       for (const direcao of ["ENTRADA", "SAIDA"] as const) {
         try {
-          const resultado = await this.documentosFiscais.consultarPendentes(
+          const resultado = await this.documentosFiscais.consultarPendentesAguardando(
             empresa.id,
             empresa.organizacaoId,
             direcao

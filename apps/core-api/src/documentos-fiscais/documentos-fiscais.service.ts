@@ -323,12 +323,18 @@ export class DocumentosFiscaisService {
       // de situação de CT-e ainda não foi implementada (ver cte-distribuicao).
       throw new BadRequestException("Consulta de situação de CT-e ainda não está disponível.");
     }
+    // NF-e (modelo 55) e NFC-e (modelo 65) também usam webservices DIFERENTES
+    // em várias UFs (ver fiscal-engine/src/nfe/webservices-por-uf.ts) — sem
+    // mandar o modelo certo, uma NFC-e consultada no serviço de NF-e também
+    // volta cStat 618 por engano.
+    const modelo = documento.tipo === "NFCE" ? "65" : "55";
 
     const certificado = await this.certificados.obterParaUso(empresaId);
     const resultado = await this.fiscalEngine.consultarProtocolo({
       codigoUf: empresa.codigoUf,
       ambiente: empresa.ambiente === "PRODUCAO" ? 1 : 2,
       chaveAcesso: documento.chaveAcesso,
+      modelo,
       certificado,
     });
 
@@ -343,34 +349,90 @@ export class DocumentosFiscaisService {
   }
 
   /**
-   * Consulta em lote todos os documentos de uma direção que ainda não
-   * foram consultados (ou cujo cStat não é 100) — usado pelo botão
-   * "Consultar pendentes" da tela. Roda sequencial com uma pausa pequena
-   * entre cada chamada (não é o mesmo limite de 20/h da Distribuição DFe,
-   * mas não custa não martelar a SEFAZ).
+   * Consulta em lote os documentos pendentes (NF-e/NFC-e cujo cStat ainda
+   * não é 100) de uma direção, opcionalmente só dentro de um período — usado
+   * pelo botão "Consultar pendentes" da tela, escopado ao mês selecionado.
+   * Um período com milhares de notas (realista aqui — algumas empresas têm
+   * +5000 notas de saída por mês) não cabe numa chamada HTTP síncrona (o
+   * navegador/proxy derruba a conexão por timeout bem antes de terminar) —
+   * por isso só CONTA e DISPARA o processamento em segundo plano (sem
+   * "await" no loop), e devolve na hora. O resultado final fica só
+   * refletido nos documentos (cStatConsulta/consultadoEm), que a tela relê
+   * depois — não tem acompanhamento de progresso ainda.
    */
-  async consultarPendentes(empresaId: string, organizacaoId: string, direcao: "ENTRADA" | "SAIDA") {
+  async consultarPendentes(
+    empresaId: string,
+    organizacaoId: string,
+    direcao: "ENTRADA" | "SAIDA",
+    periodo?: { inicio: Date; fim: Date }
+  ) {
+    const documentoIds = await this.buscarIdsPendentes(empresaId, organizacaoId, direcao, periodo);
+
+    // Não espera o loop terminar (dispara e devolve) — chamado pela tela via
+    // HTTP, onde o navegador/proxy derrubaria a conexão por timeout bem
+    // antes de milhares de notas terminarem de ser consultadas. O resultado
+    // fica refletido nos documentos (cStatConsulta/consultadoEm), que a
+    // tela relê depois.
+    void this.executarConsultaPendentes(empresaId, organizacaoId, documentoIds);
+
+    return { total: documentoIds.length, iniciado: documentoIds.length > 0 };
+  }
+
+  /**
+   * Mesma consulta em lote, mas ESPERA o loop terminar antes de devolver —
+   * usado pelo cron diário (sincronizacao-agendada.service.ts), que não tem
+   * timeout de navegador e precisa continuar serializado (uma empresa/
+   * direção por vez) pra não martelar a SEFAZ com várias empresas em
+   * paralelo.
+   */
+  async consultarPendentesAguardando(empresaId: string, organizacaoId: string, direcao: "ENTRADA" | "SAIDA") {
+    const documentoIds = await this.buscarIdsPendentes(empresaId, organizacaoId, direcao);
+    const { consultados, falhas } = await this.executarConsultaPendentes(empresaId, organizacaoId, documentoIds);
+    return { total: documentoIds.length, consultados, falhas };
+  }
+
+  private async buscarIdsPendentes(
+    empresaId: string,
+    organizacaoId: string,
+    direcao: "ENTRADA" | "SAIDA",
+    periodo?: { inicio: Date; fim: Date }
+  ): Promise<string[]> {
     await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
 
     const pendentes = await this.prisma.client.documentoFiscal.findMany({
-      where: { empresaId, direcao, tipo: { in: ["NFE", "NFCE"] }, cStatConsulta: { not: "100" } },
+      where: {
+        empresaId,
+        direcao,
+        tipo: { in: ["NFE", "NFCE"] },
+        cStatConsulta: { not: "100" },
+        ...(periodo ? { emitidoEm: { gte: periodo.inicio, lte: periodo.fim } } : {}),
+      },
       select: { id: true },
     });
+    return pendentes.map((d) => d.id);
+  }
 
+  private async executarConsultaPendentes(
+    empresaId: string,
+    organizacaoId: string,
+    documentoIds: string[]
+  ): Promise<{ consultados: number; falhas: number }> {
     let consultados = 0;
     let falhas = 0;
-    for (const doc of pendentes) {
+    for (const documentoId of documentoIds) {
       try {
-        await this.consultarSituacao(empresaId, organizacaoId, doc.id);
+        await this.consultarSituacao(empresaId, organizacaoId, documentoId);
         consultados += 1;
       } catch (err) {
         falhas += 1;
-        this.logger.warn(`Falha ao consultar documento ${doc.id}: ${err}`);
+        this.logger.warn(`Falha ao consultar documento ${documentoId}: ${err}`);
       }
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
-
-    return { total: pendentes.length, consultados, falhas };
+    this.logger.log(
+      `Consulta em lote concluída pra empresa ${empresaId}: ${consultados} consultada(s), ${falhas} falha(s) de ${documentoIds.length} total.`
+    );
+    return { consultados, falhas };
   }
 
   /**

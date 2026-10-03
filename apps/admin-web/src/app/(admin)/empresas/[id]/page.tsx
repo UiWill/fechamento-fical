@@ -612,12 +612,24 @@ export default function EmpresaDetalhePage() {
     setConsultando(true);
     setResultado(null);
     try {
-      const resultado = await consultarPendentes(params.id, direcao, token);
-      setResultado(
-        resultado.total === 0
-          ? "Nenhuma nota pendente de consulta."
-          : `${resultado.consultados}/${resultado.total} consultada(s)${resultado.falhas > 0 ? ` · ${resultado.falhas} falha(s)` : ""}.`
-      );
+      const { inicio, fim } = limitesDoMes(direcao === "ENTRADA" ? mesFiltro : mesFiltroSaida);
+      const resultado = await consultarPendentes(params.id, direcao, token, { inicio, fim });
+      if (resultado.total === 0) {
+        setResultado("Nenhuma nota pendente de consulta nesse período.");
+      } else {
+        setResultado(
+          `${resultado.total} nota(s) sendo consultada(s) em segundo plano — a lista vai se atualizando sozinha.`
+        );
+        // Processamento roda em segundo plano no servidor (pode levar
+        // minutos num período com muitas notas) — relê a lista de tempos em
+        // tempos pra ir refletindo os resultados sem precisar F5.
+        const releituras = [5_000, 15_000, 30_000, 60_000, 120_000];
+        for (const atraso of releituras) {
+          setTimeout(() => {
+            void listarDocumentosFiscais(params.id, token).then(setDocumentos);
+          }, atraso);
+        }
+      }
       const docs = await listarDocumentosFiscais(params.id, token);
       setDocumentos(docs);
     } catch {

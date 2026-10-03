@@ -7,6 +7,7 @@ const bodySchema = z.object({
   codigoUf: z.number().int().positive(),
   ambiente: z.union([z.literal(1), z.literal(2)]),
   chaveAcesso: z.string().regex(/^\d{44}$/),
+  modelo: z.union([z.literal("55"), z.literal("65")]),
   certificado: z.object({
     pfxBase64: z.string().min(1),
     senha: z.string().min(1),
