@@ -16,6 +16,7 @@ function val(v: string | null): string {
 }
 
 export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; token: string }) {
+  const [direcao, setDirecao] = useState<"ENTRADA" | "SAIDA">("SAIDA");
   const [itens, setItens] = useState<ItemApuracao[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -27,7 +28,7 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
     setCarregando(true);
     try {
       const { inicio, fim } = limitesDoMes(mes);
-      const dados = await listarApuracaoItens(empresaId, inicio, fim, token);
+      const dados = await listarApuracaoItens(empresaId, direcao, inicio, fim, token);
       setItens(dados);
       setErro(null);
     } catch {
@@ -35,7 +36,7 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
     } finally {
       setCarregando(false);
     }
-  }, [empresaId, token, mes]);
+  }, [empresaId, token, mes, direcao]);
 
   useEffect(() => {
     void carregar();
@@ -45,10 +46,10 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
     setReprocessando(true);
     setMensagem(null);
     try {
-      const resultado = await reprocessarItensDocumentoFiscal(empresaId, token);
+      const resultado = await reprocessarItensDocumentoFiscal(empresaId, direcao, token);
       setMensagem(
         resultado.total === 0
-          ? "Nenhuma nota de saída sem itens pra reprocessar."
+          ? `Nenhuma nota de ${direcao === "SAIDA" ? "saída" : "entrada"} sem itens pra reprocessar.`
           : `${resultado.total} nota(s) sendo reprocessada(s) em segundo plano — a lista vai se atualizando sozinha.`
       );
       const releituras = [5_000, 15_000, 30_000, 60_000];
@@ -65,14 +66,41 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
   return (
     <div className="space-y-3">
       <p className="text-xs" style={{ color: "var(--muted)" }}>
-        Item a item das notas de saída autorizadas no mês — produto, NCM, CFOP e a tributação de
-        ICMS/IPI/PIS/COFINS de cada linha, direto do XML. Linhas com <strong>CFOP divergente</strong> (fora
-        do que as regras fiscais esperam na saída) ficam destacadas.
+        Item a item das notas de {direcao === "SAIDA" ? "saída" : "entrada"} autorizadas no mês — produto, NCM, CFOP
+        e a tributação de ICMS/IPI/PIS/COFINS de cada linha, direto do XML.{" "}
+        {direcao === "SAIDA" && (
+          <>
+            Linhas com <strong>CFOP divergente</strong> (fora do que as regras fiscais esperam na saída) ficam
+            destacadas.
+          </>
+        )}
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4" style={{ borderColor: "var(--border)" }}>
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-3">
+            <div className="flex overflow-hidden rounded-md border" style={{ borderColor: "var(--border)" }}>
+              <button
+                onClick={() => setDirecao("ENTRADA")}
+                className="px-3 py-1.5 font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-colors"
+                style={{
+                  background: direcao === "ENTRADA" ? "var(--paper)" : "transparent",
+                  color: direcao === "ENTRADA" ? "var(--void, #0a0a0a)" : "var(--muted)",
+                }}
+              >
+                Entrada
+              </button>
+              <button
+                onClick={() => setDirecao("SAIDA")}
+                className="px-3 py-1.5 font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-colors"
+                style={{
+                  background: direcao === "SAIDA" ? "var(--paper)" : "transparent",
+                  color: direcao === "SAIDA" ? "var(--void, #0a0a0a)" : "var(--muted)",
+                }}
+              >
+                Saída
+              </button>
+            </div>
             <label className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
               Mês
             </label>
@@ -103,8 +131,9 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
       ) : itens.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: "var(--border)" }}>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
-            Nenhum item em {rotuloMes(mes)}. Se a empresa tem notas de saída desse mês e nada aparece aqui,
-            clique em <strong>Reprocessar itens</strong> (histórico anterior a essa tela ainda não tem itens extraídos).
+            Nenhum item em {rotuloMes(mes)}. Se a empresa tem notas de {direcao === "SAIDA" ? "saída" : "entrada"}{" "}
+            desse mês e nada aparece aqui, clique em <strong>Reprocessar itens</strong> (histórico anterior a essa
+            tela ainda não tem itens extraídos).
           </p>
         </div>
       ) : (

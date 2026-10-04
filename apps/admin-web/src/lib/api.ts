@@ -644,12 +644,13 @@ export interface ItemApuracao {
 
 export async function listarApuracaoItens(
   empresaId: string,
+  direcao: "ENTRADA" | "SAIDA",
   inicio: string,
   fim: string,
   token: string
 ): Promise<ItemApuracao[]> {
   const response = await apiFetch(
-    `${API_URL}/empresas/${empresaId}/documentos-fiscais/apuracao/itens?inicio=${inicio}&fim=${fim}`,
+    `${API_URL}/empresas/${empresaId}/documentos-fiscais/apuracao/itens?direcao=${direcao}&inicio=${inicio}&fim=${fim}`,
     { headers: { authorization: `Bearer ${token}` }, cache: "no-store" }
   );
   if (!response.ok) throw new Error("Não foi possível carregar a apuração agora.");
@@ -658,12 +659,13 @@ export async function listarApuracaoItens(
 
 export async function reprocessarItensDocumentoFiscal(
   empresaId: string,
+  direcao: "ENTRADA" | "SAIDA",
   token: string
 ): Promise<{ total: number; iniciado: boolean }> {
-  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais/itens/reprocessar`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}` },
-  });
+  const response = await apiFetch(
+    `${API_URL}/empresas/${empresaId}/documentos-fiscais/itens/reprocessar?direcao=${direcao}`,
+    { method: "POST", headers: { authorization: `Bearer ${token}` } }
+  );
   if (!response.ok) throw new Error("Não foi possível reprocessar os itens agora.");
   return response.json();
 }

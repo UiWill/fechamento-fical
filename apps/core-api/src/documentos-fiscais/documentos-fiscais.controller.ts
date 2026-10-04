@@ -69,27 +69,38 @@ export class DocumentosFiscaisController {
   }
 
   /**
-   * Itens (produtos) de notas de saída autorizadas num período — base das
-   * telas de Apuração do ICMS e Apuração do IBS/CBS (mesma lista, as duas
-   * telas só escolhem colunas diferentes pra mostrar).
+   * Itens (produtos) de notas (ENTRADA ou SAIDA) autorizadas num período —
+   * base das telas de Apuração do ICMS e Apuração do IBS/CBS (mesma
+   * lista, as duas telas só escolhem colunas diferentes pra mostrar).
    */
   @Get("apuracao/itens")
   apuracaoItens(
     @Param("empresaId") empresaId: string,
+    @Query("direcao") direcao: string,
     @Query("inicio") inicio: string,
     @Query("fim") fim: string,
     @Req() request: AuthenticatedRequest
   ) {
+    if (direcao !== "ENTRADA" && direcao !== "SAIDA") {
+      throw new BadRequestException('direcao deve ser "ENTRADA" ou "SAIDA"');
+    }
     if (!inicio || !fim) {
       throw new BadRequestException('"inicio" e "fim" são obrigatórios');
     }
-    return this.service.apuracaoItens(empresaId, this.organizacaoIdDoUsuario(request), new Date(inicio), new Date(fim));
+    return this.service.apuracaoItens(empresaId, this.organizacaoIdDoUsuario(request), direcao, new Date(inicio), new Date(fim));
   }
 
-  /** Extrai e persiste os itens de documentos de SAÍDA que ainda não têm — histórico anterior à feature, ou falhas pontuais na ingestão. */
+  /** Extrai e persiste os itens de documentos (ENTRADA ou SAIDA) que ainda não têm — histórico anterior à feature, ou falhas pontuais na ingestão. */
   @Post("itens/reprocessar")
-  reprocessarItens(@Param("empresaId") empresaId: string, @Req() request: AuthenticatedRequest) {
-    return this.service.reprocessarItens(empresaId, this.organizacaoIdDoUsuario(request));
+  reprocessarItens(
+    @Param("empresaId") empresaId: string,
+    @Query("direcao") direcao: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    if (direcao !== "ENTRADA" && direcao !== "SAIDA") {
+      throw new BadRequestException('direcao deve ser "ENTRADA" ou "SAIDA"');
+    }
+    return this.service.reprocessarItens(empresaId, this.organizacaoIdDoUsuario(request), direcao);
   }
 
   @Get("xml-zip")

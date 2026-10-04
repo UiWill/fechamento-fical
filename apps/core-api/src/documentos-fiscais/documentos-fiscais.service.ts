@@ -229,7 +229,7 @@ export class DocumentosFiscaisService {
           Buffer.from(doc.xml, "utf8")
         );
 
-        await this.prisma.client.documentoFiscal.upsert({
+        const documentoEntrada = await this.prisma.client.documentoFiscal.upsert({
           where: { chaveAcesso: dadosBasicos.chaveAcesso },
           create: {
             empresaId,
@@ -253,6 +253,18 @@ export class DocumentosFiscaisService {
             valorTotal: dadosBasicos.valorTotal,
           },
         });
+
+        // A Distribuição DFe às vezes manda só o resumo (resNFe, sem <det>)
+        // antes do XML completo chegar — lerNotaSaida() simplesmente não
+        // acha nenhum <det> nesse caso e extrairEPersistirItens() não grava
+        // nada (sem erro), então é seguro chamar sempre.
+        if (dadosBasicos.tipo === "NFE" || dadosBasicos.tipo === "NFCE") {
+          try {
+            await this.itensDocumentoFiscal.extrairEPersistirItens(documentoEntrada.id, doc.xml);
+          } catch (err) {
+            this.logger.warn(`Falha ao extrair itens do documento ${documentoEntrada.id}: ${err}`);
+          }
+        }
 
         documentosNovos += 1;
       }
@@ -438,19 +450,25 @@ export class DocumentosFiscaisService {
   }
 
   /**
-   * Itens (produtos) de notas de SAÍDA autorizadas (cStat=100) num
-   * período — base das telas de Apuração do ICMS e Apuração do IBS/CBS.
-   * As duas telas usam a mesma busca, só mudam as colunas que o
+   * Itens (produtos) de notas autorizadas (cStat=100) num período, de
+   * ENTRADA ou SAÍDA — base das telas de Apuração do ICMS e Apuração do
+   * IBS/CBS. As duas telas usam a mesma busca, só mudam as colunas que o
    * admin-web decide exibir; aqui devolvemos tudo de uma vez.
    */
-  async apuracaoItens(empresaId: string, organizacaoId: string, inicio: Date, fim: Date) {
+  async apuracaoItens(
+    empresaId: string,
+    organizacaoId: string,
+    direcao: "ENTRADA" | "SAIDA",
+    inicio: Date,
+    fim: Date
+  ) {
     const empresa = await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
 
     const itens = await this.prisma.client.itemDocumentoFiscal.findMany({
       where: {
         documentoFiscal: {
           empresaId,
-          direcao: "SAIDA",
+          direcao,
           tipo: { in: ["NFE", "NFCE"] },
           cStatConsulta: "100",
           emitidoEm: { gte: inicio, lte: fim },
@@ -460,24 +478,29 @@ export class DocumentosFiscaisService {
       orderBy: [{ documentoFiscal: { emitidoEm: "asc" } }, { nItem: "asc" }],
     });
 
-    // "De/para" (cfopEntrada -> cfopSaidaEsperado) define, pra cada
-    // empresa, quais CFOPs de saída são esperados quando a regra tem o
-    // campo preenchido. Sem rastreio de estoque (que entrada virou qual
-    // saída), a checagem possível aqui é: o CFOP de saída desse item está
+    // "De/para" (cfopEntrada -> cfopSaidaEsperado) só faz sentido pra
+    // SAÍDA — define quais CFOPs de saída são esperados quando a regra
+    // tem o campo preenchido. Sem rastreio de estoque (que entrada virou
+    // qual saída), a checagem possível é: o CFOP de saída desse item está
     // entre os valores que ALGUMA regra ativa da empresa/organização
     // espera ver na saída? Se a empresa não configurou nenhum
-    // cfopSaidaEsperado ainda, ninguém é marcado como divergente (regra
-    // nova, opcional, não quebra quem não configurou nada).
-    const regras = await this.prisma.client.regraFiscal.findMany({
-      where: {
-        organizacaoId: empresa.organizacaoId,
-        ativa: true,
-        cfopSaidaEsperado: { not: null },
-        OR: [{ empresaId }, { empresaId: null }],
-      },
-      select: { cfopSaidaEsperado: true },
-    });
-    const cfopsSaidaEsperados = new Set(regras.map((r) => r.cfopSaidaEsperado));
+    // cfopSaidaEsperado ainda, ninguém é marcado como divergente.
+    const cfopsSaidaEsperados =
+      direcao === "SAIDA"
+        ? new Set(
+            (
+              await this.prisma.client.regraFiscal.findMany({
+                where: {
+                  organizacaoId: empresa.organizacaoId,
+                  ativa: true,
+                  cfopSaidaEsperado: { not: null },
+                  OR: [{ empresaId }, { empresaId: null }],
+                },
+                select: { cfopSaidaEsperado: true },
+              })
+            ).map((r) => r.cfopSaidaEsperado)
+          )
+        : new Set<string | null>();
 
     return itens.map((item) => {
       const numeroNota = Number(item.documentoFiscal.chaveAcesso.slice(25, 34));
@@ -491,20 +514,21 @@ export class DocumentosFiscaisService {
   }
 
   /**
-   * Reprocessa (extrai e persiste) os itens de documentos de SAÍDA
-   * (NF-e/NFC-e) que ainda não têm nenhuma linha em ItemDocumentoFiscal —
-   * cobre tanto histórico anterior à feature de Apuração quanto qualquer
-   * nota que falhou na extração automática da ingestão. Mesmo padrão
-   * "conta e dispara em segundo plano" de consultarPendentes — milhares
-   * de documentos não cabem numa chamada HTTP síncrona.
+   * Reprocessa (extrai e persiste) os itens de documentos (NF-e/NFC-e, de
+   * ENTRADA ou SAÍDA) que ainda não têm nenhuma linha em
+   * ItemDocumentoFiscal — cobre tanto histórico anterior à feature de
+   * Apuração quanto qualquer nota que falhou na extração automática da
+   * ingestão. Mesmo padrão "conta e dispara em segundo plano" de
+   * consultarPendentes — milhares de documentos não cabem numa chamada
+   * HTTP síncrona.
    */
-  async reprocessarItens(empresaId: string, organizacaoId: string) {
+  async reprocessarItens(empresaId: string, organizacaoId: string, direcao: "ENTRADA" | "SAIDA") {
     await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
 
     const documentos = await this.prisma.client.documentoFiscal.findMany({
       where: {
         empresaId,
-        direcao: "SAIDA",
+        direcao,
         tipo: { in: ["NFE", "NFCE"] },
         itens: { none: {} },
       },
