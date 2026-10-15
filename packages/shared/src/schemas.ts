@@ -27,6 +27,9 @@ export const criarEmpresaSchema = z.object({
   uf: z.string().length(2),
   codigoUf: z.number().int().positive(),
   ambiente: z.enum(AMBIENTE_FISCAL).default("HOMOLOGACAO"),
+  // A partir de quando o agente desktop capta XML de saida dessa empresa
+  // -- o formulario de cadastro sempre manda (default visual = mes atual).
+  dataInicioMonitoramento: z.coerce.date(),
 });
 export type CriarEmpresaInput = z.infer<typeof criarEmpresaSchema>;
 
@@ -35,6 +38,7 @@ export const empresaSchema = criarEmpresaSchema.extend({
   status: z.enum(STATUS_EMPRESA),
   ativadaEm: z.coerce.date(),
   desativadaEm: z.coerce.date().nullable(),
+  dataInicioMonitoramento: z.coerce.date().nullable(),
 });
 export type Empresa = z.infer<typeof empresaSchema>;
 

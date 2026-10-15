@@ -87,7 +87,15 @@ function abrirJanelaStatus(): void {
 /** Apaga token, pasta e o histórico de chaves já enviadas, e reinicia o app do zero (volta pra tela de configuração). */
 function limparConfiguracaoEReiniciar(): void {
   const config = carregarConfig();
-  salvarConfig({ token: null, pastasMonitoradas: [], chavesEnviadas: {}, versaoAgente: config.versaoAgente, ultimoHeartbeatEm: null });
+  salvarConfig({
+    token: null,
+    pastasMonitoradas: [],
+    chavesEnviadas: {},
+    versaoAgente: config.versaoAgente,
+    ultimoHeartbeatEm: null,
+    escopoEmpresas: [],
+    arquivosAntigosIgnorados: {},
+  });
   app.relaunch();
   app.exit(0);
 }
@@ -206,8 +214,10 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
   if (pararObservador) return; // já está rodando, não duplica
 
   try {
-    const { cnpjs } = await buscarEscopo(configInicial.token!);
+    const { cnpjs, empresas } = await buscarEscopo(configInicial.token!);
     console.log(`[main] token autorizado para ${cnpjs.length} CNPJ(s): ${cnpjs.join(", ")}`);
+    configInicial.escopoEmpresas = empresas ?? [];
+    salvarConfig(configInicial);
   } catch (err) {
     console.error(`[main] não consegui validar o token com o servidor: ${err}`);
     if (!EH_VIGIA) {
@@ -229,7 +239,16 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
   }, INTERVALO_ATUALIZACAO_MS);
 
   const fila = criarFilaDeEnvio(configInicial.token!);
-  configurarTelemetria({ versao: configInicial.versaoAgente, pastas: configInicial.pastasMonitoradas, filaPendente: fila.tamanhoFila });
+  const cortesConhecidos = configInicial.escopoEmpresas
+    .map((e) => e.dataInicioMonitoramento)
+    .filter((d): d is string => Boolean(d))
+    .sort();
+  configurarTelemetria({
+    versao: configInicial.versaoAgente,
+    pastas: configInicial.pastasMonitoradas,
+    filaPendente: fila.tamanhoFila,
+    dataInicioMonitoramento: cortesConhecidos[0] ?? null,
+  });
 
   observarPastas(configInicial.pastasMonitoradas, (caminho) => {
     if (!pausado) fila.enfileirar(caminho);

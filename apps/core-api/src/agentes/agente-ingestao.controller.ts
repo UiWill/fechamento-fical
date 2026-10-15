@@ -41,7 +41,12 @@ export class AgenteIngestaoController {
   @UseGuards(AgenteTokenGuard)
   async escopo(@Req() request: AgenteAuthenticatedRequest) {
     const empresas = await this.service.resolverEmpresasAutorizadas(request.agenteToken!);
-    return { cnpjs: empresas.map((e) => e.cnpj) };
+    // "cnpjs" fica igual (agentes 2.0.x ja publicados esperam esse shape
+    // exato) -- "empresas" e campo novo, so quem souber dele (2.0.8+) le.
+    return {
+      cnpjs: empresas.map((e) => e.cnpj),
+      empresas: empresas.map((e) => ({ cnpj: e.cnpj, dataInicioMonitoramento: e.dataInicioMonitoramento })),
+    };
   }
 
   @Post("documentos")

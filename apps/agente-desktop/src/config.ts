@@ -18,11 +18,16 @@ const PASTA_CONFIG = process.env.LOCALAPPDATA
 
 const ARQUIVO_CONFIG = path.join(PASTA_CONFIG, "config.json");
 
-export type StatusArquivoEnviado = "ACEITO" | "DUPLICADO" | "CNPJ_NAO_AUTORIZADO" | "INVALIDO";
+export type StatusArquivoEnviado = "ACEITO" | "DUPLICADO" | "CNPJ_NAO_AUTORIZADO" | "INVALIDO" | "FORA_DO_PERIODO";
 
 export interface EstadoArquivoEnviado {
   status: StatusArquivoEnviado;
   enviadoEm: string;
+}
+
+export interface EmpresaEscopoLocal {
+  cnpj: string;
+  dataInicioMonitoramento: string | null;
 }
 
 export interface ConfigAgente {
@@ -31,6 +36,12 @@ export interface ConfigAgente {
   chavesEnviadas: Record<string, EstadoArquivoEnviado>;
   versaoAgente: string;
   ultimoHeartbeatEm: string | null;
+  // Snapshot do ultimo /escopo -- usado pra saber a partir de quando
+  // captar cada empresa sem precisar perguntar o servidor por arquivo.
+  escopoEmpresas: EmpresaEscopoLocal[];
+  // Caminho absoluto -> quando foi avaliado como "antigo demais" (pulado
+  // sem precisar reler o arquivo nas proximas varreduras).
+  arquivosAntigosIgnorados: Record<string, { mtimeMs: number; cortadoEm: string }>;
 }
 
 // Embutido em tempo de build (ver build-exe.mjs) com a versão real que
@@ -45,6 +56,8 @@ const CONFIG_PADRAO: ConfigAgente = {
   chavesEnviadas: {},
   versaoAgente: VERSAO_PADRAO,
   ultimoHeartbeatEm: null,
+  escopoEmpresas: [],
+  arquivosAntigosIgnorados: {},
 };
 
 export function carregarConfig(): ConfigAgente {

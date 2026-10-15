@@ -84,6 +84,11 @@ export class EmpresasService {
     return this.prisma.client.empresa.update({ where: { id }, data: { ambiente } });
   }
 
+  async alterarDataInicioMonitoramento(id: string, organizacaoId: string, dataInicioMonitoramento: Date) {
+    await this.empresaDaOrganizacao(id, organizacaoId);
+    return this.prisma.client.empresa.update({ where: { id }, data: { dataInicioMonitoramento } });
+  }
+
   /**
    * Consulta dados públicos do CNPJ (razão social, UF, situação
    * cadastral) via BrasilAPI — agregador de dados abertos da Receita

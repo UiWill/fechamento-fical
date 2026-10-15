@@ -17,7 +17,7 @@ declare global {
   interface EventoAgenteStatus {
     em: string;
     arquivo?: string;
-    status: "ACEITO" | "DUPLICADO" | "CNPJ_NAO_AUTORIZADO" | "INVALIDO" | "IGNORADO" | "ERRO_REDE";
+    status: "ACEITO" | "DUPLICADO" | "CNPJ_NAO_AUTORIZADO" | "INVALIDO" | "IGNORADO" | "ERRO_REDE" | "FORA_DO_PERIODO";
     detalhe?: string;
   }
 
@@ -25,7 +25,8 @@ declare global {
     versao: string;
     iniciadoEm: string;
     pastas: string[];
-    contadores: { lidos: number; aceitos: number; duplicados: number; recusados: number; ignorados: number };
+    dataInicioMonitoramento: string | null;
+    contadores: { lidos: number; aceitos: number; duplicados: number; recusados: number; ignorados: number; antigos: number };
     filaPendente: number;
     ultimoEnvioEm: string | null;
     ultimaNotaAceitaEm: string | null;

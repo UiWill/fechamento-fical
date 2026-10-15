@@ -26,6 +26,7 @@ export function criarFilaDeEnvio(token: string) {
   let pendentes: ItemPendente[] = [];
   let aceitosNaoAvisados = 0;
   let ultimoAvisoEm = 0;
+  let configSujo = false;
 
   function jaProcessado(chaveAcesso: string): boolean {
     const estado = config.chavesEnviadas[chaveAcesso];
@@ -36,7 +37,19 @@ export function criarFilaDeEnvio(token: string) {
     config.chavesEnviadas[chaveAcesso] = { status, enviadoEm: new Date().toISOString() };
   }
 
-  function processarConteudoXml(nomeArquivoOriginal: string, conteudo: string): void {
+  /** Corte (ISO) da empresa dona do CNPJ, se o escopo mais recente souber dele. */
+  function obterCorte(cnpjEmitente: string): string | null {
+    return config.escopoEmpresas.find((e) => e.cnpj === cnpjEmitente)?.dataInicioMonitoramento ?? null;
+  }
+
+  /** Menor corte entre todas as empresas autorizadas — usado só pra saber se um cache de "antigo" ainda vale (corte não voltou pra trás). */
+  function corteMinimoAtual(): string | null {
+    const cortes = config.escopoEmpresas.map((e) => e.dataInicioMonitoramento).filter((d): d is string => Boolean(d));
+    return cortes.length > 0 ? (cortes.sort()[0] ?? null) : null;
+  }
+
+  /** Devolve o corte (ISO) usado quando o XML é antigo demais, ou undefined quando foi enfileirado/descartado por outro motivo. */
+  function processarConteudoXml(nomeArquivoOriginal: string, conteudo: string): string | undefined {
     const dados = extrairDadosBasicos(conteudo);
     if (!dados || !validarDigitoVerificadorChave(dados.chaveAcesso)) {
       // Não é um XML fiscal reconhecível (ou está corrompido/incompleto) —
@@ -48,17 +61,28 @@ export function criarFilaDeEnvio(token: string) {
         status: "IGNORADO",
         detalhe: "não é uma NF-e/NFC-e/CT-e válida (XML de outro tipo, incompleto ou com chave inválida)",
       });
-      return;
+      return undefined;
     }
 
-    if (jaProcessado(dados.chaveAcesso)) return;
-    contarLido();
+    if (jaProcessado(dados.chaveAcesso)) return undefined;
 
+    const corte = obterCorte(dados.cnpjEmitente);
+    if (corte && dados.dataEmissao && dados.dataEmissao < new Date(corte)) {
+      registrarEvento({
+        arquivo: nomeArquivoOriginal,
+        status: "FORA_DO_PERIODO",
+        detalhe: `emitida antes de ${corte.slice(0, 10)} (início de captura dessa empresa)`,
+      });
+      return corte;
+    }
+
+    contarLido();
     pendentes.push({
       nomeArquivoOriginal,
       xmlBase64: Buffer.from(conteudo, "utf8").toString("base64"),
       chaveAcesso: dados.chaveAcesso,
     });
+    return undefined;
   }
 
   /** Extrai o .zip em memória e classifica cada .xml de dentro como se fosse um arquivo solto. */
@@ -90,6 +114,23 @@ export function criarFilaDeEnvio(token: string) {
       return;
     }
 
+    let mtimeMs: number;
+    try {
+      mtimeMs = fs.statSync(caminhoArquivo).mtimeMs;
+    } catch {
+      return; // arquivo sumiu entre o evento do watcher e agora
+    }
+
+    // Já avaliado como "antigo demais" numa varredura anterior, com o
+    // arquivo exatamente igual (mesmo mtime) e sem o corte ter "voltado"
+    // pra uma data mais cedo — pula sem gastar leitura de disco nenhuma.
+    // É isso que mantém reinícios rápidos mesmo com anos de XML na pasta.
+    const cache = config.arquivosAntigosIgnorados[caminhoArquivo];
+    const corteMin = corteMinimoAtual();
+    if (cache && cache.mtimeMs === mtimeMs && (!corteMin || cache.cortadoEm <= corteMin)) {
+      return;
+    }
+
     let conteudo: string;
     try {
       conteudo = fs.readFileSync(caminhoArquivo, "utf8");
@@ -98,11 +139,28 @@ export function criarFilaDeEnvio(token: string) {
       return;
     }
 
-    processarConteudoXml(caminhoArquivo, conteudo);
+    const corteUsado = processarConteudoXml(caminhoArquivo, conteudo);
+    if (corteUsado) {
+      config.arquivosAntigosIgnorados[caminhoArquivo] = { mtimeMs, cortadoEm: corteUsado };
+      configSujo = true;
+    } else if (config.arquivosAntigosIgnorados[caminhoArquivo]) {
+      delete config.arquivosAntigosIgnorados[caminhoArquivo];
+      configSujo = true;
+    }
   }
 
   async function flush(): Promise<void> {
-    if (pendentes.length === 0) return;
+    if (pendentes.length === 0) {
+      // Nada pra enviar, mas pode ter arquivo novo marcado como "antigo
+      // demais" (arquivosAntigosIgnorados) — precisa persistir mesmo sem
+      // upload, senão o cache que evita reler o histórico se perde a cada
+      // reinício e a varredura volta a ficar lenta.
+      if (configSujo) {
+        salvarConfig(config);
+        configSujo = false;
+      }
+      return;
+    }
 
     const lote = pendentes.slice(0, TAMANHO_MAXIMO_LOTE);
     pendentes = pendentes.slice(TAMANHO_MAXIMO_LOTE);
@@ -129,6 +187,7 @@ export function criarFilaDeEnvio(token: string) {
         }
       }
       salvarConfig(config);
+      configSujo = false;
       registrarEnvioConcluido();
       // Agrupa os avisos: numa varredura grande seriam dezenas de balões seguidos.
       aceitosNaoAvisados += aceitos;

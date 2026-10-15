@@ -11,7 +11,7 @@ import type { AgenteAutenticado } from "./agente-token.guard";
 import { hashTokenAgente } from "./agente-token.guard";
 import { ItensDocumentoFiscalService } from "../documentos-fiscais/itens-documento-fiscal.service";
 
-export type StatusItemUpload = "ACEITO" | "DUPLICADO" | "CNPJ_NAO_AUTORIZADO" | "INVALIDO";
+export type StatusItemUpload = "ACEITO" | "DUPLICADO" | "CNPJ_NAO_AUTORIZADO" | "INVALIDO" | "FORA_DO_PERIODO";
 
 export interface ResultadoItemUpload {
   nomeArquivoOriginal: string;
@@ -311,6 +311,18 @@ export class AgentesService {
         status: "CNPJ_NAO_AUTORIZADO",
         chaveAcesso: dados.chaveAcesso,
         motivo: `CNPJ ${dados.cnpjEmitente} fora do escopo deste token`,
+      };
+    }
+
+    // Segunda camada de validacao (nao confia so no filtro do agente) --
+    // mesmo raciocinio ja usado pro resto do sistema: cliente pode estar
+    // desatualizado ou ter o cache local errado.
+    if (empresa.dataInicioMonitoramento && dados.dataEmissao && dados.dataEmissao < empresa.dataInicioMonitoramento) {
+      return {
+        nomeArquivoOriginal,
+        status: "FORA_DO_PERIODO",
+        chaveAcesso: dados.chaveAcesso,
+        motivo: `Emitida antes de ${empresa.dataInicioMonitoramento.toISOString().slice(0, 10)} (data de inicio de captura dessa empresa)`,
       };
     }
 

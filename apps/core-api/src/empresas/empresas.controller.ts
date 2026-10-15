@@ -57,4 +57,13 @@ export class EmpresasController {
     }
     return this.service.alterarAmbiente(id, this.organizacaoIdDoUsuario(request), ambiente);
   }
+
+  @Patch(":id/data-inicio-monitoramento")
+  alterarDataInicioMonitoramento(@Param("id") id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
+    const data = (body as { dataInicioMonitoramento?: unknown })?.dataInicioMonitoramento;
+    if (typeof data !== "string" || Number.isNaN(Date.parse(data))) {
+      throw new BadRequestException("dataInicioMonitoramento deve ser uma data válida");
+    }
+    return this.service.alterarDataInicioMonitoramento(id, this.organizacaoIdDoUsuario(request), new Date(data));
+  }
 }

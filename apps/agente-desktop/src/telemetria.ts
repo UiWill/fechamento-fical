@@ -18,7 +18,8 @@ export type StatusEvento =
   | "CNPJ_NAO_AUTORIZADO"
   | "INVALIDO"
   | "IGNORADO"
-  | "ERRO_REDE";
+  | "ERRO_REDE"
+  | "FORA_DO_PERIODO";
 
 export interface EventoAgente {
   em: string;
@@ -37,7 +38,8 @@ const estado = {
   iniciadoEm: new Date().toISOString(),
   versao: "",
   pastas: [] as string[],
-  contadores: { lidos: 0, aceitos: 0, duplicados: 0, recusados: 0, ignorados: 0 },
+  contadores: { lidos: 0, aceitos: 0, duplicados: 0, recusados: 0, ignorados: 0, antigos: 0 },
+  dataInicioMonitoramento: null as string | null,
   filaPendente: () => 0,
   ultimoEnvioEm: null as string | null,
   ultimaNotaAceitaEm: null as string | null,
@@ -92,10 +94,16 @@ export function instalarLogEmArquivo(): void {
   };
 }
 
-export function configurarTelemetria(dados: { versao: string; pastas: string[]; filaPendente: () => number }): void {
+export function configurarTelemetria(dados: {
+  versao: string;
+  pastas: string[];
+  filaPendente: () => number;
+  dataInicioMonitoramento?: string | null;
+}): void {
   estado.versao = dados.versao;
   estado.pastas = dados.pastas;
   estado.filaPendente = dados.filaPendente;
+  estado.dataInicioMonitoramento = dados.dataInicioMonitoramento ?? null;
 }
 
 export function registrarEvento(evento: Omit<EventoAgente, "em">): void {
@@ -114,6 +122,9 @@ export function registrarEvento(evento: Omit<EventoAgente, "em">): void {
       break;
     case "IGNORADO":
       c.ignorados += 1;
+      break;
+    case "FORA_DO_PERIODO":
+      c.antigos += 1;
       break;
     case "CNPJ_NAO_AUTORIZADO":
     case "INVALIDO":
@@ -162,6 +173,7 @@ export function estadoCompleto() {
     versao: estado.versao,
     iniciadoEm: estado.iniciadoEm,
     pastas: estado.pastas,
+    dataInicioMonitoramento: estado.dataInicioMonitoramento,
     contadores: estado.contadores,
     filaPendente: estado.filaPendente(),
     ultimoEnvioEm: estado.ultimoEnvioEm,

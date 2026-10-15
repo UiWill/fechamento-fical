@@ -8,6 +8,7 @@ import {
   buscarCertificado,
   uploadCertificado,
   alterarAmbienteEmpresa,
+  alterarDataInicioMonitoramentoEmpresa,
   listarDocumentosFiscais,
   sincronizarDocumentos,
   classificarPendentes,
@@ -475,6 +476,7 @@ export default function EmpresaDetalhePage() {
   }
 
   const [alterandoAmbiente, setAlterandoAmbiente] = useState(false);
+  const [alterandoDataInicio, setAlterandoDataInicio] = useState(false);
   const [manifestarTodasAberto, setManifestarTodasAberto] = useState(false);
 
   const [ordenacaoEntrada, setOrdenacaoEntrada] = useState<Ordenacao>(ORDENACAO_PADRAO);
@@ -571,6 +573,25 @@ export default function EmpresaDetalhePage() {
       window.alert("Não foi possível trocar o ambiente agora.");
     } finally {
       setAlterandoAmbiente(false);
+    }
+  }
+
+  async function handleAlterarDataInicioMonitoramento() {
+    if (!token || !empresa) return;
+    const atual = empresa.dataInicioMonitoramento ? empresa.dataInicioMonitoramento.slice(0, 10) : "";
+    const novaData = window.prompt(
+      "A partir de que data (AAAA-MM-DD) o agente deve captar documentos de saída dessa empresa? XML emitido antes disso é ignorado.",
+      atual
+    );
+    if (!novaData || !/^\d{4}-\d{2}-\d{2}$/.test(novaData)) return;
+    setAlterandoDataInicio(true);
+    try {
+      const atualizada = await alterarDataInicioMonitoramentoEmpresa(params.id, novaData, token);
+      setEmpresa(atualizada);
+    } catch {
+      window.alert("Não foi possível alterar a data de início de captura agora.");
+    } finally {
+      setAlterandoDataInicio(false);
     }
   }
 
@@ -862,6 +883,20 @@ export default function EmpresaDetalhePage() {
             {alterandoAmbiente
               ? "trocando…"
               : `trocar para ${empresa.ambiente === "PRODUCAO" ? "homologação" : "produção"}`}
+          </button>
+        </p>
+        <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+          Captando documentos a partir de:{" "}
+          {empresa.dataInicioMonitoramento ? formatarData(empresa.dataInicioMonitoramento) : "sem corte"}{" "}
+          <button
+            type="button"
+            onClick={() => void handleAlterarDataInicioMonitoramento()}
+            disabled={alterandoDataInicio}
+            className="font-mono text-[0.625rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30"
+            style={{ color: "var(--paper)" }}
+            title="XML emitido antes dessa data é ignorado pelo agente desktop"
+          >
+            {alterandoDataInicio ? "salvando…" : "editar"}
           </button>
         </p>
       </div>

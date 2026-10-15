@@ -147,6 +147,7 @@ export interface CriarEmpresaInput {
   uf: string;
   codigoUf: number;
   ambiente: "PRODUCAO" | "HOMOLOGACAO";
+  dataInicioMonitoramento: string;
 }
 
 export async function criarEmpresa(
@@ -204,6 +205,7 @@ export interface EmpresaDetalhe extends EmpresaResumo {
   codigoUf: number;
   ambiente: "PRODUCAO" | "HOMOLOGACAO";
   ativadaEm: string;
+  dataInicioMonitoramento: string | null;
   ultimaSincronizacaoEm: string | null;
   ultimoCStatSefaz: string | null;
   ultimoXMotivoSefaz: string | null;
@@ -232,6 +234,22 @@ export async function alterarAmbienteEmpresa(
   });
   if (!response.ok) {
     throw new Error("Não foi possível trocar o ambiente dessa empresa.");
+  }
+  return response.json();
+}
+
+export async function alterarDataInicioMonitoramentoEmpresa(
+  id: string,
+  dataInicioMonitoramento: string,
+  token: string
+): Promise<EmpresaDetalhe> {
+  const response = await apiFetch(`${API_URL}/empresas/${id}/data-inicio-monitoramento`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ dataInicioMonitoramento }),
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível alterar a data de início de captura dessa empresa.");
   }
   return response.json();
 }

@@ -20,10 +20,15 @@ function cabecalhos(token: string): Record<string, string> {
   return { "content-type": "application/json", "x-agente-token": token };
 }
 
-export async function buscarEscopo(token: string): Promise<{ cnpjs: string[] }> {
+export interface EmpresaEscopo {
+  cnpj: string;
+  dataInicioMonitoramento: string | null;
+}
+
+export async function buscarEscopo(token: string): Promise<{ cnpjs: string[]; empresas: EmpresaEscopo[] }> {
   const resposta = await fetch(`${API_URL}/agente-ingestao/escopo`, { headers: cabecalhos(token) });
   if (!resposta.ok) throw new Error(`Falha ao buscar escopo (${resposta.status})`);
-  return resposta.json() as Promise<{ cnpjs: string[] }>;
+  return resposta.json() as Promise<{ cnpjs: string[]; empresas: EmpresaEscopo[] }>;
 }
 
 export async function enviarHeartbeat(token: string, versaoAgente: string, telemetria?: unknown): Promise<void> {

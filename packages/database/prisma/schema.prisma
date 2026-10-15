@@ -68,18 +68,24 @@ enum AmbienteFiscal {
 }
 
 model Empresa {
-  id            String         @id @default(cuid())
-  organizacaoId String
-  cnpj          String         @unique
-  razaoSocial   String
-  uf            String // sigla, ex: MG
-  codigoUf      Int // código IBGE, ex: 31
-  ambiente      AmbienteFiscal @default(HOMOLOGACAO)
-  status        StatusEmpresa  @default(ATIVA)
-  ativadaEm     DateTime       @default(now())
-  desativadaEm  DateTime?
-  criadoEm      DateTime       @default(now())
-  atualizadoEm  DateTime       @updatedAt
+  id                      String         @id @default(cuid())
+  organizacaoId           String
+  cnpj                    String         @unique
+  razaoSocial             String
+  uf                      String // sigla, ex: MG
+  codigoUf                Int // código IBGE, ex: 31
+  ambiente                AmbienteFiscal @default(HOMOLOGACAO)
+  status                  StatusEmpresa  @default(ATIVA)
+  ativadaEm               DateTime       @default(now())
+  desativadaEm            DateTime?
+  // A partir de quando o agente desktop capta XML de saida dessa empresa
+  // (ignora tudo que foi emitido antes disso) -- as pastas monitoradas no
+  // PC do cliente costumam ter anos de historico que nao e dessa empresa
+  // nesse sistema. Nulo = sem corte (compatibilidade com empresas
+  // cadastradas antes desse campo existir).
+  dataInicioMonitoramento DateTime?
+  criadoEm                DateTime       @default(now())
+  atualizadoEm            DateTime       @updatedAt
 
   organizacao           Organizacao             @relation(fields: [organizacaoId], references: [id])
   certificado           Certificado?

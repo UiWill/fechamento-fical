@@ -6,7 +6,7 @@ import Link from "next/link";
 import { validarDigitosCnpj } from "@afe/shared";
 import { criarEmpresa, consultarCnpj, CnpjNaoEncontradoError } from "@/lib/api";
 import { UFS } from "@/lib/uf";
-import { mascararCnpjParcial } from "@/lib/format";
+import { mascararCnpjParcial, mesAtual } from "@/lib/format";
 
 export default function NovaEmpresaPage() {
   const router = useRouter();
@@ -19,6 +19,11 @@ export default function NovaEmpresaPage() {
   // esse campo no cadastro e a sincronização "funcionar" sem erro nenhum,
   // só que sempre vazia, porque batia no ambiente de teste errado.
   const [ambiente, setAmbiente] = useState<"HOMOLOGACAO" | "PRODUCAO">("PRODUCAO");
+  // A partir de quando o agente desktop capta XML de saída dessa empresa —
+  // as pastas monitoradas no PC do cliente costumam ter anos de histórico
+  // que não deve entrar no sistema. Mês atual é o default sensato: a
+  // empresa só começa a existir aqui a partir de agora.
+  const [mesInicioMonitoramento, setMesInicioMonitoramento] = useState(mesAtual());
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -98,6 +103,7 @@ export default function NovaEmpresaPage() {
           uf: estado.sigla,
           codigoUf: estado.codigoIbge,
           ambiente,
+          dataInicioMonitoramento: `${mesInicioMonitoramento}-01`,
         },
         token
       );
@@ -216,6 +222,29 @@ export default function NovaEmpresaPage() {
               <option value="HOMOLOGACAO">Homologação</option>
             </select>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <label
+            htmlFor="dataInicioMonitoramento"
+            className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
+            style={{ color: "var(--muted)" }}
+          >
+            Captar documentos a partir de
+          </label>
+          <input
+            id="dataInicioMonitoramento"
+            type="month"
+            required
+            value={mesInicioMonitoramento}
+            onChange={(event) => setMesInicioMonitoramento(event.target.value)}
+            className="campo"
+            style={{ width: "auto" }}
+          />
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            O agente desktop vai ignorar XML emitido antes desse mês — evita subir o histórico
+            antigo que já estava na pasta do cliente.
+          </p>
         </div>
 
         {erro && (

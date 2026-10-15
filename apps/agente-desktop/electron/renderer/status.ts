@@ -10,6 +10,11 @@ function formatarDataHora(iso: string | null): string {
   return data.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
+function formatarData(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 function texto(id: string, valor: string): void {
   const el = document.getElementById(id);
   if (el) el.textContent = valor;
@@ -56,9 +61,11 @@ async function atualizar(): Promise<void> {
 
   texto("i-versao", estado.versao || "—");
   texto("i-pasta", estado.pastas[0] ?? "—");
+  texto("i-data-inicio", formatarData(estado.dataInicioMonitoramento));
   texto("i-iniciado", formatarDataHora(estado.iniciadoEm));
   texto("i-ultima-nota", formatarDataHora(estado.ultimaNotaAceitaEm));
   texto("i-duplicadas", String(estado.contadores.duplicados));
+  texto("i-antigas", String(estado.contadores.antigos));
   texto("i-heartbeat", formatarDataHora(estado.ultimoHeartbeatOkEm));
 
   montarListaRecusas(estado.recusas);
