@@ -13,6 +13,23 @@
 # ~60 dias (ver infra/windows/renovar-https.md). Sendo wildcard, um unico
 # registro TXT (_acme-challenge.dnotas.com.br) cobre os dois subdominios.
 #
+# fechafiscal.com.br e api.fechafiscal.com.br sao o dominio novo (2026-09),
+# que fica na Cloudflare (nameservers la, nao mais Registro.br) — diferente
+# do dnotas.com.br, a validacao DNS desses dois e 100% automatica via API
+# da Cloudflare (ver dns-create.ps1/dns-delete.ps1), sem precisar de
+# ninguem colar TXT manualmente nunca mais.
+#
+# api.fechafiscal.com.br e o endereco que o AGENTE DESKTOP e o admin-web
+# devem usar daqui pra frente (ver 2026-10-19): como o registro DNS dele
+# fica com o proxy da Cloudflare ligado, o cliente final enxerga a porta
+# 443 padrao (a Cloudflare e quem fala com a 8443 aqui por baixo) — isso
+# contorna VPN/firewall corporativo que bloqueia porta 8443 nao-padrao,
+# sem precisar abrir a porta 443 real nesse servidor (que e do TSplus).
+#
+# IMPORTANTE: o arquivo de verdade que o servico AfeCaddy carrega e
+# C:\tools\caddy\Caddyfile (nao este caminho do repositorio) — depois de
+# editar aqui, copiar pra la e rodar "caddy reload" (ver deploy abaixo).
+#
 # "auto_https disable_redirects": sem isso, o Caddy tenta abrir a porta 80
 # sozinho pra redirecionar HTTP->HTTPS assim que existe qualquer bloco
 # https://, e a 80 e do TSplus — o servico nao sobe.
@@ -35,5 +52,23 @@ https://fiscal.dnotas.com.br:8443 {
 
 https://fiscal-api.dnotas.com.br:8443 {
 	tls C:\afe\certs\dnotas-wildcard-chain.pem C:\afe\certs\dnotas-wildcard-key.pem
+	reverse_proxy 127.0.0.1:3000
+}
+
+http://fechafiscal.com.br:8080 {
+	reverse_proxy 127.0.0.1:3200
+}
+
+https://fechafiscal.com.br:8443 {
+	tls C:\afe\certs\fechafiscal-chain.pem C:\afe\certs\fechafiscal-key.pem
+	reverse_proxy 127.0.0.1:3200
+}
+
+http://api.fechafiscal.com.br:8080 {
+	reverse_proxy 127.0.0.1:3000
+}
+
+https://api.fechafiscal.com.br:8443 {
+	tls "C:\afe\certs\api.fechafiscal.com.br-chain.pem" "C:\afe\certs\api.fechafiscal.com.br-key.pem"
 	reverse_proxy 127.0.0.1:3000
 }
