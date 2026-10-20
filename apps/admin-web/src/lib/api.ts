@@ -660,6 +660,10 @@ export interface ItemApuracao {
   cbsAliquota: string | null;
   cbsValor: string | null;
   cfopDivergente: boolean;
+  /** Tributos onde base × alíquota não bate com o valor gravado no XML (tolerância de arredondamento) — provável erro de cálculo do sistema emissor do cliente. */
+  tributosInconsistentes: string[];
+  /** true quando a nota é de 05/10/2026 em diante (obrigatoriedade da Reforma) e não trouxe o grupo IBS/CBS. */
+  ibsCbsObrigatorioAusente: boolean;
 }
 
 export async function listarApuracaoItens(

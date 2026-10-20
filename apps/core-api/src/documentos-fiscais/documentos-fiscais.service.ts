@@ -13,6 +13,32 @@ import { ItensDocumentoFiscalService } from "./itens-documento-fiscal.service";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Data a partir da qual o grupo gIBSCBS passa a ser obrigatório em toda
+// NF-e/NFC-e (LC 214/2025, Reforma Tributária) — usado só pra sinalizar
+// "deveria ter vindo e não veio" na apuração, não bloqueia nada.
+const DATA_OBRIGATORIEDADE_IBS_CBS = new Date("2026-10-05T00:00:00Z");
+const TOLERANCIA_ARREDONDAMENTO = 0.02;
+
+/**
+ * Confere base × alíquota ≈ valor pra cada tributo do item (tolerância de
+ * R$0,02 pra arredondamento) — pega erro de cálculo do próprio PDV/sistema
+ * emissor do cliente, não do nosso sistema (só lemos o que já veio pronto
+ * no XML). Tributo sem base/alíquota/valor (nenhum dos três) não entra na
+ * checagem — não dá pra confundir "não se aplica" com "está errado".
+ */
+function conferirAritmetica(
+  base: unknown,
+  aliquota: unknown,
+  valor: unknown
+): boolean {
+  if (base === null || aliquota === null || valor === null) return true;
+  const b = Number(base);
+  const a = Number(aliquota);
+  const v = Number(valor);
+  if (!Number.isFinite(b) || !Number.isFinite(a) || !Number.isFinite(v)) return true;
+  return Math.abs((b * a) / 100 - v) <= TOLERANCIA_ARREDONDAMENTO;
+}
+
 // A SEFAZ devolve no maximo ~50 documentos por chamada de NFeDistribuicaoDFe,
 // e limita a NO MAXIMO 20 CONSULTAS POR HORA por CNPJ+CERTIFICADO - vale
 // tanto pra cStat=137 (nada novo) quanto pra cStat=138 (tem documento,
@@ -504,11 +530,28 @@ export class DocumentosFiscaisService {
 
     return itens.map((item) => {
       const numeroNota = Number(item.documentoFiscal.chaveAcesso.slice(25, 34));
+      const tributosInconsistentes = [
+        conferirAritmetica(item.icmsBase, item.icmsAliquota, item.icmsValor) ? null : "ICMS",
+        conferirAritmetica(item.pisBase, item.pisAliquota, item.pisValor) ? null : "PIS",
+        conferirAritmetica(item.cofinsBase, item.cofinsAliquota, item.cofinsValor) ? null : "COFINS",
+        conferirAritmetica(item.ibsCbsBase, item.ibsUfAliquota, item.ibsUfValor) ? null : "IBS UF",
+        conferirAritmetica(item.ibsCbsBase, item.ibsMunAliquota, item.ibsMunValor) ? null : "IBS Municipal",
+        conferirAritmetica(item.ibsCbsBase, item.cbsAliquota, item.cbsValor) ? null : "CBS",
+      ].filter((t): t is string => t !== null);
+
       return {
         ...item,
         nNF: numeroNota,
         dhEmi: item.documentoFiscal.emitidoEm,
         cfopDivergente: cfopsSaidaEsperados.size > 0 && !cfopsSaidaEsperados.has(item.cfop),
+        tributosInconsistentes,
+        // Só sinaliza ausência em quem já deveria ter o grupo (reforma é
+        // obrigatória a partir de 05/10/2026) — nota mais antiga sem o
+        // grupo é normal, não é pendência.
+        ibsCbsObrigatorioAusente:
+          !item.ibsCbsCst &&
+          item.documentoFiscal.emitidoEm !== null &&
+          item.documentoFiscal.emitidoEm >= DATA_OBRIGATORIEDADE_IBS_CBS,
       };
     });
   }

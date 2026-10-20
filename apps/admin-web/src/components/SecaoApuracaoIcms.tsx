@@ -15,6 +15,59 @@ function val(v: string | null): string {
   return v === null ? "—" : v;
 }
 
+function somar(itens: ItemApuracao[], campo: keyof ItemApuracao): string {
+  const total = itens.reduce((acc, i) => acc + Number(i[campo] ?? 0), 0);
+  return total.toFixed(2);
+}
+
+const COLUNAS_CSV: { rotulo: string; campo: keyof ItemApuracao }[] = [
+  { rotulo: "nNF", campo: "nNF" },
+  { rotulo: "dhEmi", campo: "dhEmi" },
+  { rotulo: "nItem", campo: "nItem" },
+  { rotulo: "cProd", campo: "cProd" },
+  { rotulo: "xProd", campo: "xProd" },
+  { rotulo: "NCM", campo: "ncm" },
+  { rotulo: "CFOP", campo: "cfop" },
+  { rotulo: "CST ICMS", campo: "icmsCst" },
+  { rotulo: "vBC ICMS", campo: "icmsBase" },
+  { rotulo: "pICMS", campo: "icmsAliquota" },
+  { rotulo: "vICMS", campo: "icmsValor" },
+  { rotulo: "CST IPI", campo: "ipiCst" },
+  { rotulo: "vBC IPI", campo: "ipiBase" },
+  { rotulo: "pIPI", campo: "ipiAliquota" },
+  { rotulo: "vIPI", campo: "ipiValor" },
+  { rotulo: "CST PIS", campo: "pisCst" },
+  { rotulo: "vBC PIS", campo: "pisBase" },
+  { rotulo: "pPIS", campo: "pisAliquota" },
+  { rotulo: "vPIS", campo: "pisValor" },
+  { rotulo: "CST COFINS", campo: "cofinsCst" },
+  { rotulo: "vBC COFINS", campo: "cofinsBase" },
+  { rotulo: "pCOFINS", campo: "cofinsAliquota" },
+  { rotulo: "vCOFINS", campo: "cofinsValor" },
+  { rotulo: "CFOP divergente", campo: "cfopDivergente" },
+  { rotulo: "Inconsistências", campo: "tributosInconsistentes" },
+];
+
+function exportarCsv(itens: ItemApuracao[], nomeArquivo: string) {
+  const linhas = [
+    COLUNAS_CSV.map((c) => c.rotulo).join(";"),
+    ...itens.map((item) =>
+      COLUNAS_CSV.map((c) => {
+        const valor = item[c.campo];
+        if (Array.isArray(valor)) return valor.join(" / ");
+        return String(valor ?? "");
+      }).join(";")
+    ),
+  ];
+  const blob = new Blob([`﻿${linhas.join("\n")}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; token: string }) {
   const [direcao, setDirecao] = useState<"ENTRADA" | "SAIDA">("SAIDA");
   const [itens, setItens] = useState<ItemApuracao[]>([]);
@@ -63,6 +116,8 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
     }
   }
 
+  const pendencias = itens.filter((i) => i.cfopDivergente || i.tributosInconsistentes.length > 0).length;
+
   return (
     <div className="space-y-3">
       <p className="text-xs" style={{ color: "var(--muted)" }}>
@@ -71,9 +126,11 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
         {direcao === "SAIDA" && (
           <>
             Linhas com <strong>CFOP divergente</strong> (fora do que as regras fiscais esperam na saída) ficam
-            destacadas.
+            destacadas em vermelho,{" "}
           </>
         )}
+        e linhas onde <strong>base × alíquota não bate com o valor</strong> do XML (provável erro do sistema que
+        emitiu a nota) ficam destacadas em laranja.
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4" style={{ borderColor: "var(--border)" }}>
@@ -108,11 +165,24 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
           </div>
           <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
             {rotuloMes(mes)} · {itens.length === 0 ? "nenhum item nesse mês" : `${itens.length} item(ns)`}
+            {pendencias > 0 && (
+              <span style={{ color: "var(--vermelho, #e08a8a)" }}> · {pendencias} com pendência</span>
+            )}
           </span>
         </div>
-        <button onClick={() => void handleReprocessar()} disabled={reprocessando} className={CLASSE_BOTAO_LINK} style={{ color: "var(--paper)" }}>
-          {reprocessando ? "Reprocessando…" : "Reprocessar itens"}
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => exportarCsv(itens, `apuracao-icms-${direcao.toLowerCase()}-${mes}.csv`)}
+            disabled={itens.length === 0}
+            className={CLASSE_BOTAO_LINK}
+            style={{ color: "var(--paper)" }}
+          >
+            Exportar CSV
+          </button>
+          <button onClick={() => void handleReprocessar()} disabled={reprocessando} className={CLASSE_BOTAO_LINK} style={{ color: "var(--paper)" }}>
+            {reprocessando ? "Reprocessando…" : "Reprocessar itens"}
+          </button>
+        </div>
       </div>
 
       {mensagem && (
@@ -168,15 +238,27 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
                 </tr>
               </thead>
               <tbody>
-                {itens.map((i) => (
+                {itens.map((i) => {
+                  const inconsistente = i.tributosInconsistentes.length > 0;
+                  const titulo = [
+                    i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
+                    inconsistente ? `Base × alíquota não bate com o valor: ${i.tributosInconsistentes.join(", ")}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" — ");
+                  return (
                   <tr
                     key={i.id}
                     className="border-t align-top"
                     style={{
                       borderColor: "var(--border)",
-                      background: i.cfopDivergente ? "rgba(224, 138, 138, 0.1)" : undefined,
+                      background: i.cfopDivergente
+                        ? "rgba(224, 138, 138, 0.1)"
+                        : inconsistente
+                          ? "rgba(224, 170, 110, 0.12)"
+                          : undefined,
                     }}
-                    title={i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : undefined}
+                    title={titulo || undefined}
                   >
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>{i.nNF}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{formatarDataHora(i.dhEmi ?? "")}</td>
@@ -202,8 +284,34 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{pct(i.cofinsAliquota)}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--paper)" }}>{val(i.cofinsValor)}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
+              <tfoot className="sticky bottom-0">
+                <tr
+                  className="border-t font-mono text-xs font-medium"
+                  style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--paper)" }}
+                >
+                  <td className="px-3 py-3" colSpan={8}>
+                    Total do período
+                  </td>
+                  <td className="px-3 py-3">{somar(itens, "icmsBase")}</td>
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3">{somar(itens, "icmsValor")}</td>
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3">{somar(itens, "ipiBase")}</td>
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3">{somar(itens, "ipiValor")}</td>
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3">{somar(itens, "pisBase")}</td>
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3">{somar(itens, "pisValor")}</td>
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3">{somar(itens, "cofinsBase")}</td>
+                  <td className="px-3 py-3" />
+                  <td className="px-3 py-3">{somar(itens, "cofinsValor")}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
