@@ -1,15 +1,15 @@
 # Backup diario do Postgres (pg_dump, com rotacao) e do armazenamento de
 # objetos local (C:\afe\object-storage, espelhado via robocopy). Roda como
-# Tarefa Agendada do Windows (ver install-backup.ps1) as 5h30, depois da
-# ultima janela de sincronizacao SEFAZ (0h-5h) e antes da consulta diaria
-# de situacao (6h) - evita disputar rede/CPU com elas.
+# Tarefa Agendada do Windows (ver install-backup.ps1) as 21h (pedido do
+# usuario em 2026-10-19).
 #
-# IMPORTANTE - isto protege contra: exclusao acidental, migracao ruim,
-# corrupcao do banco. NAO protege contra perda do servidor inteiro (disco
-# morrer, reimagem acidental como a que ja aconteceu em 2026-09) - os
-# backups ficam no MESMO disco. Pra proteção real contra isso, alguem
-# precisa copiar C:\afe\backups pra fora do servidor periodicamente (outro
-# disco, nuvem, outro computador) - isso aqui e so a primeira metade.
+# Desde 2026-10-19 o backup tambem sobe pro Google Drive (rclone, remote
+# "gdrive") - isso sim protege contra perda do servidor inteiro (disco
+# morrer, reimagem acidental como a que ja aconteceu em 2026-09), ja que
+# fica fora do servidor. O snapshot do dia 2026-10-19 foi preservado
+# separadamente em gdrive:FechaFiscal-Backups/preservado-2026-10-19 (nunca
+# sobrescrito); a partir daqui, cada rodada sobe pra
+# gdrive:FechaFiscal-Backups/diario, substituindo o dia anterior.
 
 $ErrorActionPreference = 'Stop'
 
@@ -93,3 +93,37 @@ try {
 }
 
 Escrever-Log "Backup diario concluido."
+
+# Envio pro Google Drive (rclone, remote "gdrive") - nao falha o backup
+# local se der problema de rede/nuvem, so registra no log. Postgres sobe
+# com nome fixo (sobrescreve o do dia anterior); object-storage vai como
+# sync direto da pasta (rclone so transmite o que mudou - rapido mesmo
+# com milhares de arquivos, sem precisar compactar todo santo dia).
+$rclone = 'C:\tools\rclone\rclone.exe'
+$pastaDriveDiario = 'gdrive:FechaFiscal-Backups/diario'
+
+try {
+    Escrever-Log "Enviando dump do Postgres para o Google Drive..."
+    & $rclone copyto $arquivoZip "$pastaDriveDiario/postgres-ultimo.zip" --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Escrever-Log "AVISO: rclone (postgres) terminou com codigo $LASTEXITCODE"
+    } else {
+        Escrever-Log "Dump do Postgres enviado ao Google Drive."
+    }
+} catch {
+    Escrever-Log "ERRO ao enviar dump do Postgres para o Google Drive: $_"
+}
+
+try {
+    Escrever-Log "Sincronizando object-storage com o Google Drive..."
+    & $rclone sync $pastaObjetos "$pastaDriveDiario/object-storage" --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Escrever-Log "AVISO: rclone (object-storage) terminou com codigo $LASTEXITCODE"
+    } else {
+        Escrever-Log "object-storage sincronizado com o Google Drive."
+    }
+} catch {
+    Escrever-Log "ERRO ao sincronizar object-storage com o Google Drive: $_"
+}
+
+Escrever-Log "Envio ao Google Drive concluido."
