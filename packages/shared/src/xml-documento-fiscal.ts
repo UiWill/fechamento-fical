@@ -33,6 +33,14 @@ export interface DadosBasicosDocumentoFiscal {
   cfop: string | null;
   /** Valor total: vNF pra NF-e/NFC-e, vTPrest pra CT-e. */
   valorTotal: number | null;
+  /**
+   * true quando o XML capturado é o EVENTO de cancelamento (procEventoNFe,
+   * tpEvento 110111) em vez da nota em si — acontece quando o PDV grava o
+   * aviso de cancelamento na mesma pasta monitorada. Nesse caso cfop/
+   * valorTotal ficam null porque esse tipo de arquivo nunca tem essa
+   * informação (não é falha de extração).
+   */
+  cancelada: boolean;
 }
 
 function extractText(xml: string, tag: string): string {
@@ -70,6 +78,11 @@ export function extrairDadosBasicos(xml: string): DadosBasicosDocumentoFiscal | 
   const cfop = tipo !== "CTE" ? extractText(xml, "CFOP") || null : null;
   const valorTexto = tipo === "CTE" ? extractText(xml, "vTPrest") : extractText(xml, "vNF");
   const valorTotal = valorTexto ? Number(valorTexto) : null;
+  // 110111 = "Cancelamento" (ver tabela de eventos da SEFAZ) — outros
+  // tpEvento existem (ex: 110110 Carta de Correção) e não significam que
+  // a nota foi cancelada, por isso checa o código exato, não só a presença
+  // da tag.
+  const cancelada = extractText(xml, "tpEvento") === "110111";
 
   return {
     chaveAcesso,
@@ -80,5 +93,6 @@ export function extrairDadosBasicos(xml: string): DadosBasicosDocumentoFiscal | 
     nomeEmitente,
     cfop,
     valorTotal: valorTotal !== null && !Number.isNaN(valorTotal) ? valorTotal : null,
+    cancelada,
   };
 }

@@ -1432,7 +1432,7 @@ export default function EmpresaDetalhePage() {
                         {ROTULO_TIPO_DOCUMENTO[doc.tipo]}
                       </td>
                       <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
-                        {doc.cfop ?? "—"}
+                        {doc.cancelada ? "cancelada" : (doc.cfop ?? "—")}
                       </td>
                       <td
                         className="chave-mascarada truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap"
@@ -1441,8 +1441,11 @@ export default function EmpresaDetalhePage() {
                       >
                         {chaveResumida(doc.chaveAcesso)}
                       </td>
-                      <td className="truncate overflow-hidden px-3 py-3 whitespace-nowrap" style={{ color: "var(--paper)" }}>
-                        {formatarMoeda(doc.valorTotal)}
+                      <td
+                        className="truncate overflow-hidden px-3 py-3 whitespace-nowrap"
+                        style={{ color: doc.cancelada ? "var(--muted)" : "var(--paper)" }}
+                      >
+                        {doc.cancelada ? "CANCELADA" : formatarMoeda(doc.valorTotal)}
                       </td>
                       <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
                         {doc.agenteInstalacaoToken?.nome ?? "—"}

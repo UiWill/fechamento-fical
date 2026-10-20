@@ -191,6 +191,11 @@ model DocumentoFiscal {
   classificadoEm   DateTime?
   nomeEmitente     String?
   valorTotal       Decimal?              @db.Decimal(14, 2)
+  // true quando o que foi capturado é o EVENTO de cancelamento (tpEvento
+  // 110111) em vez da nota em si — nesse caso cfop/valorTotal ficam nulos
+  // de verdade (não é um bug, o cancelamento não traz essa informação).
+  // A tela usa isso pra mostrar "CANCELADA" em vez de deixar vazio.
+  cancelada        Boolean               @default(false)
   objetoStorageXml String // chave do objeto no armazenamento (bucket afe-documentos-fiscais)
   emitidoEm        DateTime?
   // Dados extras (hoje so CT-e: papel da empresa, tomador, origem/destino...).

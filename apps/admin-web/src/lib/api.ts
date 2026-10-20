@@ -313,6 +313,8 @@ export interface DocumentoFiscal {
   acumulador: string | null;
   classificadoEm: string | null;
   valorTotal: string | null;
+  /** true quando o que foi capturado foi o evento de cancelamento da nota, não a nota em si — cfop/valorTotal ficam null de verdade nesse caso. */
+  cancelada: boolean;
   emitidoEm: string | null;
   recebidoEm: string;
   /** Só existe pra documentos de SAIDA — de qual instalação do agente desktop veio. */

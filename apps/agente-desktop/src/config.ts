@@ -23,6 +23,12 @@ export type StatusArquivoEnviado = "ACEITO" | "DUPLICADO" | "CNPJ_NAO_AUTORIZADO
 export interface EstadoArquivoEnviado {
   status: StatusArquivoEnviado;
   enviadoEm: string;
+  // false quando o XML enviado não tinha CFOP/valor (ex: PDV mandou um
+  // resumo antes do XML completo) — permite reenviar essa mesma chave se
+  // uma versão mais completa aparecer depois. undefined (registros
+  // antigos, de antes desse campo existir) é tratado como "completo" pra
+  // não disparar reenvio em massa de histórico já processado.
+  completo?: boolean;
 }
 
 export interface EmpresaEscopoLocal {

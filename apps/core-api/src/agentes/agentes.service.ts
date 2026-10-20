@@ -330,6 +330,44 @@ export class AgentesService {
       where: { chaveAcesso: dados.chaveAcesso },
     });
     if (existente) {
+      // Backfill: o primeiro envio pode ter sido um XML resumo do PDV (sem
+      // CFOP/valor) — se essa chamada já veio com os dados completos e o
+      // registro salvo ainda está sem, preenche agora em vez de só
+      // descartar como duplicado de novo (mesmo raciocínio já usado pra
+      // notas de ENTRADA em documentos-fiscais.service.ts).
+      // IMPORTANTE: chaveAcesso é única globalmente (não por empresa) --
+      // sem essa checagem de empresaId, um token de outra empresa poderia
+      // forjar um XML com a própria CNPJ autorizada mas com a chave de
+      // acesso de um documento de OUTRO cliente, e sobrescrever cfop/valor
+      // dele (cross-tenant write). Só faz backfill se o documento já
+      // existente for mesmo dessa empresa.
+      const podeBackfillarValor =
+        existente.empresaId === empresa.id &&
+        (!existente.cfop || existente.valorTotal === null) &&
+        dados.cfop &&
+        dados.valorTotal !== null;
+      // Chega depois um evento de cancelamento pra uma nota que já estava
+      // com os dados completos — não mexe em cfop/valor (continuam
+      // mostrando o que foi vendido), só marca que foi cancelada.
+      const precisaMarcarCancelada = existente.empresaId === empresa.id && dados.cancelada && !existente.cancelada;
+      if (podeBackfillarValor || precisaMarcarCancelada) {
+        await this.prisma.client.documentoFiscal.update({
+          where: { id: existente.id },
+          data: {
+            cfop: existente.cfop ?? dados.cfop,
+            valorTotal: existente.valorTotal ?? dados.valorTotal,
+            nomeEmitente: existente.nomeEmitente ?? dados.nomeEmitente,
+            cancelada: existente.cancelada || dados.cancelada,
+          },
+        });
+        if (podeBackfillarValor && (dados.tipo === "NFE" || dados.tipo === "NFCE")) {
+          try {
+            await this.itensDocumentoFiscal.extrairEPersistirItens(existente.id, xml);
+          } catch (err) {
+            this.logger.warn(`Falha ao extrair itens no backfill do documento ${existente.id}: ${err}`);
+          }
+        }
+      }
       return {
         nomeArquivoOriginal,
         status: "DUPLICADO",
@@ -351,6 +389,7 @@ export class AgentesService {
           nomeEmitente: dados.nomeEmitente,
           cfop: dados.cfop,
           valorTotal: dados.valorTotal,
+          cancelada: dados.cancelada,
           objetoStorageXml,
           emitidoEm: dados.dataEmissao,
           agenteInstalacaoTokenId: agenteToken.id,

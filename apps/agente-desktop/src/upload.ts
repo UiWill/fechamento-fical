@@ -11,6 +11,7 @@ const INTERVALO_MIN_AVISO_MS = 2 * 60_000;
 
 interface ItemPendente extends ItemDocumentoUpload {
   chaveAcesso: string;
+  completo: boolean;
 }
 
 /**
@@ -28,13 +29,23 @@ export function criarFilaDeEnvio(token: string) {
   let ultimoAvisoEm = 0;
   let configSujo = false;
 
-  function jaProcessado(chaveAcesso: string): boolean {
+  function jaProcessado(chaveAcesso: string, completoAgora: boolean): boolean {
     const estado = config.chavesEnviadas[chaveAcesso];
-    return estado?.status === "ACEITO" || estado?.status === "DUPLICADO";
+    if (!estado || (estado.status !== "ACEITO" && estado.status !== "DUPLICADO")) return false;
+    // Já foi enviado completo (ou é registro antigo, tratado como
+    // completo) — não precisa reenviar. Só reenvia se da vez passada
+    // faltou CFOP/valor E dessa vez o XML já tem essa informação (pode
+    // ter aparecido uma versão mais completa na pasta monitorada).
+    if (estado.completo !== false) return true;
+    return !completoAgora;
   }
 
-  function registrarResultado(chaveAcesso: string, status: ConfigAgente["chavesEnviadas"][string]["status"]) {
-    config.chavesEnviadas[chaveAcesso] = { status, enviadoEm: new Date().toISOString() };
+  function registrarResultado(
+    chaveAcesso: string,
+    status: ConfigAgente["chavesEnviadas"][string]["status"],
+    completo: boolean
+  ) {
+    config.chavesEnviadas[chaveAcesso] = { status, enviadoEm: new Date().toISOString(), completo };
   }
 
   /** Corte (ISO) da empresa dona do CNPJ, se o escopo mais recente souber dele. */
@@ -64,7 +75,8 @@ export function criarFilaDeEnvio(token: string) {
       return undefined;
     }
 
-    if (jaProcessado(dados.chaveAcesso)) return undefined;
+    const completoAgora = Boolean(dados.cfop && dados.valorTotal != null);
+    if (jaProcessado(dados.chaveAcesso, completoAgora)) return undefined;
 
     const corte = obterCorte(dados.cnpjEmitente);
     if (corte && dados.dataEmissao && dados.dataEmissao < new Date(corte)) {
@@ -81,6 +93,7 @@ export function criarFilaDeEnvio(token: string) {
       nomeArquivoOriginal,
       xmlBase64: Buffer.from(conteudo, "utf8").toString("base64"),
       chaveAcesso: dados.chaveAcesso,
+      completo: completoAgora,
     });
     return undefined;
   }
@@ -166,11 +179,12 @@ export function criarFilaDeEnvio(token: string) {
     pendentes = pendentes.slice(TAMANHO_MAXIMO_LOTE);
 
     try {
+      const completoPorChave = new Map(lote.map((item) => [item.chaveAcesso, item.completo]));
       const resultados = await enviarLoteDocumentos(token, lote);
       let aceitos = 0;
       for (const resultado of resultados) {
         if (resultado.chaveAcesso) {
-          registrarResultado(resultado.chaveAcesso, resultado.status);
+          registrarResultado(resultado.chaveAcesso, resultado.status, completoPorChave.get(resultado.chaveAcesso) ?? true);
         }
         registrarEvento({
           arquivo: resultado.nomeArquivoOriginal,
