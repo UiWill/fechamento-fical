@@ -667,6 +667,8 @@ export interface ItemApuracao {
   tributosInconsistentes: string[];
   /** true quando a nota é de 05/10/2026 em diante (obrigatoriedade da Reforma) e não trouxe o grupo IBS/CBS. */
   ibsCbsObrigatorioAusente: boolean;
+  /** true quando a nota tem item com CST normal e item com CSOSN (Simples) ao mesmo tempo — sinal de erro de emissão. */
+  regimeIcmsMisturado: boolean;
 }
 
 export async function listarApuracaoItens(

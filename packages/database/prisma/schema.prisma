@@ -250,6 +250,13 @@ model ItemDocumentoFiscal {
   valorProdutos     Decimal @db.Decimal(14, 2)
 
   icmsCst      String?
+  // true = CST normal (regime não-Simples), false = CSOSN (Simples
+  // Nacional), null = item sem bloco de ICMS nenhum. Guardado à parte
+  // porque icmsCst sozinho não distingue CSOSN vazio de "sem ICMS" (os
+  // dois viram null) -- precisa pra notar nota com item CST e item CSOSN
+  // misturados, que não devia acontecer (uma empresa não tem os dois
+  // regimes ao mesmo tempo).
+  icmsComCst   Boolean?
   icmsBase     Decimal? @db.Decimal(14, 2)
   icmsAliquota Decimal? @db.Decimal(7, 4)
   icmsValor    Decimal? @db.Decimal(14, 2)

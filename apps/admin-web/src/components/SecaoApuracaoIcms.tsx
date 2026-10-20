@@ -46,6 +46,7 @@ const COLUNAS_CSV: { rotulo: string; campo: keyof ItemApuracao }[] = [
   { rotulo: "vCOFINS", campo: "cofinsValor" },
   { rotulo: "CFOP divergente", campo: "cfopDivergente" },
   { rotulo: "Inconsistências", campo: "tributosInconsistentes" },
+  { rotulo: "Regime ICMS misturado", campo: "regimeIcmsMisturado" },
 ];
 
 function exportarCsv(itens: ItemApuracao[], nomeArquivo: string) {
@@ -116,7 +117,9 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
     }
   }
 
-  const pendencias = itens.filter((i) => i.cfopDivergente || i.tributosInconsistentes.length > 0).length;
+  const pendencias = itens.filter(
+    (i) => i.cfopDivergente || i.tributosInconsistentes.length > 0 || i.regimeIcmsMisturado
+  ).length;
 
   return (
     <div className="space-y-3">
@@ -129,8 +132,9 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
             destacadas em vermelho,{" "}
           </>
         )}
-        e linhas onde <strong>base × alíquota não bate com o valor</strong> do XML (provável erro do sistema que
-        emitiu a nota) ficam destacadas em laranja.
+        linhas onde <strong>base × alíquota não bate com o valor</strong> do XML ficam em laranja, e notas com{" "}
+        <strong>item em CST normal e item em CSOSN ao mesmo tempo</strong> (regime misturado, não devia acontecer)
+        ficam em roxo.
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4" style={{ borderColor: "var(--border)" }}>
@@ -243,6 +247,7 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
                   const titulo = [
                     i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
                     inconsistente ? `Base × alíquota não bate com o valor: ${i.tributosInconsistentes.join(", ")}` : null,
+                    i.regimeIcmsMisturado ? "Nota com item em CST normal e item em CSOSN ao mesmo tempo" : null,
                   ]
                     .filter(Boolean)
                     .join(" — ");
@@ -256,7 +261,9 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
                         ? "rgba(224, 138, 138, 0.1)"
                         : inconsistente
                           ? "rgba(224, 170, 110, 0.12)"
-                          : undefined,
+                          : i.regimeIcmsMisturado
+                            ? "rgba(170, 110, 224, 0.12)"
+                            : undefined,
                     }}
                     title={titulo || undefined}
                   >

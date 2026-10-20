@@ -543,6 +543,20 @@ export class DocumentosFiscaisService {
           )
         : new Set<string | null>();
 
+    // Regime misturado: uma nota com item em CST "normal" e item em CSOSN
+    // (Simples Nacional) ao mesmo tempo — uma empresa não tem os dois
+    // regimes juntos, então isso é sinal forte de erro de emissão.
+    const regimesPorNota = new Map<string, Set<boolean>>();
+    for (const item of itens) {
+      if (item.icmsComCst === null) continue;
+      const regimes = regimesPorNota.get(item.documentoFiscalId) ?? new Set<boolean>();
+      regimes.add(item.icmsComCst);
+      regimesPorNota.set(item.documentoFiscalId, regimes);
+    }
+    const notasComRegimeMisturado = new Set(
+      [...regimesPorNota.entries()].filter(([, regimes]) => regimes.size > 1).map(([id]) => id)
+    );
+
     return itens.map((item) => {
       const numeroNota = Number(item.documentoFiscal.chaveAcesso.slice(25, 34));
       const tributosInconsistentes = [
@@ -567,6 +581,7 @@ export class DocumentosFiscaisService {
           !item.ibsCbsCst &&
           item.documentoFiscal.emitidoEm !== null &&
           item.documentoFiscal.emitidoEm >= DATA_OBRIGATORIEDADE_IBS_CBS,
+        regimeIcmsMisturado: notasComRegimeMisturado.has(item.documentoFiscalId),
       };
     });
   }

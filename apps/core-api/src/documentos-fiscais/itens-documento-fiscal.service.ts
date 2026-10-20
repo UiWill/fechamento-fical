@@ -43,6 +43,7 @@ export class ItensDocumentoFiscalService {
       valorProdutos: item.valorProdutos,
 
       icmsCst: item.icms?.cst || null,
+      icmsComCst: item.icms?.comCst ?? null,
       icmsBase: item.icms?.base ?? null,
       icmsAliquota: item.icms?.aliquota ?? null,
       icmsValor: item.icms?.valor ?? null,

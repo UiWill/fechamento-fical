@@ -39,6 +39,7 @@ const COLUNAS_CSV: { rotulo: string; campo: keyof ItemApuracao }[] = [
   { rotulo: "vCBS", campo: "cbsValor" },
   { rotulo: "CFOP divergente", campo: "cfopDivergente" },
   { rotulo: "IBS/CBS obrigatório ausente", campo: "ibsCbsObrigatorioAusente" },
+  { rotulo: "Regime ICMS misturado", campo: "regimeIcmsMisturado" },
 ];
 
 function exportarCsv(itens: ItemApuracao[], nomeArquivo: string) {
@@ -112,7 +113,8 @@ export function SecaoApuracaoIbsCbs({ empresaId, token }: { empresaId: string; t
   const semGrupoReforma = !carregando && itens.length > 0 && itens.every((i) => i.ibsCbsCst === null);
   const ausentesObrigatorio = itens.filter((i) => i.ibsCbsObrigatorioAusente).length;
   const pendencias = itens.filter(
-    (i) => i.cfopDivergente || i.tributosInconsistentes.length > 0 || i.ibsCbsObrigatorioAusente
+    (i) =>
+      i.cfopDivergente || i.tributosInconsistentes.length > 0 || i.ibsCbsObrigatorioAusente || i.regimeIcmsMisturado
   ).length;
 
   return (
@@ -246,6 +248,7 @@ export function SecaoApuracaoIbsCbs({ empresaId, token }: { empresaId: string; t
                     i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
                     inconsistente ? `Base × alíquota não bate com o valor: ${i.tributosInconsistentes.join(", ")}` : null,
                     i.ibsCbsObrigatorioAusente ? "Nota de 05/10/2026 em diante sem o grupo IBS/CBS obrigatório" : null,
+                    i.regimeIcmsMisturado ? "Nota com item em CST normal e item em CSOSN ao mesmo tempo" : null,
                   ]
                     .filter(Boolean)
                     .join(" — ");
@@ -255,7 +258,9 @@ export function SecaoApuracaoIbsCbs({ empresaId, token }: { empresaId: string; t
                       ? "rgba(224, 170, 110, 0.12)"
                       : i.ibsCbsObrigatorioAusente
                         ? "rgba(224, 200, 106, 0.12)"
-                        : undefined;
+                        : i.regimeIcmsMisturado
+                          ? "rgba(170, 110, 224, 0.12)"
+                          : undefined;
                   return (
                   <tr
                     key={i.id}
