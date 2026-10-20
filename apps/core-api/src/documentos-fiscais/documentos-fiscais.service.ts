@@ -139,11 +139,26 @@ export class DocumentosFiscaisService {
     return empresa;
   }
 
-  async listarPorEmpresa(empresaId: string, organizacaoId: string) {
+  async listarPorEmpresa(
+    empresaId: string,
+    organizacaoId: string,
+    direcao: "ENTRADA" | "SAIDA",
+    inicio: Date,
+    fim: Date
+  ) {
     await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
     return this.prisma.client.documentoFiscal.findMany({
-      // CT-e da distribuição tem aba e lista próprias (cte-distribuicao).
-      where: { empresaId, direcao: { in: ["ENTRADA", "SAIDA"] } },
+      where: {
+        empresaId,
+        direcao,
+        // Mesmo fallback que o admin-web já fazia no filtro client-side
+        // (chaveMes(doc.emitidoEm ?? doc.recebidoEm)) — documento sem
+        // emitidoEm cai no mês em que foi recebido.
+        OR: [
+          { emitidoEm: { gte: inicio, lte: fim } },
+          { emitidoEm: null, recebidoEm: { gte: inicio, lte: fim } },
+        ],
+      },
       // nome do agente desktop que enviou (só existe pra SAIDA) — o
       // admin-web usa isso pra mostrar de qual instalação veio cada nota.
       include: { agenteInstalacaoToken: { select: { nome: true } } },

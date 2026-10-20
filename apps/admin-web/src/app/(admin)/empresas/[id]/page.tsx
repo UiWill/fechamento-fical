@@ -31,7 +31,6 @@ import {
   formatarDataHora,
   formatarMoeda,
   arquivoParaBase64,
-  chaveMes,
   chaveResumida,
   mesAtual,
   rotuloMes,
@@ -433,8 +432,11 @@ export default function EmpresaDetalhePage() {
 
   const [empresa, setEmpresa] = useState<EmpresaDetalhe | null>(null);
   const [certificado, setCertificado] = useState<CertificadoResumo | null>(null);
-  const [documentos, setDocumentos] = useState<DocumentoFiscal[]>([]);
+  const [documentosEntrada, setDocumentosEntrada] = useState<DocumentoFiscal[]>([]);
+  const [documentosSaida, setDocumentosSaida] = useState<DocumentoFiscal[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [carregandoEntrada, setCarregandoEntrada] = useState(true);
+  const [carregandoSaida, setCarregandoSaida] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
   const [sincronizando, setSincronizando] = useState(false);
@@ -492,14 +494,9 @@ export default function EmpresaDetalhePage() {
   const carregarTudo = useCallback(
     async (t: string) => {
       try {
-        const [empresaData, certData, docsData] = await Promise.all([
-          buscarEmpresa(params.id, t),
-          buscarCertificado(params.id, t),
-          listarDocumentosFiscais(params.id, t),
-        ]);
+        const [empresaData, certData] = await Promise.all([buscarEmpresa(params.id, t), buscarCertificado(params.id, t)]);
         setEmpresa(empresaData);
         setCertificado(certData);
-        setDocumentos(docsData);
       } catch {
         setErro("Não foi possível carregar os dados dessa empresa.");
       } finally {
@@ -512,6 +509,48 @@ export default function EmpresaDetalhePage() {
   useEffect(() => {
     if (token) void carregarTudo(token);
   }, [token, carregarTudo]);
+
+  // Entrada e saída carregam separado, cada um só o mês escolhido no
+  // próprio seletor — antes vinha tudo de uma vez (anos de histórico,
+  // chegou a passar de 2 minutos numa empresa com 16 mil documentos) e o
+  // filtro de mês só recortava depois, no navegador.
+  const carregarDocumentosEntrada = useCallback(
+    async (t: string, mes: string) => {
+      setCarregandoEntrada(true);
+      try {
+        const { inicio, fim } = limitesDoMes(mes);
+        setDocumentosEntrada(await listarDocumentosFiscais(params.id, "ENTRADA", inicio, fim, t));
+      } catch {
+        setErro("Não foi possível carregar as notas de entrada agora.");
+      } finally {
+        setCarregandoEntrada(false);
+      }
+    },
+    [params.id]
+  );
+
+  const carregarDocumentosSaida = useCallback(
+    async (t: string, mes: string) => {
+      setCarregandoSaida(true);
+      try {
+        const { inicio, fim } = limitesDoMes(mes);
+        setDocumentosSaida(await listarDocumentosFiscais(params.id, "SAIDA", inicio, fim, t));
+      } catch {
+        setErro("Não foi possível carregar as notas de saída agora.");
+      } finally {
+        setCarregandoSaida(false);
+      }
+    },
+    [params.id]
+  );
+
+  useEffect(() => {
+    if (token) void carregarDocumentosEntrada(token, mesFiltro);
+  }, [token, mesFiltro, carregarDocumentosEntrada]);
+
+  useEffect(() => {
+    if (token) void carregarDocumentosSaida(token, mesFiltroSaida);
+  }, [token, mesFiltroSaida, carregarDocumentosSaida]);
 
   async function handleSincronizar() {
     if (!token) return;
@@ -531,8 +570,7 @@ export default function EmpresaDetalhePage() {
             ? `${base} Atingiu o limite de consultas da SEFAZ por hora — ainda pode haver mais documentos; sincronize de novo daqui a pouco.`
             : base
       );
-      const docs = await listarDocumentosFiscais(params.id, token);
-      setDocumentos(docs);
+      await carregarDocumentosEntrada(token, mesFiltro);
       setEmpresa((atual) =>
         atual
           ? {
@@ -606,8 +644,7 @@ export default function EmpresaDetalhePage() {
       if (resultado.semRegra > 0) partes.push(`${resultado.semRegra} sem regra cadastrada`);
       if (resultado.semCfop > 0) partes.push(`${resultado.semCfop} ainda sem CFOP (SEFAZ mandou só o resumo)`);
       setResultadoClassificacao(partes.join(" · "));
-      const docs = await listarDocumentosFiscais(params.id, token);
-      setDocumentos(docs);
+      await carregarDocumentosEntrada(token, mesFiltro);
     } catch (err) {
       setErroClassificacao(
         err instanceof Error ? err.message : "Não foi possível classificar os documentos agora."
@@ -622,7 +659,10 @@ export default function EmpresaDetalhePage() {
     setConsultandoDocId(doc.id);
     try {
       const atualizado = await consultarSituacaoDocumento(params.id, doc.id, token);
-      setDocumentos((atual) => atual.map((d) => (d.id === doc.id ? atualizado : d)));
+      // Nota pode estar numa lista ou na outra (entrada/saída) — atualiza
+      // a que tiver, a outra fica intacta (.map não acha o id, não muda nada).
+      setDocumentosEntrada((atual) => atual.map((d) => (d.id === doc.id ? atualizado : d)));
+      setDocumentosSaida((atual) => atual.map((d) => (d.id === doc.id ? atualizado : d)));
     } catch (err) {
       window.alert(err instanceof Error ? err.message : "Não foi possível consultar essa nota agora.");
     } finally {
@@ -649,14 +689,17 @@ export default function EmpresaDetalhePage() {
         // minutos num período com muitas notas) — relê a lista de tempos em
         // tempos pra ir refletindo os resultados sem precisar F5.
         const releituras = [5_000, 15_000, 30_000, 60_000, 120_000];
+        const mes = direcao === "ENTRADA" ? mesFiltro : mesFiltroSaida;
+        const recarregar = direcao === "ENTRADA" ? carregarDocumentosEntrada : carregarDocumentosSaida;
         for (const atraso of releituras) {
-          setTimeout(() => {
-            void listarDocumentosFiscais(params.id, token).then(setDocumentos);
-          }, atraso);
+          setTimeout(() => void recarregar(token, mes), atraso);
         }
       }
-      const docs = await listarDocumentosFiscais(params.id, token);
-      setDocumentos(docs);
+      if (direcao === "ENTRADA") {
+        await carregarDocumentosEntrada(token, mesFiltro);
+      } else {
+        await carregarDocumentosSaida(token, mesFiltroSaida);
+      }
     } catch {
       setResultado("Não foi possível consultar as notas pendentes agora.");
     } finally {
@@ -707,20 +750,18 @@ export default function EmpresaDetalhePage() {
     }
   }
 
-  const documentosEntrada = documentos.filter((doc) => doc.direcao === "ENTRADA");
-  const documentosSaida = documentos.filter((doc) => doc.direcao === "SAIDA");
   const diasVencimentoCertificado = certificado ? diasAte(certificado.validoAte) : null;
   const certificadoAtencao = diasVencimentoCertificado !== null && diasVencimentoCertificado <= 30;
 
+  // Servidor já manda só o mês escolhido (documentosEntrada/documentosSaida
+  // vêm de carregarDocumentosEntrada/Saida com inicio/fim do mês) — só
+  // falta o filtro de tipo, que é local e rápido o bastante pra não
+  // precisar de outra chamada de rede.
   const notasEntradaDoMes = documentosEntrada.filter(
-    (doc) =>
-      chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltro &&
-      (filtroTipoEntrada === "TODOS" || doc.tipo === filtroTipoEntrada)
+    (doc) => filtroTipoEntrada === "TODOS" || doc.tipo === filtroTipoEntrada
   );
   const notasSaidaDoMes = documentosSaida.filter(
-    (doc) =>
-      chaveMes(doc.emitidoEm ?? doc.recebidoEm) === mesFiltroSaida &&
-      (filtroTipoSaida === "TODOS" || doc.tipo === filtroTipoSaida)
+    (doc) => filtroTipoSaida === "TODOS" || doc.tipo === filtroTipoSaida
   );
 
   // Só NF-e de entrada do mês/filtro atual ainda sem manifestação.
@@ -1168,15 +1209,8 @@ export default function EmpresaDetalhePage() {
           </p>
         )}
 
-        {documentosEntrada.length === 0 ? (
-          <div
-            className="entra rounded-lg border border-dashed p-8 text-center"
-            style={{ borderColor: "var(--border)" }}
-          >
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Nenhuma nota de entrada recebida ainda.
-            </p>
-          </div>
+        {carregandoEntrada ? (
+          <div className="skeleton h-24 w-full rounded-lg" />
         ) : notasEntradaOrdenadas.length === 0 ? (
           <div
             className="entra rounded-lg border border-dashed p-8 text-center"
@@ -1373,20 +1407,8 @@ export default function EmpresaDetalhePage() {
           )}
         </div>
 
-        {documentosSaida.length === 0 ? (
-          <div
-            className="entra rounded-lg border border-dashed p-8 text-center"
-            style={{ borderColor: "var(--border)" }}
-          >
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Nenhuma nota de saída capturada ainda. Instale o agente desktop
-              na página{" "}
-              <Link href="/agentes" className="underline underline-offset-4" style={{ color: "var(--paper)" }}>
-                Agentes desktop
-              </Link>{" "}
-              pra começar.
-            </p>
-          </div>
+        {carregandoSaida ? (
+          <div className="skeleton h-24 w-full rounded-lg" />
         ) : notasSaidaOrdenadas.length === 0 ? (
           <div
             className="entra rounded-lg border border-dashed p-8 text-center"

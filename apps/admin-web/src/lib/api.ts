@@ -377,12 +377,15 @@ export async function consultarPendentes(
 
 export async function listarDocumentosFiscais(
   empresaId: string,
+  direcao: "ENTRADA" | "SAIDA",
+  inicio: string,
+  fim: string,
   token: string
 ): Promise<DocumentoFiscal[]> {
-  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/documentos-fiscais`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+  const response = await apiFetch(
+    `${API_URL}/empresas/${empresaId}/documentos-fiscais?direcao=${direcao}&inicio=${inicio}&fim=${fim}`,
+    { headers: { authorization: `Bearer ${token}` }, cache: "no-store" }
+  );
   if (!response.ok) {
     throw new Error("Não foi possível carregar os documentos fiscais.");
   }

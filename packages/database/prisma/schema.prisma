@@ -222,6 +222,12 @@ model DocumentoFiscal {
   @@index([empresaId, direcao, status])
   @@index([empresaId, tipo])
   @@index([agenteInstalacaoTokenId])
+  // Listagem de documentos (entrada/saída) e Apuração ICMS/IBS-CBS filtram
+  // sempre por empresa + direção + mês de emissão — sem esse índice o
+  // Postgres varria todos os documentos da empresa pra filtrar o mês
+  // (achado em 2026-10-20: endpoint de listagem levando >2min numa
+  // empresa com 16 mil documentos).
+  @@index([empresaId, direcao, emitidoEm])
   @@map("documentos_fiscais")
 }
 

@@ -21,9 +21,35 @@ export class DocumentosFiscaisController {
     return request.usuario.organizacaoId;
   }
 
+  /**
+   * Lista documentos de uma empresa, SEMPRE filtrado por direção + período
+   * — empresas grandes já passam de 15 mil documentos de SAÍDA sozinhas, e
+   * devolver tudo de uma vez (sem filtro) chegou a levar mais de 2 minutos
+   * e 11MB de JSON numa delas (achado em 2026-10-20). O admin-web já tem
+   * seletor de mês nas duas tabelas (entrada/saída) — só faltava o filtro
+   * chegar até aqui, igual já funciona na Apuração.
+   */
   @Get()
-  listar(@Param("empresaId") empresaId: string, @Req() request: AuthenticatedRequest) {
-    return this.service.listarPorEmpresa(empresaId, this.organizacaoIdDoUsuario(request));
+  listar(
+    @Param("empresaId") empresaId: string,
+    @Query("direcao") direcao: string,
+    @Query("inicio") inicio: string,
+    @Query("fim") fim: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    if (direcao !== "ENTRADA" && direcao !== "SAIDA") {
+      throw new BadRequestException('direcao deve ser "ENTRADA" ou "SAIDA"');
+    }
+    if (!inicio || !fim) {
+      throw new BadRequestException('"inicio" e "fim" são obrigatórios');
+    }
+    return this.service.listarPorEmpresa(
+      empresaId,
+      this.organizacaoIdDoUsuario(request),
+      direcao,
+      new Date(inicio),
+      new Date(fim)
+    );
   }
 
   @Post("sincronizar")
