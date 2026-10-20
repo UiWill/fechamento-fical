@@ -669,6 +669,8 @@ export interface ItemApuracao {
   ibsCbsObrigatorioAusente: boolean;
   /** true quando a nota tem item com CST normal e item com CSOSN (Simples) ao mesmo tempo — sinal de erro de emissão. */
   regimeIcmsMisturado: boolean;
+  /** true quando a alíquota de ICMS desse item destoa da alíquota majoritária usada pela própria empresa nesse mesmo CFOP no período. */
+  aliquotaIcmsDivergente: boolean;
 }
 
 export async function listarApuracaoItens(
@@ -683,6 +685,30 @@ export async function listarApuracaoItens(
     { headers: { authorization: `Bearer ${token}` }, cache: "no-store" }
   );
   if (!response.ok) throw new Error("Não foi possível carregar a apuração agora.");
+  return response.json();
+}
+
+export interface NumeroFaltando {
+  tipo: string;
+  serie: number;
+  /** -1 quando o buraco é gigante (>1000) e virou um aviso só, não número por número. */
+  numero: number;
+  anterior: { numero: number; emitidoEm: string | null };
+  proximo: { numero: number; emitidoEm: string | null };
+}
+
+export async function listarNumeracaoFaltando(
+  empresaId: string,
+  direcao: "ENTRADA" | "SAIDA",
+  inicio: string,
+  fim: string,
+  token: string
+): Promise<{ faltando: NumeroFaltando[]; truncado: boolean }> {
+  const response = await apiFetch(
+    `${API_URL}/empresas/${empresaId}/documentos-fiscais/apuracao/numeracao-faltando?direcao=${direcao}&inicio=${inicio}&fim=${fim}`,
+    { headers: { authorization: `Bearer ${token}` }, cache: "no-store" }
+  );
+  if (!response.ok) throw new Error("Não foi possível checar a numeração agora.");
   return response.json();
 }
 

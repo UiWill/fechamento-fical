@@ -20,6 +20,39 @@ function somar(itens: ItemApuracao[], campo: keyof ItemApuracao): string {
   return total.toFixed(2);
 }
 
+interface LinhaResumoCfop {
+  cfop: string;
+  cClassTrib: string;
+  qtdItens: number;
+  valorProdutos: number;
+  valorIbsUf: number;
+  valorIbsMun: number;
+  valorCbs: number;
+}
+
+function resumoPorCfop(itens: ItemApuracao[]): LinhaResumoCfop[] {
+  const grupos = new Map<string, LinhaResumoCfop>();
+  for (const i of itens) {
+    const chave = `${i.cfop}|${i.cClassTrib ?? "—"}`;
+    const atual = grupos.get(chave) ?? {
+      cfop: i.cfop,
+      cClassTrib: i.cClassTrib ?? "—",
+      qtdItens: 0,
+      valorProdutos: 0,
+      valorIbsUf: 0,
+      valorIbsMun: 0,
+      valorCbs: 0,
+    };
+    atual.qtdItens += 1;
+    atual.valorProdutos += Number(i.valorProdutos);
+    atual.valorIbsUf += Number(i.ibsUfValor ?? 0);
+    atual.valorIbsMun += Number(i.ibsMunValor ?? 0);
+    atual.valorCbs += Number(i.cbsValor ?? 0);
+    grupos.set(chave, atual);
+  }
+  return [...grupos.values()].sort((a, b) => a.cfop.localeCompare(b.cfop) || a.cClassTrib.localeCompare(b.cClassTrib));
+}
+
 const COLUNAS_CSV: { rotulo: string; campo: keyof ItemApuracao }[] = [
   { rotulo: "nNF", campo: "nNF" },
   { rotulo: "dhEmi", campo: "dhEmi" },
@@ -218,6 +251,38 @@ export function SecaoApuracaoIbsCbs({ empresaId, token }: { empresaId: string; t
           </p>
         </div>
       ) : (
+        <>
+        <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
+          <p className="px-3 pt-3 text-xs" style={{ color: "var(--muted)" }}>
+            Resumo por CFOP — pra conferir os totais declarados mais rápido, sem precisar somar nota a nota.
+          </p>
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+                <th className="px-3 py-2 font-medium">CFOP</th>
+                <th className="px-3 py-2 font-medium">cClassTrib</th>
+                <th className="px-3 py-2 font-medium">Itens</th>
+                <th className="px-3 py-2 font-medium">Valor produtos</th>
+                <th className="px-3 py-2 font-medium">IBS UF</th>
+                <th className="px-3 py-2 font-medium">IBS Mun</th>
+                <th className="px-3 py-2 font-medium">CBS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resumoPorCfop(itens).map((r) => (
+                <tr key={`${r.cfop}-${r.cClassTrib}`} className="border-t text-xs" style={{ borderColor: "var(--border)" }}>
+                  <td className="px-3 py-2" style={{ color: "var(--paper)" }}>{r.cfop}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.cClassTrib}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.qtdItens}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.valorProdutos.toFixed(2)}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--paper)" }}>{r.valorIbsUf.toFixed(2)}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--paper)" }}>{r.valorIbsMun.toFixed(2)}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--paper)" }}>{r.valorCbs.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
           <div className="max-h-[34rem] overflow-auto">
             <table className="w-full min-w-[90rem] text-left text-sm">
@@ -308,6 +373,7 @@ export function SecaoApuracaoIbsCbs({ empresaId, token }: { empresaId: string; t
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   );

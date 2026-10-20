@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listarApuracaoItens, reprocessarItensDocumentoFiscal, type ItemApuracao } from "@/lib/api";
+import {
+  listarApuracaoItens,
+  listarNumeracaoFaltando,
+  reprocessarItensDocumentoFiscal,
+  type ItemApuracao,
+  type NumeroFaltando,
+} from "@/lib/api";
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
 
 const CLASSE_BOTAO_LINK =
@@ -47,7 +53,73 @@ const COLUNAS_CSV: { rotulo: string; campo: keyof ItemApuracao }[] = [
   { rotulo: "CFOP divergente", campo: "cfopDivergente" },
   { rotulo: "Inconsistências", campo: "tributosInconsistentes" },
   { rotulo: "Regime ICMS misturado", campo: "regimeIcmsMisturado" },
+  { rotulo: "Alíquota ICMS divergente", campo: "aliquotaIcmsDivergente" },
 ];
+
+interface LinhaResumoCfop {
+  cfop: string;
+  cstIcms: string;
+  qtdItens: number;
+  valorProdutos: number;
+  baseIcms: number;
+  valorIcms: number;
+}
+
+interface FaixaFaltando {
+  tipo: string;
+  serie: number;
+  deNumero: number;
+  ateNumero: number;
+  anteriorEmitidoEm: string | null;
+  proximoEmitidoEm: string | null;
+  gigante: boolean;
+}
+
+/** Agrupa números faltando individuais (um registro por número) em faixas contíguas pra não virar uma parede de números na tela. */
+function agruparFaixas(faltando: NumeroFaltando[]): FaixaFaltando[] {
+  const porBuraco = new Map<string, NumeroFaltando[]>();
+  for (const f of faltando) {
+    const chave = `${f.tipo}-${f.serie}-${f.anterior.numero}-${f.proximo.numero}`;
+    const lista = porBuraco.get(chave) ?? [];
+    lista.push(f);
+    porBuraco.set(chave, lista);
+  }
+  return [...porBuraco.values()].map((lista) => {
+    const primeiro = lista[0]!;
+    const gigante = primeiro.numero === -1;
+    const numeros = lista.map((f) => f.numero);
+    return {
+      tipo: primeiro.tipo,
+      serie: primeiro.serie,
+      deNumero: gigante ? primeiro.anterior.numero + 1 : Math.min(...numeros),
+      ateNumero: gigante ? primeiro.proximo.numero - 1 : Math.max(...numeros),
+      anteriorEmitidoEm: primeiro.anterior.emitidoEm,
+      proximoEmitidoEm: primeiro.proximo.emitidoEm,
+      gigante,
+    };
+  });
+}
+
+function resumoPorCfop(itens: ItemApuracao[]): LinhaResumoCfop[] {
+  const grupos = new Map<string, LinhaResumoCfop>();
+  for (const i of itens) {
+    const chave = `${i.cfop}|${i.icmsCst ?? "—"}`;
+    const atual = grupos.get(chave) ?? {
+      cfop: i.cfop,
+      cstIcms: i.icmsCst ?? "—",
+      qtdItens: 0,
+      valorProdutos: 0,
+      baseIcms: 0,
+      valorIcms: 0,
+    };
+    atual.qtdItens += 1;
+    atual.valorProdutos += Number(i.valorProdutos);
+    atual.baseIcms += Number(i.icmsBase ?? 0);
+    atual.valorIcms += Number(i.icmsValor ?? 0);
+    grupos.set(chave, atual);
+  }
+  return [...grupos.values()].sort((a, b) => a.cfop.localeCompare(b.cfop) || a.cstIcms.localeCompare(b.cstIcms));
+}
 
 function exportarCsv(itens: ItemApuracao[], nomeArquivo: string) {
   const linhas = [
@@ -77,13 +149,20 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
   const [mes, setMes] = useState(mesAtual());
   const [reprocessando, setReprocessando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
+  const [numeracaoFaltando, setNumeracaoFaltando] = useState<NumeroFaltando[]>([]);
+  const [numeracaoTruncada, setNumeracaoTruncada] = useState(false);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
       const { inicio, fim } = limitesDoMes(mes);
-      const dados = await listarApuracaoItens(empresaId, direcao, inicio, fim, token);
+      const [dados, numeracao] = await Promise.all([
+        listarApuracaoItens(empresaId, direcao, inicio, fim, token),
+        listarNumeracaoFaltando(empresaId, direcao, inicio, fim, token),
+      ]);
       setItens(dados);
+      setNumeracaoFaltando(numeracao.faltando);
+      setNumeracaoTruncada(numeracao.truncado);
       setErro(null);
     } catch {
       setErro("Não foi possível carregar a apuração agora.");
@@ -118,7 +197,8 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
   }
 
   const pendencias = itens.filter(
-    (i) => i.cfopDivergente || i.tributosInconsistentes.length > 0 || i.regimeIcmsMisturado
+    (i) =>
+      i.cfopDivergente || i.tributosInconsistentes.length > 0 || i.regimeIcmsMisturado || i.aliquotaIcmsDivergente
   ).length;
 
   return (
@@ -132,9 +212,10 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
             destacadas em vermelho,{" "}
           </>
         )}
-        linhas onde <strong>base × alíquota não bate com o valor</strong> do XML ficam em laranja, e notas com{" "}
+        linhas onde <strong>base × alíquota não bate com o valor</strong> do XML ficam em laranja, notas com{" "}
         <strong>item em CST normal e item em CSOSN ao mesmo tempo</strong> (regime misturado, não devia acontecer)
-        ficam em roxo.
+        ficam em roxo, e itens com <strong>alíquota de ICMS diferente do que a empresa normalmente usa</strong>{" "}
+        nesse mesmo CFOP ficam em azul.
       </p>
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4" style={{ borderColor: "var(--border)" }}>
@@ -200,6 +281,31 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
         </p>
       )}
 
+      {!carregando && numeracaoFaltando.length > 0 && (
+        <div className="rounded-lg border p-4" style={{ borderColor: "var(--vermelho, #e08a8a)" }}>
+          <p className="text-sm font-medium" style={{ color: "var(--paper)" }}>
+            {numeracaoFaltando.length} número(s) de nota faltando na sequência perto desse período — possível nota
+            que nunca chegou no sistema.
+          </p>
+          <ul className="mt-2 space-y-1 text-xs" style={{ color: "var(--muted)" }}>
+            {agruparFaixas(numeracaoFaltando).map((f, i) => (
+              <li key={i}>
+                {f.tipo} série {f.serie}: {f.gigante ? "faixa grande" : "falta"}{" "}
+                <strong style={{ color: "var(--paper)" }}>
+                  {f.deNumero === f.ateNumero ? f.deNumero : `${f.deNumero} a ${f.ateNumero}`}
+                </strong>{" "}
+                (entre {formatarDataHora(f.anteriorEmitidoEm ?? "")} e {formatarDataHora(f.proximoEmitidoEm ?? "")})
+              </li>
+            ))}
+          </ul>
+          {numeracaoTruncada && (
+            <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
+              Lista parcial — tem mais números faltando além dos listados aqui.
+            </p>
+          )}
+        </div>
+      )}
+
       {carregando ? (
         <div className="skeleton h-24 w-full rounded-lg" />
       ) : itens.length === 0 ? (
@@ -211,6 +317,36 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
           </p>
         </div>
       ) : (
+        <>
+        <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
+          <p className="px-3 pt-3 text-xs" style={{ color: "var(--muted)" }}>
+            Resumo por CFOP — pra conferir os totais declarados mais rápido, sem precisar somar nota a nota.
+          </p>
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+                <th className="px-3 py-2 font-medium">CFOP</th>
+                <th className="px-3 py-2 font-medium">CST ICMS</th>
+                <th className="px-3 py-2 font-medium">Itens</th>
+                <th className="px-3 py-2 font-medium">Valor produtos</th>
+                <th className="px-3 py-2 font-medium">Base ICMS</th>
+                <th className="px-3 py-2 font-medium">Valor ICMS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resumoPorCfop(itens).map((r) => (
+                <tr key={`${r.cfop}-${r.cstIcms}`} className="border-t text-xs" style={{ borderColor: "var(--border)" }}>
+                  <td className="px-3 py-2" style={{ color: "var(--paper)" }}>{r.cfop}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.cstIcms}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.qtdItens}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.valorProdutos.toFixed(2)}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.baseIcms.toFixed(2)}</td>
+                  <td className="px-3 py-2" style={{ color: "var(--paper)" }}>{r.valorIcms.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
           <div className="max-h-[34rem] overflow-auto">
             <table className="w-full min-w-[110rem] text-left text-sm">
@@ -248,6 +384,9 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
                     i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
                     inconsistente ? `Base × alíquota não bate com o valor: ${i.tributosInconsistentes.join(", ")}` : null,
                     i.regimeIcmsMisturado ? "Nota com item em CST normal e item em CSOSN ao mesmo tempo" : null,
+                    i.aliquotaIcmsDivergente
+                      ? "Alíquota de ICMS diferente da que a empresa normalmente usa nesse CFOP"
+                      : null,
                   ]
                     .filter(Boolean)
                     .join(" — ");
@@ -263,7 +402,9 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
                           ? "rgba(224, 170, 110, 0.12)"
                           : i.regimeIcmsMisturado
                             ? "rgba(170, 110, 224, 0.12)"
-                            : undefined,
+                            : i.aliquotaIcmsDivergente
+                              ? "rgba(110, 170, 224, 0.12)"
+                              : undefined,
                     }}
                     title={titulo || undefined}
                   >
@@ -322,6 +463,7 @@ export function SecaoApuracaoIcms({ empresaId, token }: { empresaId: string; tok
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   );

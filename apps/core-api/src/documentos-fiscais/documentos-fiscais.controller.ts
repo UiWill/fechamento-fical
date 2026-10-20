@@ -116,6 +116,30 @@ export class DocumentosFiscaisController {
     return this.service.apuracaoItens(empresaId, this.organizacaoIdDoUsuario(request), direcao, new Date(inicio), new Date(fim));
   }
 
+  /** Números de nota que faltam na sequência (NF-e/NFC-e) — indício de nota que nunca chegou no sistema. */
+  @Get("apuracao/numeracao-faltando")
+  apuracaoNumeracaoFaltando(
+    @Param("empresaId") empresaId: string,
+    @Query("direcao") direcao: string,
+    @Query("inicio") inicio: string,
+    @Query("fim") fim: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    if (direcao !== "ENTRADA" && direcao !== "SAIDA") {
+      throw new BadRequestException('direcao deve ser "ENTRADA" ou "SAIDA"');
+    }
+    if (!inicio || !fim) {
+      throw new BadRequestException('"inicio" e "fim" são obrigatórios');
+    }
+    return this.service.apuracaoNumeracaoFaltando(
+      empresaId,
+      this.organizacaoIdDoUsuario(request),
+      direcao,
+      new Date(inicio),
+      new Date(fim)
+    );
+  }
+
   /** Extrai e persiste os itens de documentos (ENTRADA ou SAIDA) que ainda não têm — histórico anterior à feature, ou falhas pontuais na ingestão. */
   @Post("itens/reprocessar")
   reprocessarItens(

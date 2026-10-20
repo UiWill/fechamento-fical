@@ -10,6 +10,7 @@ import { CertificadosService } from "../certificados/certificados.service";
 import { FiscalEngineClient } from "../common/fiscal-engine/fiscal-engine.client";
 import { extrairDadosBasicos } from "./xml-utils";
 import { ItensDocumentoFiscalService } from "./itens-documento-fiscal.service";
+import { decodificarChaveAcesso } from "@afe/shared";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -557,6 +558,35 @@ export class DocumentosFiscaisService {
       [...regimesPorNota.entries()].filter(([, regimes]) => regimes.size > 1).map(([id]) => id)
     );
 
+    // Alíquota de ICMS fora do padrão -- comparado com as PRÓPRIAS notas
+    // dessa empresa no mesmo CFOP e período (sem precisar de tabela de
+    // referência externa por UF/NCM, que não existe). Só sinaliza quando
+    // há amostra suficiente (>=3 itens no CFOP) e uma alíquota claramente
+    // majoritária (>50%) -- com pouca amostra ou tudo dividido meio a
+    // meio não dá pra dizer qual é "a errada".
+    const contagemPorCfop = new Map<string, Map<string, number>>();
+    for (const item of itens) {
+      if (item.icmsAliquota === null) continue;
+      const aliq = item.icmsAliquota.toString();
+      const porCfop = contagemPorCfop.get(item.cfop) ?? new Map<string, number>();
+      porCfop.set(aliq, (porCfop.get(aliq) ?? 0) + 1);
+      contagemPorCfop.set(item.cfop, porCfop);
+    }
+    const modaPorCfop = new Map<string, { aliquota: string; contagem: number; total: number }>();
+    for (const [cfop, contagens] of contagemPorCfop) {
+      let total = 0;
+      let melhorAliquota = "";
+      let melhorContagem = 0;
+      for (const [aliq, contagem] of contagens) {
+        total += contagem;
+        if (contagem > melhorContagem) {
+          melhorContagem = contagem;
+          melhorAliquota = aliq;
+        }
+      }
+      modaPorCfop.set(cfop, { aliquota: melhorAliquota, contagem: melhorContagem, total });
+    }
+
     return itens.map((item) => {
       const numeroNota = Number(item.documentoFiscal.chaveAcesso.slice(25, 34));
       const tributosInconsistentes = [
@@ -582,8 +612,107 @@ export class DocumentosFiscaisService {
           item.documentoFiscal.emitidoEm !== null &&
           item.documentoFiscal.emitidoEm >= DATA_OBRIGATORIEDADE_IBS_CBS,
         regimeIcmsMisturado: notasComRegimeMisturado.has(item.documentoFiscalId),
+        aliquotaIcmsDivergente: (() => {
+          if (item.icmsAliquota === null) return false;
+          const moda = modaPorCfop.get(item.cfop);
+          if (!moda || moda.total < 3 || moda.contagem / moda.total <= 0.5) return false;
+          return item.icmsAliquota.toString() !== moda.aliquota;
+        })(),
       };
     });
+  }
+
+  /**
+   * Números de nota (NF-e/NFC-e) que faltam na sequência — forte indício
+   * de nota que nunca chegou no sistema (declaração incompleta). Usa o
+   * HISTÓRICO INTEIRO da empresa pra achar os buracos (não só o período
+   * pedido) pra não dar falso positivo na virada do mês — ex: nota 101
+   * emitida em outubro não pode parecer "faltando setembro" só porque
+   * setembro terminou na 100. Só devolve os buracos que caem perto do
+   * período pedido (nota antes OU depois do buraco emitida dentro dele).
+   * Numeração de NF-e e NFC-e é independente, e cada série também —
+   * agrupa por tipo+série.
+   */
+  async apuracaoNumeracaoFaltando(
+    empresaId: string,
+    organizacaoId: string,
+    direcao: "ENTRADA" | "SAIDA",
+    inicio: Date,
+    fim: Date
+  ) {
+    await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
+
+    const documentos = await this.prisma.client.documentoFiscal.findMany({
+      where: { empresaId, direcao, tipo: { in: ["NFE", "NFCE"] } },
+      select: { chaveAcesso: true, tipo: true, emitidoEm: true },
+    });
+
+    const porSerie = new Map<
+      string,
+      { tipo: string; serie: number; numero: number; emitidoEm: Date | null }[]
+    >();
+    for (const doc of documentos) {
+      const decodificada = decodificarChaveAcesso(doc.chaveAcesso);
+      if (!decodificada) continue;
+      const chave = `${doc.tipo}-${decodificada.serie}`;
+      const lista = porSerie.get(chave) ?? [];
+      lista.push({ tipo: doc.tipo, serie: decodificada.serie, numero: decodificada.numeroDocumento, emitidoEm: doc.emitidoEm });
+      porSerie.set(chave, lista);
+    }
+
+    const LIMITE = 300;
+    const faltando: {
+      tipo: string;
+      serie: number;
+      numero: number;
+      anterior: { numero: number; emitidoEm: Date | null };
+      proximo: { numero: number; emitidoEm: Date | null };
+    }[] = [];
+    let truncado = false;
+
+    for (const lista of porSerie.values()) {
+      const ordenada = [...lista].sort((a, b) => a.numero - b.numero);
+      for (let i = 1; i < ordenada.length; i++) {
+        const anterior = ordenada[i - 1]!;
+        const proximo = ordenada[i]!;
+        const gap = proximo.numero - anterior.numero;
+        if (gap <= 1) continue;
+        const relevante =
+          (anterior.emitidoEm && anterior.emitidoEm >= inicio && anterior.emitidoEm <= fim) ||
+          (proximo.emitidoEm && proximo.emitidoEm >= inicio && proximo.emitidoEm <= fim);
+        if (!relevante) continue;
+        // Buraco gigante (milhares) quase sempre é faixa de numeração
+        // nunca usada por essa empresa (ex: pulou de propósito) — listar
+        // número por número não ajuda ninguém, só soma como 1 aviso.
+        if (gap > 1000) {
+          faltando.push({
+            tipo: anterior.tipo,
+            serie: anterior.serie,
+            numero: -1,
+            anterior: { numero: anterior.numero, emitidoEm: anterior.emitidoEm },
+            proximo: { numero: proximo.numero, emitidoEm: proximo.emitidoEm },
+          });
+          continue;
+        }
+        for (let numero = anterior.numero + 1; numero < proximo.numero; numero++) {
+          if (faltando.length >= LIMITE) {
+            truncado = true;
+            break;
+          }
+          faltando.push({
+            tipo: anterior.tipo,
+            serie: anterior.serie,
+            numero,
+            anterior: { numero: anterior.numero, emitidoEm: anterior.emitidoEm },
+            proximo: { numero: proximo.numero, emitidoEm: proximo.emitidoEm },
+          });
+        }
+        if (truncado) break;
+      }
+      if (truncado) break;
+    }
+
+    return { faltando, truncado };
   }
 
   /**
