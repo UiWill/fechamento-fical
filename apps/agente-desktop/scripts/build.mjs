@@ -17,7 +17,13 @@ mkdirSync(saida, { recursive: true });
 // package.json (AFE_AGENTE_VERSAO_BUILD deixa sobrescrever em builds de teste).
 const packageJson = JSON.parse(readFileSync(path.join(raizApp, "package.json"), "utf8"));
 const versaoAgente = process.env.AFE_AGENTE_VERSAO_BUILD ?? packageJson.version;
-const urlApi = process.env.AFE_CORE_API_URL_BUILD ?? "https://fiscal-api.dnotas.com.br:8443";
+// api.fechafiscal.com.br (2026-10-19) fica atras da Cloudflare com uma
+// Origin Rule (porta 443 do visitante -> porta 8443 do servidor aqui por
+// baixo) -- diferente do fiscal-api.dnotas.com.br:8443 antigo, essa porta
+// 443 padrao passa direto por VPN/firewall corporativo que bloqueia
+// portas nao-padrao (motivo de alguns clientes nao conseguirem usar o
+// agente em VPN). O dominio antigo continua no ar (nao foi desligado).
+const urlApi = process.env.AFE_CORE_API_URL_BUILD ?? "https://api.fechafiscal.com.br";
 
 async function main() {
   console.log(`[build] versão ${versaoAgente}, API ${urlApi}`);
