@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listarApuracaoItens, reprocessarItensDocumentoFiscal, type ItemApuracao } from "@/lib/api";
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
+import { exportarApuracaoIbsCbsExcel } from "@/lib/exportar-apuracao-excel";
 
 const CLASSE_BOTAO_LINK =
   "font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed";
@@ -95,7 +96,17 @@ function exportarCsv(itens: ItemApuracao[], nomeArquivo: string) {
   URL.revokeObjectURL(url);
 }
 
-export function SecaoApuracaoIbsCbs({ empresaId, token }: { empresaId: string; token: string }) {
+export function SecaoApuracaoIbsCbs({
+  empresaId,
+  empresaNome,
+  cnpj,
+  token,
+}: {
+  empresaId: string;
+  empresaNome: string;
+  cnpj: string;
+  token: string;
+}) {
   const [direcao, setDirecao] = useState<"ENTRADA" | "SAIDA">("SAIDA");
   const [itens, setItens] = useState<ItemApuracao[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -121,6 +132,19 @@ export function SecaoApuracaoIbsCbs({ empresaId, token }: { empresaId: string; t
   useEffect(() => {
     void carregar();
   }, [carregar]);
+
+  const [gerandoExcel, setGerandoExcel] = useState(false);
+
+  async function handleBaixarExcel() {
+    setGerandoExcel(true);
+    try {
+      await exportarApuracaoIbsCbsExcel(itens, empresaNome, cnpj, rotuloMes(mes));
+    } catch {
+      setMensagem("Não foi possível gerar o Excel agora.");
+    } finally {
+      setGerandoExcel(false);
+    }
+  }
 
   async function handleReprocessar() {
     setReprocessando(true);
@@ -210,6 +234,14 @@ export function SecaoApuracaoIbsCbs({ empresaId, token }: { empresaId: string; t
             style={{ color: "var(--paper)" }}
           >
             Exportar CSV
+          </button>
+          <button
+            onClick={() => void handleBaixarExcel()}
+            disabled={itens.length === 0 || gerandoExcel}
+            className={CLASSE_BOTAO_LINK}
+            style={{ color: "var(--paper)" }}
+          >
+            {gerandoExcel ? "Gerando…" : "Baixar Excel"}
           </button>
           <button onClick={() => void handleReprocessar()} disabled={reprocessando} className={CLASSE_BOTAO_LINK} style={{ color: "var(--paper)" }}>
             {reprocessando ? "Reprocessando…" : "Reprocessar itens"}

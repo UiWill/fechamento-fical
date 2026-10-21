@@ -1497,13 +1497,13 @@ export default function EmpresaDetalhePage() {
 
         {!transicaoAba && abaDocumentos === "apuracao-icms" && token && (
         <div key="apuracao-icms" className="desliza-direita space-y-3">
-          <SecaoApuracaoIcms empresaId={empresa.id} token={token} />
+          <SecaoApuracaoIcms empresaId={empresa.id} empresaNome={empresa.razaoSocial} cnpj={empresa.cnpj} token={token} />
         </div>
         )}
 
         {!transicaoAba && abaDocumentos === "apuracao-ibs-cbs" && token && (
         <div key="apuracao-ibs-cbs" className="desliza-direita space-y-3">
-          <SecaoApuracaoIbsCbs empresaId={empresa.id} token={token} />
+          <SecaoApuracaoIbsCbs empresaId={empresa.id} empresaNome={empresa.razaoSocial} cnpj={empresa.cnpj} token={token} />
         </div>
         )}
 
