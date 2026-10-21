@@ -492,7 +492,15 @@ export class DocumentosFiscaisService {
         empresaId,
         direcao,
         tipo: { in: ["NFE", "NFCE"] },
-        cStatConsulta: { not: "100" },
+        // "cStatConsulta: { not: '100' }" sozinho NÃO pega os registros com
+        // cStatConsulta nulo (o caso normal de um documento que acabou de
+        // chegar e nunca foi consultado) — vira "<> '100'" em SQL, que
+        // exclui NULL por definição. Era por isso que o cron diário nunca
+        // pegava documento nenhum recém-chegado: só reprocessava os raros
+        // que já tinham algum cStat errado gravado antes (achado em
+        // 2026-10-21 rodando um backfill manual, que encontrou só 2
+        // pendentes nesse filtro quando o banco tinha dezenas de milhares).
+        OR: [{ cStatConsulta: null }, { cStatConsulta: { not: "100" } }],
         ...(periodo ? { emitidoEm: { gte: periodo.inicio, lte: periodo.fim } } : {}),
       },
       select: { id: true },
