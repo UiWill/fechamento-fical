@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listarApuracaoItens, reprocessarItensDocumentoFiscal, type ItemApuracao } from "@/lib/api";
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
 import { exportarApuracaoIbsCbsExcel } from "@/lib/exportar-apuracao-excel";
+import { SeletorMes } from "./SeletorMes";
 
 const CLASSE_BOTAO_LINK =
   "font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed";
@@ -227,7 +228,7 @@ export function SecaoApuracaoIbsCbs({
             <label className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
               Mês
             </label>
-            <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="campo text-sm" style={{ width: "auto" }} />
+            <SeletorMes value={mes} onChange={setMes} />
           </div>
           <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
             {rotuloMes(mes)} · {itens.length === 0 ? "nenhum item nesse mês" : `${itens.length} item(ns)`}

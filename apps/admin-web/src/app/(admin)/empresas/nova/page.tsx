@@ -7,6 +7,7 @@ import { validarDigitosCnpj } from "@afe/shared";
 import { criarEmpresa, consultarCnpj, CnpjNaoEncontradoError } from "@/lib/api";
 import { UFS } from "@/lib/uf";
 import { mascararCnpjParcial, mesAtual } from "@/lib/format";
+import { SeletorMes } from "@/components/SeletorMes";
 
 export default function NovaEmpresaPage() {
   const router = useRouter();
@@ -232,15 +233,7 @@ export default function NovaEmpresaPage() {
           >
             Captar documentos a partir de
           </label>
-          <input
-            id="dataInicioMonitoramento"
-            type="month"
-            required
-            value={mesInicioMonitoramento}
-            onChange={(event) => setMesInicioMonitoramento(event.target.value)}
-            className="campo"
-            style={{ width: "auto" }}
-          />
+          <SeletorMes value={mesInicioMonitoramento} onChange={setMesInicioMonitoramento} className="campo" />
           <p className="text-xs" style={{ color: "var(--muted)" }}>
             O agente desktop vai ignorar XML emitido antes desse mês — evita subir o histórico
             antigo que já estava na pasta do cliente.

@@ -41,6 +41,7 @@ import { ModalManifestacao } from "@/components/ModalManifestacao";
 import { SecaoCteDistribuicao } from "@/components/SecaoCteDistribuicao";
 import { SecaoApuracaoIcms } from "@/components/SecaoApuracaoIcms";
 import { SecaoApuracaoIbsCbs } from "@/components/SecaoApuracaoIbsCbs";
+import { SeletorMes } from "@/components/SeletorMes";
 import {
   exportarNotasEntradaPdf,
   exportarNotasEntradaExcel,
@@ -1156,13 +1157,7 @@ export default function EmpresaDetalhePage() {
               >
                 Relatório de entrada · mês
               </label>
-              <input
-                type="month"
-                value={mesFiltro}
-                onChange={(event) => setMesFiltro(event.target.value)}
-                className="campo text-sm"
-                style={{ width: "auto" }}
-              />
+              <SeletorMes value={mesFiltro} onChange={setMesFiltro} />
             </div>
             <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
               {rotuloMes(mesFiltro)} ·{" "}
@@ -1354,13 +1349,7 @@ export default function EmpresaDetalhePage() {
               >
                 Relatório de saída · mês
               </label>
-              <input
-                type="month"
-                value={mesFiltroSaida}
-                onChange={(event) => setMesFiltroSaida(event.target.value)}
-                className="campo text-sm"
-                style={{ width: "auto" }}
-              />
+              <SeletorMes value={mesFiltroSaida} onChange={setMesFiltroSaida} />
             </div>
             <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
               {rotuloMes(mesFiltroSaida)} ·{" "}
@@ -1564,13 +1553,7 @@ export default function EmpresaDetalhePage() {
             >
               Notas de entrada · mês
             </label>
-            <input
-              type="month"
-              value={mesExportacaoTxt}
-              onChange={(event) => setMesExportacaoTxt(event.target.value)}
-              className="campo text-sm"
-              style={{ width: "auto" }}
-            />
+            <SeletorMes value={mesExportacaoTxt} onChange={setMesExportacaoTxt} />
           </div>
 
           <button
