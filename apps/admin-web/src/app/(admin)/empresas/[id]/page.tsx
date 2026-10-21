@@ -514,16 +514,28 @@ export default function EmpresaDetalhePage() {
   // próprio seletor — antes vinha tudo de uma vez (anos de histórico,
   // chegou a passar de 2 minutos numa empresa com 16 mil documentos) e o
   // filtro de mês só recortava depois, no navegador.
+  // Guard de corrida: <input type="month"> dispara onChange a cada dígito
+  // digitado, então duas buscas podem ficar "no ar" ao mesmo tempo — sem
+  // isso, a resposta de uma busca já ULTRAPASSADA podia chegar depois da
+  // mais nova e sobrescrever a tela (às vezes com lista vazia), só
+  // resolvendo se apagasse o mês e digitasse de novo.
+  const idRequisicaoEntrada = useRef(0);
+  const idRequisicaoSaida = useRef(0);
+
   const carregarDocumentosEntrada = useCallback(
     async (t: string, mes: string) => {
+      const idDestaChamada = ++idRequisicaoEntrada.current;
       setCarregandoEntrada(true);
       try {
         const { inicio, fim } = limitesDoMes(mes);
-        setDocumentosEntrada(await listarDocumentosFiscais(params.id, "ENTRADA", inicio, fim, t));
+        const docs = await listarDocumentosFiscais(params.id, "ENTRADA", inicio, fim, t);
+        if (idDestaChamada !== idRequisicaoEntrada.current) return;
+        setDocumentosEntrada(docs);
       } catch {
+        if (idDestaChamada !== idRequisicaoEntrada.current) return;
         setErro("Não foi possível carregar as notas de entrada agora.");
       } finally {
-        setCarregandoEntrada(false);
+        if (idDestaChamada === idRequisicaoEntrada.current) setCarregandoEntrada(false);
       }
     },
     [params.id]
@@ -531,14 +543,18 @@ export default function EmpresaDetalhePage() {
 
   const carregarDocumentosSaida = useCallback(
     async (t: string, mes: string) => {
+      const idDestaChamada = ++idRequisicaoSaida.current;
       setCarregandoSaida(true);
       try {
         const { inicio, fim } = limitesDoMes(mes);
-        setDocumentosSaida(await listarDocumentosFiscais(params.id, "SAIDA", inicio, fim, t));
+        const docs = await listarDocumentosFiscais(params.id, "SAIDA", inicio, fim, t);
+        if (idDestaChamada !== idRequisicaoSaida.current) return;
+        setDocumentosSaida(docs);
       } catch {
+        if (idDestaChamada !== idRequisicaoSaida.current) return;
         setErro("Não foi possível carregar as notas de saída agora.");
       } finally {
-        setCarregandoSaida(false);
+        if (idDestaChamada === idRequisicaoSaida.current) setCarregandoSaida(false);
       }
     },
     [params.id]

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listarApuracaoItens,
   listarNumeracaoFaltando,
@@ -167,7 +167,16 @@ export function SecaoApuracaoIcms({
   const [numeracaoFaltando, setNumeracaoFaltando] = useState<NumeroFaltando[]>([]);
   const [numeracaoTruncada, setNumeracaoTruncada] = useState(false);
 
+  // Contador de requisição — o <input type="month"> dispara onChange a
+  // cada dígito digitado (ex: "2026-09" vira "2026-0", "2026-09" em dois
+  // eventos), então duas buscas podem ficar "no ar" ao mesmo tempo; sem
+  // isso, a resposta da busca ANTIGA podia chegar DEPOIS da nova e
+  // sobrescrever a tela com o resultado errado (às vezes vazio) — exatamente
+  // o bug "digita o mês e some, só volta apagando e digitando de novo".
+  const idRequisicao = useRef(0);
+
   const carregar = useCallback(async () => {
+    const idDestaChamada = ++idRequisicao.current;
     setCarregando(true);
     try {
       const { inicio, fim } = limitesDoMes(mes);
@@ -175,14 +184,16 @@ export function SecaoApuracaoIcms({
         listarApuracaoItens(empresaId, direcao, inicio, fim, token),
         listarNumeracaoFaltando(empresaId, direcao, inicio, fim, token),
       ]);
+      if (idDestaChamada !== idRequisicao.current) return; // resposta de uma busca já superada
       setItens(dados);
       setNumeracaoFaltando(numeracao.faltando);
       setNumeracaoTruncada(numeracao.truncado);
       setErro(null);
     } catch {
+      if (idDestaChamada !== idRequisicao.current) return;
       setErro("Não foi possível carregar a apuração agora.");
     } finally {
-      setCarregando(false);
+      if (idDestaChamada === idRequisicao.current) setCarregando(false);
     }
   }, [empresaId, token, mes, direcao]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { listarApuracaoItens, reprocessarItensDocumentoFiscal, type ItemApuracao } from "@/lib/api";
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
 import { exportarApuracaoIbsCbsExcel } from "@/lib/exportar-apuracao-excel";
@@ -115,16 +115,26 @@ export function SecaoApuracaoIbsCbs({
   const [reprocessando, setReprocessando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
+  // Mesmo guard de SecaoApuracaoIcms.tsx — <input type="month"> dispara
+  // onChange a cada dígito, duas buscas ficam "no ar" e a resposta velha
+  // podia chegar depois e sobrescrever com resultado errado (às vezes
+  // vazio) — o bug "digita o mês e some".
+  const idRequisicao = useRef(0);
+
   const carregar = useCallback(async () => {
+    const idDestaChamada = ++idRequisicao.current;
     setCarregando(true);
     try {
       const { inicio, fim } = limitesDoMes(mes);
       const dados = await listarApuracaoItens(empresaId, direcao, inicio, fim, token);
+      if (idDestaChamada !== idRequisicao.current) return;
       setItens(dados);
       setErro(null);
     } catch {
+      if (idDestaChamada !== idRequisicao.current) return;
       setErro("Não foi possível carregar a apuração agora.");
     } finally {
+      if (idDestaChamada !== idRequisicao.current) return;
       setCarregando(false);
     }
   }, [empresaId, token, mes, direcao]);
