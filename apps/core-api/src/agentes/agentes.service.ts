@@ -350,7 +350,13 @@ export class AgentesService {
       // com os dados completos — não mexe em cfop/valor (continuam
       // mostrando o que foi vendido), só marca que foi cancelada.
       const precisaMarcarCancelada = existente.empresaId === empresa.id && dados.cancelada && !existente.cancelada;
-      if (podeBackfillarValor || precisaMarcarCancelada) {
+      // O primeiro envio pode ter sido antes da SEFAZ autorizar (ou um
+      // resumo sem protocolo) — se esse envio já traz o protocolo e o
+      // registro salvo ainda não tem, preenche direto do XML, sem
+      // precisar esperar o cron de consulta.
+      const podeBackfillarProtocolo =
+        existente.empresaId === empresa.id && !existente.cStatConsulta && dados.protocolo;
+      if (podeBackfillarValor || precisaMarcarCancelada || podeBackfillarProtocolo) {
         await this.prisma.client.documentoFiscal.update({
           where: { id: existente.id },
           data: {
@@ -358,6 +364,13 @@ export class AgentesService {
             valorTotal: existente.valorTotal ?? dados.valorTotal,
             nomeEmitente: existente.nomeEmitente ?? dados.nomeEmitente,
             cancelada: existente.cancelada || dados.cancelada,
+            ...(podeBackfillarProtocolo
+              ? {
+                  cStatConsulta: dados.protocolo!.cStat,
+                  xMotivoConsulta: dados.protocolo!.xMotivo,
+                  consultadoEm: new Date(),
+                }
+              : {}),
           },
         });
         if (podeBackfillarValor && (dados.tipo === "NFE" || dados.tipo === "NFCE")) {
@@ -393,6 +406,16 @@ export class AgentesService {
           objetoStorageXml,
           emitidoEm: dados.dataEmissao,
           agenteInstalacaoTokenId: agenteToken.id,
+          // Protocolo já vem no XML autorizado (ver xml-documento-fiscal.ts)
+          // na maioria das vendas de PDV — grava direto, sem precisar
+          // esperar o cron diário de consulta à SEFAZ.
+          ...(dados.protocolo
+            ? {
+                cStatConsulta: dados.protocolo.cStat,
+                xMotivoConsulta: dados.protocolo.xMotivo,
+                consultadoEm: new Date(),
+              }
+            : {}),
         },
       });
 

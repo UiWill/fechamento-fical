@@ -284,15 +284,32 @@ export class DocumentosFiscaisService {
             valorTotal: dadosBasicos.valorTotal,
             objetoStorageXml,
             emitidoEm: dadosBasicos.dataEmissao,
+            // Protocolo já vem no XML completo da Distribuição DFe na
+            // maioria dos casos (nfeProc) — grava direto, sem precisar do
+            // cron diário de consulta à SEFAZ (ver xml-documento-fiscal.ts).
+            ...(dadosBasicos.protocolo
+              ? {
+                  cStatConsulta: dadosBasicos.protocolo.cStat,
+                  xMotivoConsulta: dadosBasicos.protocolo.xMotivo,
+                  consultadoEm: new Date(),
+                }
+              : {}),
           },
           // Documento já indexado — Distribuição DFe pode reenviar o mesmo NSU.
           // Só atualiza nomeEmitente/cfop/valorTotal (backfill de registros
           // antigos, de antes desses campos existirem, caso a SEFAZ reenvie o
-          // mesmo NSU).
+          // mesmo NSU) e o protocolo, se ainda não tinha.
           update: {
             nomeEmitente: dadosBasicos.nomeEmitente,
             cfop: dadosBasicos.cfop,
             valorTotal: dadosBasicos.valorTotal,
+            ...(dadosBasicos.protocolo
+              ? {
+                  cStatConsulta: dadosBasicos.protocolo.cStat,
+                  xMotivoConsulta: dadosBasicos.protocolo.xMotivo,
+                  consultadoEm: new Date(),
+                }
+              : {}),
           },
         });
 
@@ -440,9 +457,23 @@ export class DocumentosFiscaisService {
    * timeout de navegador e precisa continuar serializado (uma empresa/
    * direção por vez) pra não martelar a SEFAZ com várias empresas em
    * paralelo.
+   *
+   * `limite` existe pra dar rodízio justo entre empresas — sem ele, uma
+   * empresa com fila grande (ex: supermercado com milhares de NFC-e/mês)
+   * consumia a execução inteira do cron e as empresas seguintes da lista
+   * nunca eram alcançadas naquele dia (achado em 2026-10-21: uma empresa
+   * ficou com só 14 notas de saída consultadas em semanas, de 15 mil
+   * pendentes, porque outras empresas à frente na lista monopolizavam
+   * cada execução). Pega as mais ANTIGAS primeiro (orderBy emitidoEm asc)
+   * pra garantir progresso real dia após dia, mesmo com o limite.
    */
-  async consultarPendentesAguardando(empresaId: string, organizacaoId: string, direcao: "ENTRADA" | "SAIDA") {
-    const documentoIds = await this.buscarIdsPendentes(empresaId, organizacaoId, direcao);
+  async consultarPendentesAguardando(
+    empresaId: string,
+    organizacaoId: string,
+    direcao: "ENTRADA" | "SAIDA",
+    limite?: number
+  ) {
+    const documentoIds = await this.buscarIdsPendentes(empresaId, organizacaoId, direcao, undefined, limite);
     const { consultados, falhas } = await this.executarConsultaPendentes(empresaId, organizacaoId, documentoIds);
     return { total: documentoIds.length, consultados, falhas };
   }
@@ -451,7 +482,8 @@ export class DocumentosFiscaisService {
     empresaId: string,
     organizacaoId: string,
     direcao: "ENTRADA" | "SAIDA",
-    periodo?: { inicio: Date; fim: Date }
+    periodo?: { inicio: Date; fim: Date },
+    limite?: number
   ): Promise<string[]> {
     await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
 
@@ -464,6 +496,8 @@ export class DocumentosFiscaisService {
         ...(periodo ? { emitidoEm: { gte: periodo.inicio, lte: periodo.fim } } : {}),
       },
       select: { id: true },
+      orderBy: { emitidoEm: "asc" },
+      ...(limite ? { take: limite } : {}),
     });
     return pendentes.map((d) => d.id);
   }

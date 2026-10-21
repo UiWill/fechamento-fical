@@ -41,11 +41,34 @@ export interface DadosBasicosDocumentoFiscal {
    * informação (não é falha de extração).
    */
   cancelada: boolean;
+  /**
+   * Protocolo de autorização (cStat/xMotivo/nProt), quando o XML já vem
+   * completo (nfeProc, com <protNFe><infProt>...</infProt></protNFe>
+   * embutido) — é o caso comum tanto da Distribuição DFe de entrada quanto
+   * do XML que o PDV salva depois de uma venda autorizada. Nesses casos
+   * não é preciso consultar a SEFAZ de novo pra saber se a nota foi
+   * autorizada: já está aqui (achado em 2026-10-21, revisando por que
+   * notas de saída recém-chegadas ficavam represadas esperando o cron
+   * diário de consulta, quando o próprio XML já tinha a resposta).
+   * null = XML sem protocolo (resumo/resNFe, ou nota ainda não
+   * processada pela SEFAZ) — nesse caso a consulta separada continua
+   * sendo necessária.
+   */
+  protocolo: { cStat: string; xMotivo: string; nProt: string } | null;
 }
 
 function extractText(xml: string, tag: string): string {
   const match = xml.match(new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, "i"));
   return match?.[1]?.trim() ?? "";
+}
+
+/** Lê cStat/xMotivo/nProt de dentro de <protNFe><infProt>, nunca de fora desse bloco (evita pegar um <cStat> de outro contexto por engano). */
+function extrairProtocolo(xml: string): { cStat: string; xMotivo: string; nProt: string } | null {
+  const bloco = xml.match(/<protNFe[^>]*>([\s\S]*?)<\/protNFe>/i)?.[1];
+  if (!bloco) return null;
+  const cStat = extractText(bloco, "cStat");
+  if (!cStat) return null;
+  return { cStat, xMotivo: extractText(bloco, "xMotivo"), nProt: extractText(bloco, "nProt") };
 }
 
 function tipoPorModelo(modelo: string): TipoDocumentoFiscalDetectado | null {
@@ -94,5 +117,6 @@ export function extrairDadosBasicos(xml: string): DadosBasicosDocumentoFiscal | 
     cfop,
     valorTotal: valorTotal !== null && !Number.isNaN(valorTotal) ? valorTotal : null,
     cancelada,
+    protocolo: extrairProtocolo(xml),
   };
 }

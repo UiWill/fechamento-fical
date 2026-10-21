@@ -15,6 +15,16 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // 2026-10-21).
 const MAX_TENTATIVAS_MANIFESTACAO = 3;
 
+// Teto de consultas de situação por empresa+direção por execução do cron
+// diário — sem isso, uma empresa com fila grande (supermercado com
+// milhares de NFC-e/mês) consumia a execução inteira e as empresas
+// seguintes da lista nunca eram alcançadas naquele dia (achado em
+// 2026-10-21: uma empresa ficou com só 14 notas de saída consultadas em
+// semanas, de 15 mil pendentes). Com esse teto e todas as empresas tendo
+// vez a cada execução, mesmo a maior fila (~24 mil) esgota em poucos dias,
+// e o volume normal do dia a dia fica bem coberto.
+const MAX_CONSULTAS_POR_EMPRESA_POR_DIA = 2000;
+
 @Injectable()
 export class SincronizacaoAgendadaService {
   private readonly logger = new Logger(SincronizacaoAgendadaService.name);
@@ -113,7 +123,8 @@ export class SincronizacaoAgendadaService {
           const resultado = await this.documentosFiscais.consultarPendentesAguardando(
             empresa.id,
             empresa.organizacaoId,
-            direcao
+            direcao,
+            MAX_CONSULTAS_POR_EMPRESA_POR_DIA
           );
           if (resultado.total > 0) {
             this.logger.log(
