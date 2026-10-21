@@ -152,40 +152,51 @@ export class SincronizacaoAgendadaService {
     this.logger.log(`Manifestação automática iniciada: ${empresas.length} empresa(s).`);
 
     for (const empresa of empresas) {
-      const pendentes = await this.prisma.client.documentoFiscal.findMany({
-        where: { empresaId: empresa.id, direcao: "ENTRADA", tipo: "NFE", status: { not: "MANIFESTADO" } },
-        select: { id: true },
-      });
-      if (pendentes.length === 0) continue;
+      try {
+        const pendentes = await this.prisma.client.documentoFiscal.findMany({
+          where: { empresaId: empresa.id, direcao: "ENTRADA", tipo: "NFE", status: { not: "MANIFESTADO" } },
+          select: { id: true },
+        });
+        if (pendentes.length === 0) continue;
 
-      let enviadas = 0;
-      let falhas = 0;
-      for (const doc of pendentes) {
-        try {
-          const evento = await this.manifestacao.enviar(empresa.id, doc.id, "CIENCIA_OPERACAO");
-          if (evento.status === "AUTORIZADA") {
-            enviadas++;
-          } else {
+        let enviadas = 0;
+        let falhas = 0;
+        for (const doc of pendentes) {
+          try {
+            const evento = await this.manifestacao.enviar(empresa.id, doc.id, "CIENCIA_OPERACAO");
+            if (evento.status === "AUTORIZADA") {
+              enviadas++;
+            } else {
+              falhas++;
+            }
+          } catch (err) {
             falhas++;
+            this.logger.error(
+              `[${empresa.razaoSocial}] falha ao manifestar documento ${doc.id}: ${
+                err instanceof Error ? err.message : err
+              }`
+            );
           }
-        } catch (err) {
-          falhas++;
-          this.logger.error(
-            `[${empresa.razaoSocial}] falha ao manifestar documento ${doc.id}: ${
-              err instanceof Error ? err.message : err
-            }`
-          );
+          // Mesmo espaçamento já usado em outras chamadas autenticadas por
+          // certificado pra SEFAZ nesse projeto (consultarPendentes) — evita
+          // rajada de requisições.
+          await sleep(300);
         }
-        // Mesmo espaçamento já usado em outras chamadas autenticadas por
-        // certificado pra SEFAZ nesse projeto (consultarPendentes) — evita
-        // rajada de requisições.
-        await sleep(300);
+        this.logger.log(
+          `[${empresa.razaoSocial}] manifestação automática: ${enviadas}/${pendentes.length} enviada(s)${
+            falhas > 0 ? `, ${falhas} falha(s)` : ""
+          }`
+        );
+      } catch (err) {
+        // Isola cada empresa (mesmo padrão de sincronizarTodasAsEmpresas) —
+        // uma falha ao buscar pendentes de uma empresa não pode travar a
+        // manifestação automática das empresas seguintes nesta execução.
+        this.logger.error(
+          `[${empresa.razaoSocial}] falha na manifestação automática: ${
+            err instanceof Error ? err.message : err
+          }`
+        );
       }
-      this.logger.log(
-        `[${empresa.razaoSocial}] manifestação automática: ${enviadas}/${pendentes.length} enviada(s)${
-          falhas > 0 ? `, ${falhas} falha(s)` : ""
-        }`
-      );
     }
 
     this.logger.log("Manifestação automática concluída.");

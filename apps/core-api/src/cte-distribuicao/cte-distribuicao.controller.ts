@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Req } from "@nestjs/common";
+import { BadRequestException, Controller, Get, Param, Post, Query, Req } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { AcessoService } from "../common/acesso/acesso.service";
 import { CteDistribuicaoService } from "./cte-distribuicao.service";
@@ -11,9 +11,17 @@ export class CteDistribuicaoController {
   ) {}
 
   @Get()
-  async listar(@Param("empresaId") empresaId: string, @Req() request: AuthenticatedRequest) {
+  async listar(
+    @Param("empresaId") empresaId: string,
+    @Query("inicio") inicio: string,
+    @Query("fim") fim: string,
+    @Req() request: AuthenticatedRequest
+  ) {
     await this.acesso.empresaDoUsuario(request, empresaId);
-    return this.service.listar(empresaId);
+    if (!inicio || !fim) {
+      throw new BadRequestException('"inicio" e "fim" são obrigatórios');
+    }
+    return this.service.listar(empresaId, new Date(inicio), new Date(fim));
   }
 
   @Post("sincronizar")

@@ -920,12 +920,14 @@ export interface ControleCte {
 
 export async function listarCteDistribuicao(
   empresaId: string,
+  inicio: string,
+  fim: string,
   token: string
 ): Promise<{ documentos: CteDistribuicaoItem[]; controle: ControleCte | null }> {
-  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/cte-distribuicao`, {
-    headers: { authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
+  const response = await apiFetch(
+    `${API_URL}/empresas/${empresaId}/cte-distribuicao?inicio=${inicio}&fim=${fim}`,
+    { headers: { authorization: `Bearer ${token}` }, cache: "no-store" }
+  );
   if (!response.ok) throw new Error("Não foi possível carregar os CT-e.");
   return response.json();
 }

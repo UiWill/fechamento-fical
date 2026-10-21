@@ -46,10 +46,24 @@ export class CteDistribuicaoService {
     private readonly fiscalEngine: FiscalEngineClient
   ) {}
 
-  async listar(empresaId: string) {
+  /**
+   * Sempre filtrado por período — mesmo motivo já corrigido em
+   * documentos-fiscais.service.ts (listarPorEmpresa): devolver o histórico
+   * inteiro de CT-e sem filtro degrada conforme a pasta cresce.
+   */
+  async listar(empresaId: string, inicio: Date, fim: Date) {
     const [todos, controle] = await Promise.all([
       this.prisma.client.documentoFiscal.findMany({
-        where: { empresaId, direcao: "CTE_DISTRIBUICAO" },
+        where: {
+          empresaId,
+          direcao: "CTE_DISTRIBUICAO",
+          // Mesmo fallback usado em documentos-fiscais.service.ts: CT-e sem
+          // emitidoEm cai no mês em que foi recebido.
+          OR: [
+            { emitidoEm: { gte: inicio, lte: fim } },
+            { emitidoEm: null, recebidoEm: { gte: inicio, lte: fim } },
+          ],
+        },
         select: {
           id: true,
           chaveAcesso: true,

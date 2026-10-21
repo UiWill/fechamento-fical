@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   baixarXmlsZip,
   consultarSituacaoCte,
@@ -12,7 +12,6 @@ import {
   type CteDistribuicaoItem,
 } from "@/lib/api";
 import {
-  chaveMes,
   chaveResumida,
   formatarData,
   formatarDataHora,
@@ -45,18 +44,24 @@ export function SecaoCteDistribuicao({
   const [baixando, setBaixando] = useState(false);
   const [consultandoId, setConsultandoId] = useState<string | null>(null);
 
+  const idRequisicao = useRef(0);
+
   const carregar = useCallback(async () => {
+    const idDestaChamada = ++idRequisicao.current;
     try {
-      const dados = await listarCteDistribuicao(empresaId, token);
+      const { inicio, fim } = limitesDoMes(mes);
+      const dados = await listarCteDistribuicao(empresaId, inicio, fim, token);
+      if (idDestaChamada !== idRequisicao.current) return;
       setItens(dados.documentos);
       setControle(dados.controle);
       setErro(null);
     } catch {
+      if (idDestaChamada !== idRequisicao.current) return;
       setErro("Não foi possível carregar os CT-e agora.");
     } finally {
-      setCarregando(false);
+      if (idDestaChamada === idRequisicao.current) setCarregando(false);
     }
-  }, [empresaId, token]);
+  }, [empresaId, token, mes]);
 
   useEffect(() => {
     void carregar();
@@ -129,8 +134,8 @@ export function SecaoCteDistribuicao({
     }
   }
 
-  const doMes = itens.filter((i) => chaveMes(i.emitidoEm ?? i.recebidoEm) === mes);
-  const ordenados = [...doMes].sort(
+  // O backend já filtra por período (ver carregar()) — itens aqui já é só do mês selecionado.
+  const ordenados = [...itens].sort(
     (a, b) => new Date(b.emitidoEm ?? b.recebidoEm).getTime() - new Date(a.emitidoEm ?? a.recebidoEm).getTime()
   );
 
@@ -200,12 +205,12 @@ export function SecaoCteDistribuicao({
             />
           </div>
           <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
-            {rotuloMes(mes)} · {doMes.length === 0 ? "nenhum CT-e nesse mês" : `${doMes.length} CT-e`}
+            {rotuloMes(mes)} · {itens.length === 0 ? "nenhum CT-e nesse mês" : `${itens.length} CT-e`}
           </span>
         </div>
         <button
           onClick={() => void handleBaixarXml()}
-          disabled={doMes.length === 0 || baixando}
+          disabled={itens.length === 0 || baixando}
           className={CLASSE_BOTAO_LINK}
           style={{ color: "var(--paper)" }}
         >
@@ -215,7 +220,7 @@ export function SecaoCteDistribuicao({
 
       {carregando ? (
         <div className="skeleton h-24 w-full rounded-lg" />
-      ) : itens.length === 0 ? (
+      ) : !controle ? (
         <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: "var(--border)" }}>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
             Nenhum CT-e recebido ainda. Clique em <strong>Sincronizar CT-e</strong> pra buscar na SEFAZ.
