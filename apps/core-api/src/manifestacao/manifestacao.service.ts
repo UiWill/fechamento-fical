@@ -30,10 +30,15 @@ export class ManifestacaoService {
     private readonly fiscalEngine: FiscalEngineClient
   ) {}
 
+  // Limitado aos 500 mais recentes — nenhuma tela usa isso hoje, mas sem
+  // esse limite uma futura tela de histórico sem filtro reproduziria o
+  // mesmo problema de performance já corrigido em documentos-fiscais e
+  // cte-distribuicao (achado numa varredura de bugs em 2026-10-21).
   listarPorEmpresa(empresaId: string) {
     return this.prisma.client.manifestacaoEvento.findMany({
       where: { empresaId },
       orderBy: { criadoEm: "desc" },
+      take: 500,
     });
   }
 

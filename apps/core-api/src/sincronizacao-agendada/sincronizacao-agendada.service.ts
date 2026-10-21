@@ -7,6 +7,14 @@ import { ManifestacaoService } from "../manifestacao/manifestacao.service";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Depois de N rejeições reais (não a duplicidade cStat 573, que já marca o
+// documento como MANIFESTADO e sai da consulta de pendentes), desiste de
+// tentar esse documento automaticamente — sem isso o cron tentava pra
+// sempre uma nota realmente rejeitada pela SEFAZ, todo dia, sem nunca
+// resolver nem avisar claramente (achado numa varredura de bugs em
+// 2026-10-21).
+const MAX_TENTATIVAS_MANIFESTACAO = 3;
+
 @Injectable()
 export class SincronizacaoAgendadaService {
   private readonly logger = new Logger(SincronizacaoAgendadaService.name);
@@ -155,13 +163,29 @@ export class SincronizacaoAgendadaService {
       try {
         const pendentes = await this.prisma.client.documentoFiscal.findMany({
           where: { empresaId: empresa.id, direcao: "ENTRADA", tipo: "NFE", status: { not: "MANIFESTADO" } },
-          select: { id: true },
+          select: {
+            id: true,
+            _count: {
+              select: {
+                manifestacoes: { where: { tipoEvento: "CIENCIA_OPERACAO", status: "REJEITADA" } },
+              },
+            },
+          },
         });
         if (pendentes.length === 0) continue;
 
+        const desistidos = pendentes.filter((d) => d._count.manifestacoes >= MAX_TENTATIVAS_MANIFESTACAO);
+        const aTentar = pendentes.filter((d) => d._count.manifestacoes < MAX_TENTATIVAS_MANIFESTACAO);
+        if (desistidos.length > 0) {
+          this.logger.warn(
+            `[${empresa.razaoSocial}] ${desistidos.length} documento(s) com ${MAX_TENTATIVAS_MANIFESTACAO}+ rejeições — manifestação automática desistiu, requer verificação manual.`
+          );
+        }
+        if (aTentar.length === 0) continue;
+
         let enviadas = 0;
         let falhas = 0;
-        for (const doc of pendentes) {
+        for (const doc of aTentar) {
           try {
             const evento = await this.manifestacao.enviar(empresa.id, doc.id, "CIENCIA_OPERACAO");
             if (evento.status === "AUTORIZADA") {
@@ -183,7 +207,7 @@ export class SincronizacaoAgendadaService {
           await sleep(300);
         }
         this.logger.log(
-          `[${empresa.razaoSocial}] manifestação automática: ${enviadas}/${pendentes.length} enviada(s)${
+          `[${empresa.razaoSocial}] manifestação automática: ${enviadas}/${aTentar.length} enviada(s)${
             falhas > 0 ? `, ${falhas} falha(s)` : ""
           }`
         );
