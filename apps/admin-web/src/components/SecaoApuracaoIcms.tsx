@@ -11,6 +11,9 @@ import {
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
 import { exportarApuracaoIcmsExcel } from "@/lib/exportar-apuracao-excel";
 import { SeletorMes } from "./SeletorMes";
+import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
+
+const LOTE_EXIBICAO = 300;
 
 const CLASSE_BOTAO_LINK =
   "font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed";
@@ -167,6 +170,11 @@ export function SecaoApuracaoIcms({
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [numeracaoFaltando, setNumeracaoFaltando] = useState<NumeroFaltando[]>([]);
   const [numeracaoTruncada, setNumeracaoTruncada] = useState(false);
+  // Algumas empresas passam de 15 mil itens num único mês — renderizar tudo
+  // de uma vez deixa a página pesada/lenta pra rolar. Mostra em lotes; o
+  // resumo por CFOP e os totais do rodapé continuam somando TUDO, só a
+  // tabela detalhada é que pagina.
+  const [limiteExibicao, setLimiteExibicao] = useState(LOTE_EXIBICAO);
 
   // Contador de requisição — o <input type="month"> dispara onChange a
   // cada dígito digitado (ex: "2026-09" vira "2026-0", "2026-09" em dois
@@ -187,6 +195,7 @@ export function SecaoApuracaoIcms({
       ]);
       if (idDestaChamada !== idRequisicao.current) return; // resposta de uma busca já superada
       setItens(dados);
+      setLimiteExibicao(LOTE_EXIBICAO);
       setNumeracaoFaltando(numeracao.faltando);
       setNumeracaoTruncada(numeracao.truncado);
       setErro(null);
@@ -355,7 +364,7 @@ export function SecaoApuracaoIcms({
       )}
 
       {carregando ? (
-        <div className="skeleton h-24 w-full rounded-lg" />
+        <CarregandoTabela />
       ) : itens.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: "var(--border)" }}>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
@@ -426,7 +435,7 @@ export function SecaoApuracaoIcms({
                 </tr>
               </thead>
               <tbody>
-                {itens.map((i) => {
+                {itens.slice(0, limiteExibicao).map((i) => {
                   const inconsistente = i.tributosInconsistentes.length > 0;
                   const titulo = [
                     i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
@@ -510,6 +519,11 @@ export function SecaoApuracaoIcms({
               </tfoot>
             </table>
           </div>
+          <BotaoCarregarMais
+            totalItens={itens.length}
+            itensExibidos={Math.min(limiteExibicao, itens.length)}
+            onCarregarMais={() => setLimiteExibicao((l) => l + LOTE_EXIBICAO)}
+          />
         </div>
         </>
       )}

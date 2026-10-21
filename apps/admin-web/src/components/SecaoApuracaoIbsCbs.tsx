@@ -5,6 +5,9 @@ import { listarApuracaoItens, reprocessarItensDocumentoFiscal, type ItemApuracao
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
 import { exportarApuracaoIbsCbsExcel } from "@/lib/exportar-apuracao-excel";
 import { SeletorMes } from "./SeletorMes";
+import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
+
+const LOTE_EXIBICAO = 300;
 
 const CLASSE_BOTAO_LINK =
   "font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed";
@@ -115,6 +118,9 @@ export function SecaoApuracaoIbsCbs({
   const [mes, setMes] = useState(mesAtual());
   const [reprocessando, setReprocessando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
+  // Mesma paginação de SecaoApuracaoIcms.tsx — empresas grandes passam de
+  // 15 mil itens/mês, renderizar tudo de uma vez deixa a página lenta.
+  const [limiteExibicao, setLimiteExibicao] = useState(LOTE_EXIBICAO);
 
   // Mesmo guard de SecaoApuracaoIcms.tsx — <input type="month"> dispara
   // onChange a cada dígito, duas buscas ficam "no ar" e a resposta velha
@@ -130,6 +136,7 @@ export function SecaoApuracaoIbsCbs({
       const dados = await listarApuracaoItens(empresaId, direcao, inicio, fim, token);
       if (idDestaChamada !== idRequisicao.current) return;
       setItens(dados);
+      setLimiteExibicao(LOTE_EXIBICAO);
       setErro(null);
     } catch {
       if (idDestaChamada !== idRequisicao.current) return;
@@ -284,7 +291,7 @@ export function SecaoApuracaoIbsCbs({
       )}
 
       {carregando ? (
-        <div className="skeleton h-24 w-full rounded-lg" />
+        <CarregandoTabela />
       ) : itens.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: "var(--border)" }}>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
@@ -350,7 +357,7 @@ export function SecaoApuracaoIbsCbs({
                 </tr>
               </thead>
               <tbody>
-                {itens.map((i) => {
+                {itens.slice(0, limiteExibicao).map((i) => {
                   const inconsistente = i.tributosInconsistentes.length > 0;
                   const titulo = [
                     i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
@@ -415,6 +422,11 @@ export function SecaoApuracaoIbsCbs({
               </tfoot>
             </table>
           </div>
+          <BotaoCarregarMais
+            totalItens={itens.length}
+            itensExibidos={Math.min(limiteExibicao, itens.length)}
+            onCarregarMais={() => setLimiteExibicao((l) => l + LOTE_EXIBICAO)}
+          />
         </div>
         </>
       )}

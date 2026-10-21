@@ -42,12 +42,15 @@ import { SecaoCteDistribuicao } from "@/components/SecaoCteDistribuicao";
 import { SecaoApuracaoIcms } from "@/components/SecaoApuracaoIcms";
 import { SecaoApuracaoIbsCbs } from "@/components/SecaoApuracaoIbsCbs";
 import { SeletorMes } from "@/components/SeletorMes";
+import { CarregandoTabela, BotaoCarregarMais } from "@/components/CarregandoTabela";
 import {
   exportarNotasEntradaPdf,
   exportarNotasEntradaExcel,
   exportarNotasSaidaPdf,
   exportarNotasSaidaExcel,
 } from "@/lib/exportar-relatorio";
+
+const LOTE_EXIBICAO = 300;
 
 const ROTULO_TIPO_DOCUMENTO: Record<DocumentoFiscal["tipo"], string> = {
   NFE: "NF-e",
@@ -438,6 +441,10 @@ export default function EmpresaDetalhePage() {
   const [carregando, setCarregando] = useState(true);
   const [carregandoEntrada, setCarregandoEntrada] = useState(true);
   const [carregandoSaida, setCarregandoSaida] = useState(true);
+  // Algumas empresas passam de 15 mil notas num único mês — renderizar tudo
+  // de uma vez deixa a tabela pesada/lenta pra rolar. Mostra em lotes.
+  const [limiteExibicaoEntrada, setLimiteExibicaoEntrada] = useState(LOTE_EXIBICAO);
+  const [limiteExibicaoSaida, setLimiteExibicaoSaida] = useState(LOTE_EXIBICAO);
   const [erro, setErro] = useState<string | null>(null);
 
   const [sincronizando, setSincronizando] = useState(false);
@@ -532,6 +539,7 @@ export default function EmpresaDetalhePage() {
         const docs = await listarDocumentosFiscais(params.id, "ENTRADA", inicio, fim, t);
         if (idDestaChamada !== idRequisicaoEntrada.current) return;
         setDocumentosEntrada(docs);
+        setLimiteExibicaoEntrada(LOTE_EXIBICAO);
       } catch {
         if (idDestaChamada !== idRequisicaoEntrada.current) return;
         setErro("Não foi possível carregar as notas de entrada agora.");
@@ -551,6 +559,7 @@ export default function EmpresaDetalhePage() {
         const docs = await listarDocumentosFiscais(params.id, "SAIDA", inicio, fim, t);
         if (idDestaChamada !== idRequisicaoSaida.current) return;
         setDocumentosSaida(docs);
+        setLimiteExibicaoSaida(LOTE_EXIBICAO);
       } catch {
         if (idDestaChamada !== idRequisicaoSaida.current) return;
         setErro("Não foi possível carregar as notas de saída agora.");
@@ -1221,7 +1230,7 @@ export default function EmpresaDetalhePage() {
         )}
 
         {carregandoEntrada ? (
-          <div className="skeleton h-24 w-full rounded-lg" />
+          <CarregandoTabela />
         ) : notasEntradaOrdenadas.length === 0 ? (
           <div
             className="entra rounded-lg border border-dashed p-8 text-center"
@@ -1253,7 +1262,7 @@ export default function EmpresaDetalhePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {notasEntradaOrdenadas.map((doc, i) => (
+                  {notasEntradaOrdenadas.slice(0, limiteExibicaoEntrada).map((doc, i) => (
                     <tr
                       key={doc.id}
                       className="entra-suave border-t align-top"
@@ -1319,6 +1328,11 @@ export default function EmpresaDetalhePage() {
                 </tbody>
               </table>
             </div>
+            <BotaoCarregarMais
+              totalItens={notasEntradaOrdenadas.length}
+              itensExibidos={Math.min(limiteExibicaoEntrada, notasEntradaOrdenadas.length)}
+              onCarregarMais={() => setLimiteExibicaoEntrada((l) => l + LOTE_EXIBICAO)}
+            />
           </div>
         )}
         </div>
@@ -1413,7 +1427,7 @@ export default function EmpresaDetalhePage() {
         </div>
 
         {carregandoSaida ? (
-          <div className="skeleton h-24 w-full rounded-lg" />
+          <CarregandoTabela />
         ) : notasSaidaOrdenadas.length === 0 ? (
           <div
             className="entra rounded-lg border border-dashed p-8 text-center"
@@ -1443,7 +1457,7 @@ export default function EmpresaDetalhePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {notasSaidaOrdenadas.map((doc, i) => (
+                  {notasSaidaOrdenadas.slice(0, limiteExibicaoSaida).map((doc, i) => (
                     <tr
                       key={doc.id}
                       className="entra-suave border-t align-top"
@@ -1489,6 +1503,11 @@ export default function EmpresaDetalhePage() {
                 </tbody>
               </table>
             </div>
+            <BotaoCarregarMais
+              totalItens={notasSaidaOrdenadas.length}
+              itensExibidos={Math.min(limiteExibicaoSaida, notasSaidaOrdenadas.length)}
+              onCarregarMais={() => setLimiteExibicaoSaida((l) => l + LOTE_EXIBICAO)}
+            />
           </div>
         )}
         </div>

@@ -22,6 +22,7 @@ import {
   rotuloMes,
 } from "@/lib/format";
 import { SeletorMes } from "./SeletorMes";
+import { CarregandoTabela } from "./CarregandoTabela";
 
 const CLASSE_BOTAO_LINK =
   "font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed";
@@ -214,7 +215,7 @@ export function SecaoCteDistribuicao({
       </div>
 
       {carregando ? (
-        <div className="skeleton h-24 w-full rounded-lg" />
+        <CarregandoTabela />
       ) : !controle ? (
         <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: "var(--border)" }}>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
