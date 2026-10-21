@@ -10,6 +10,16 @@ import type { TipoEventoManifestacao } from "@afe/shared";
 // do Contribuinte. Qualquer outro cStat é tratado como rejeição.
 const CSTAT_AUTORIZADO = new Set(["135", "136"]);
 
+// 573 = "Duplicidade de evento" — a SEFAZ já tem ESSE evento registrado
+// pra essa nota (confirmado contra rejeição real em 2026-10-20, testando
+// a manifestação automática: a maioria do backlog antigo já tinha sido
+// manifestada pela própria SEFAZ sozinha, depois de um tempo sem ação do
+// destinatário — comportamento documentado da Receita, não bug nosso).
+// Sem tratar isso à parte, toda nota nessa situação ficaria pra sempre
+// como "não manifestada" no nosso banco e a rotina automática tentaria
+// de novo (e falharia de novo) todo santo dia sem nunca resolver.
+const CSTAT_JA_MANIFESTADO = "573";
+
 @Injectable()
 export class ManifestacaoService {
   private readonly logger = new Logger(ManifestacaoService.name);
@@ -95,18 +105,23 @@ export class ManifestacaoService {
       });
 
       const autorizado = CSTAT_AUTORIZADO.has(resultado.cStat);
+      const jaManifestadoNaSefaz = resultado.cStat === CSTAT_JA_MANIFESTADO;
 
       const eventoAtualizado = await this.prisma.client.manifestacaoEvento.update({
         where: { id: evento.id },
         data: {
-          status: autorizado ? "AUTORIZADA" : "REJEITADA",
+          // "Duplicidade" grava como AUTORIZADA (não REJEITADA de verdade)
+          // -- o evento existe na SEFAZ, só não fomos nós que mandamos
+          // dessa vez. Fica registrado no motivoSefaz pra quem olhar
+          // entender a diferença.
+          status: autorizado || jaManifestadoNaSefaz ? "AUTORIZADA" : "REJEITADA",
           protocoloSefaz: resultado.protocolo,
           motivoSefaz: resultado.xMotivo,
           enviadoEm: new Date(),
         },
       });
 
-      if (autorizado) {
+      if (autorizado || jaManifestadoNaSefaz) {
         await this.prisma.client.documentoFiscal.update({
           where: { id: documentoFiscalId },
           data: { status: "MANIFESTADO" },
