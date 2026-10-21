@@ -3,6 +3,9 @@ import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { CteDistribuicaoService } from "../cte-distribuicao/cte-distribuicao.service";
 import { DocumentosFiscaisService } from "../documentos-fiscais/documentos-fiscais.service";
+import { ManifestacaoService } from "../manifestacao/manifestacao.service";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 @Injectable()
 export class SincronizacaoAgendadaService {
@@ -11,7 +14,8 @@ export class SincronizacaoAgendadaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly documentosFiscais: DocumentosFiscaisService,
-    private readonly cteDistribuicao: CteDistribuicaoService
+    private readonly cteDistribuicao: CteDistribuicaoService,
+    private readonly manifestacao: ManifestacaoService
   ) {}
 
   /**
@@ -121,5 +125,69 @@ export class SincronizacaoAgendadaService {
     }
 
     this.logger.log("Consulta diária de situação concluída.");
+  }
+
+  /**
+   * Manifestação automática do destinatário (entrada) — pedido do usuário
+   * em 2026-10-20. Manda SÓ "Ciência da Operação" (não "Confirmação",
+   * "Desconhecimento" ou "Operação não realizada") — é o único dos 4 tipos
+   * que não afirma nada sobre o conteúdo da nota (só avisa a Receita que a
+   * empresa está ciente que ela existe contra o CNPJ dela), decisão
+   * explícita do usuário pra evitar criar um registro formal errado numa
+   * nota que ninguém verificou (fraude, nota errada etc.) — esses 3 outros
+   * tipos continuam manuais, pelo botão na tela.
+   *
+   * Roda às 7h, depois da consulta de situação (6h) — não depende dela,
+   * mas evita rodar os dois ao mesmo tempo. Pega TODO o histórico
+   * pendente de cada empresa (não só notas novas), então a primeira
+   * execução pode demorar — sem problema, cron não tem timeout de HTTP.
+   */
+  @Cron("0 7 * * *")
+  async manifestarAutomaticamenteTodasAsEmpresas() {
+    const empresas = await this.prisma.client.empresa.findMany({
+      where: { status: "ATIVA", certificado: { isNot: null } },
+      select: { id: true, razaoSocial: true },
+    });
+
+    this.logger.log(`Manifestação automática iniciada: ${empresas.length} empresa(s).`);
+
+    for (const empresa of empresas) {
+      const pendentes = await this.prisma.client.documentoFiscal.findMany({
+        where: { empresaId: empresa.id, direcao: "ENTRADA", tipo: "NFE", status: { not: "MANIFESTADO" } },
+        select: { id: true },
+      });
+      if (pendentes.length === 0) continue;
+
+      let enviadas = 0;
+      let falhas = 0;
+      for (const doc of pendentes) {
+        try {
+          const evento = await this.manifestacao.enviar(empresa.id, doc.id, "CIENCIA_OPERACAO");
+          if (evento.status === "AUTORIZADA") {
+            enviadas++;
+          } else {
+            falhas++;
+          }
+        } catch (err) {
+          falhas++;
+          this.logger.error(
+            `[${empresa.razaoSocial}] falha ao manifestar documento ${doc.id}: ${
+              err instanceof Error ? err.message : err
+            }`
+          );
+        }
+        // Mesmo espaçamento já usado em outras chamadas autenticadas por
+        // certificado pra SEFAZ nesse projeto (consultarPendentes) — evita
+        // rajada de requisições.
+        await sleep(300);
+      }
+      this.logger.log(
+        `[${empresa.razaoSocial}] manifestação automática: ${enviadas}/${pendentes.length} enviada(s)${
+          falhas > 0 ? `, ${falhas} falha(s)` : ""
+        }`
+      );
+    }
+
+    this.logger.log("Manifestação automática concluída.");
   }
 }

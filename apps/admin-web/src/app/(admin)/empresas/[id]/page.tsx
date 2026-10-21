@@ -1293,7 +1293,7 @@ export default function EmpresaDetalhePage() {
                           empresaId={empresa.id}
                           documento={doc}
                           token={token!}
-                          onAtualizado={() => void carregarTudo(token!)}
+                          onAtualizado={() => void carregarDocumentosEntrada(token!, mesFiltro)}
                         />
                       </td>
                       <td className="px-3 py-3">
@@ -1525,7 +1525,7 @@ export default function EmpresaDetalhePage() {
           token={token}
           alvos={pendentesManifestacao}
           onFechar={() => setManifestarTodasAberto(false)}
-          onConcluido={() => void carregarTudo(token)}
+          onConcluido={() => void carregarDocumentosEntrada(token, mesFiltro)}
         />
       )}
 
