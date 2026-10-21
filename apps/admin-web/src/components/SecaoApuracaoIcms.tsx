@@ -22,6 +22,10 @@ function val(v: string | null): string {
   return v === null ? "—" : v;
 }
 
+function dataOuDesconhecida(iso: string | null): string {
+  return iso === null ? "data desconhecida" : formatarDataHora(iso);
+}
+
 function somar(itens: ItemApuracao[], campo: keyof ItemApuracao): string {
   const total = itens.reduce((acc, i) => acc + Number(i[campo] ?? 0), 0);
   return total.toFixed(2);
@@ -326,7 +330,7 @@ export function SecaoApuracaoIcms({
                 <strong style={{ color: "var(--paper)" }}>
                   {f.deNumero === f.ateNumero ? f.deNumero : `${f.deNumero} a ${f.ateNumero}`}
                 </strong>{" "}
-                (entre {formatarDataHora(f.anteriorEmitidoEm ?? "")} e {formatarDataHora(f.proximoEmitidoEm ?? "")})
+                (entre {dataOuDesconhecida(f.anteriorEmitidoEm)} e {dataOuDesconhecida(f.proximoEmitidoEm)})
               </li>
             ))}
           </ul>
@@ -429,13 +433,13 @@ export function SecaoApuracaoIcms({
                     style={{
                       borderColor: "var(--border)",
                       background: i.cfopDivergente
-                        ? "rgba(224, 138, 138, 0.1)"
+                        ? "rgba(224, 90, 90, 0.32)"
                         : inconsistente
-                          ? "rgba(224, 170, 110, 0.12)"
+                          ? "rgba(224, 150, 60, 0.32)"
                           : i.regimeIcmsMisturado
-                            ? "rgba(170, 110, 224, 0.12)"
+                            ? "rgba(160, 80, 224, 0.32)"
                             : i.aliquotaIcmsDivergente
-                              ? "rgba(110, 170, 224, 0.12)"
+                              ? "rgba(70, 150, 224, 0.32)"
                               : undefined,
                     }}
                     title={titulo || undefined}

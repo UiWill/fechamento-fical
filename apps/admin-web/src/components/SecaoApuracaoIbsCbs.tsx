@@ -350,13 +350,13 @@ export function SecaoApuracaoIbsCbs({
                     .filter(Boolean)
                     .join(" — ");
                   const fundo = i.cfopDivergente
-                    ? "rgba(224, 138, 138, 0.1)"
+                    ? "rgba(224, 90, 90, 0.32)"
                     : inconsistente
-                      ? "rgba(224, 170, 110, 0.12)"
+                      ? "rgba(224, 150, 60, 0.32)"
                       : i.ibsCbsObrigatorioAusente
-                        ? "rgba(224, 200, 106, 0.12)"
+                        ? "rgba(224, 190, 50, 0.32)"
                         : i.regimeIcmsMisturado
-                          ? "rgba(170, 110, 224, 0.12)"
+                          ? "rgba(160, 80, 224, 0.32)"
                           : undefined;
                   return (
                   <tr
