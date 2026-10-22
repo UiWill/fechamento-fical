@@ -11,6 +11,7 @@ import {
   excluirTokenAgente,
   ocultarTokenAgente,
   restaurarTokenAgente,
+  enviarComandoAgente,
   buscarAtividadeAgente,
   type AtividadeAgente,
   type EmpresaResumo,
@@ -553,6 +554,25 @@ export default function AgentesPage() {
     if (organizacaoId) void carregar(token, organizacaoId, mostrarOcultos);
   }
 
+  const [comandoEnviando, setComandoEnviando] = useState<string | null>(null);
+
+  async function handleComando(id: string, comando: "ATUALIZAR" | "REINICIAR") {
+    if (!token) return;
+    setComandoEnviando(`${id}-${comando}`);
+    try {
+      await enviarComandoAgente(id, comando, token);
+      window.alert(
+        comando === "ATUALIZAR"
+          ? "Pedido enviado — o agente vai checar a atualização no próximo sinal dele (até 1 minuto, se estiver online)."
+          : "Pedido enviado — o agente vai reiniciar no próximo sinal dele (até 1 minuto, se estiver online)."
+      );
+    } catch {
+      window.alert("Não foi possível enviar o comando agora.");
+    } finally {
+      setComandoEnviando(null);
+    }
+  }
+
   function escopoDoAgente(agente: AgenteInstalacao): string {
     if (agente.organizacaoId) return "Toda a carteira";
     const empresa = empresas.find((e) => e.id === agente.empresaId);
@@ -673,6 +693,28 @@ export default function AgentesPage() {
                       >
                         Atividade
                       </button>
+                      {agente.status === "ATIVO" && (
+                        <button
+                          onClick={() => void handleComando(agente.id, "ATUALIZAR")}
+                          disabled={comandoEnviando === `${agente.id}-ATUALIZAR`}
+                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30"
+                          style={{ color: "var(--muted)" }}
+                          title="Pede pro agente checar atualização agora, sem esperar o ciclo automático (só funciona se ele estiver online)"
+                        >
+                          {comandoEnviando === `${agente.id}-ATUALIZAR` ? "Enviando…" : "Atualizar"}
+                        </button>
+                      )}
+                      {agente.status === "ATIVO" && (
+                        <button
+                          onClick={() => void handleComando(agente.id, "REINICIAR")}
+                          disabled={comandoEnviando === `${agente.id}-REINICIAR`}
+                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30"
+                          style={{ color: "var(--muted)" }}
+                          title="Pede pro agente reiniciar (só funciona se ele estiver online — se o processo já morreu, nenhum comando remoto religa)"
+                        >
+                          {comandoEnviando === `${agente.id}-REINICIAR` ? "Enviando…" : "Reiniciar"}
+                        </button>
+                      )}
                       {agente.status === "ATIVO" && (
                         <button
                           onClick={() => void handleRevogar(agente.id)}

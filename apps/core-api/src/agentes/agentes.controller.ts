@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Query, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Post, Query, Req } from "@nestjs/common";
 import { criarAgenteTokenSchema } from "@afe/shared";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { AgentesService } from "./agentes.service";
@@ -61,6 +61,21 @@ export class AgentesController {
       throw new ForbiddenException("Usuário sem organização não pode restaurar agente");
     }
     return this.service.restaurarToken(id, request.usuario.organizacaoId);
+  }
+
+  @Post("tokens/:id/comando")
+  enviarComando(
+    @Param("id") id: string,
+    @Body() body: { comando?: string },
+    @Req() request: AuthenticatedRequest
+  ) {
+    if (!request.usuario?.organizacaoId) {
+      throw new ForbiddenException("Usuário sem organização não pode mandar comando pro agente");
+    }
+    if (body.comando !== "ATUALIZAR" && body.comando !== "REINICIAR") {
+      throw new BadRequestException('comando deve ser "ATUALIZAR" ou "REINICIAR"');
+    }
+    return this.service.enviarComando(id, request.usuario.organizacaoId, body.comando);
   }
 
   @Get("tokens/:id/atividade")

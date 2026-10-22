@@ -806,6 +806,24 @@ export async function revogarTokenAgente(id: string, token: string): Promise<voi
   }
 }
 
+/**
+ * Pede pro agente atualizar ou reiniciar sozinho — só funciona se ele
+ * ainda estiver mandando heartbeat (o comando é entregue na resposta do
+ * próximo heartbeat, em até ~1 minuto). Se o processo já morreu de vez,
+ * nenhum comando remoto consegue religar — depende do vigia (tarefa
+ * agendada local) ou de alguém mexer no PC.
+ */
+export async function enviarComandoAgente(id: string, comando: "ATUALIZAR" | "REINICIAR", token: string): Promise<void> {
+  const response = await apiFetch(`${API_URL}/agentes/tokens/${id}/comando`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ comando }),
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível enviar o comando pro agente.");
+  }
+}
+
 export async function excluirTokenAgente(id: string, token: string): Promise<void> {
   const response = await apiFetch(`${API_URL}/agentes/tokens/${id}`, {
     method: "DELETE",

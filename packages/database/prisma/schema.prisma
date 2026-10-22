@@ -332,6 +332,15 @@ model AgenteInstalacaoToken {
   // Ultimo resumo de atividade que o proprio agente mandou no heartbeat
   // (contadores, fila, ultimas recusas) - so pra exibir no painel.
   telemetria         Json?
+  // Comando que o admin pediu pelo painel ("ATUALIZAR" ou "REINICIAR") -
+  // o agente le isso na resposta do PROXIMO heartbeat dele e executa, e o
+  // servidor zera na hora que entrega (entrega unica, nao fica repetindo).
+  // Nao existia nenhum canal nesse sentido (servidor -> agente) antes
+  // disso - so heartbeat unidirecional (achado em 2026-10-22, pedido
+  // explicito do usuario pra nao depender de alguem ir la no PC apertar
+  // o executavel na mao).
+  comandoPendente      String?
+  comandoSolicitadoEm  DateTime?
   criadoEm           DateTime               @default(now())
   atualizadoEm       DateTime               @updatedAt
 

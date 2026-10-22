@@ -261,7 +261,19 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
 
   const mandarHeartbeat = () =>
     enviarHeartbeat(configInicial.token!, configInicial.versaoAgente, resumoParaHeartbeat())
-      .then(() => registrarHeartbeatOk())
+      .then(({ comando }) => {
+        registrarHeartbeatOk();
+        if (comando === "REINICIAR") {
+          console.log("[main] comando remoto: reiniciar — aplicando agora.");
+          app.relaunch();
+          app.exit(0);
+        } else if (comando === "ATUALIZAR") {
+          console.log("[main] comando remoto: verificar atualização — checando agora.");
+          void verificarAtualizacao(configInicial.token!).catch((err) =>
+            console.error(`[main] falha ao verificar atualização (via comando remoto): ${err}`)
+          );
+        }
+      })
       .catch((err) => console.error(`[main] falha no heartbeat: ${err}`));
   setInterval(() => void mandarHeartbeat(), INTERVALO_HEARTBEAT_MS);
   void mandarHeartbeat();

@@ -134,6 +134,19 @@ export class AgentesService {
     });
   }
 
+  /**
+   * Pede pro agente atualizar ou reiniciar sozinho — fica pendente até o
+   * PRÓXIMO heartbeat dele (até 1 minuto, ver INTERVALO_HEARTBEAT_MS no
+   * agente), que lê e já zera (entrega única, não repete).
+   */
+  async enviarComando(id: string, organizacaoId: string, comando: "ATUALIZAR" | "REINICIAR") {
+    await this.buscarTokenDaOrganizacao(id, organizacaoId);
+    return this.prisma.client.agenteInstalacaoToken.update({
+      where: { id },
+      data: { comandoPendente: comando, comandoSolicitadoEm: new Date() },
+    });
+  }
+
   async restaurarToken(id: string, organizacaoId: string) {
     await this.buscarTokenDaOrganizacao(id, organizacaoId);
     return this.prisma.client.agenteInstalacaoToken.update({
@@ -261,7 +274,7 @@ export class AgentesService {
       telemetria && typeof telemetria === "object" && JSON.stringify(telemetria).length <= 30_000
         ? (telemetria as object)
         : undefined;
-    await this.prisma.client.agenteInstalacaoToken.update({
+    const atualizado = await this.prisma.client.agenteInstalacaoToken.update({
       where: { id: agenteToken.id },
       data: {
         ultimoHeartbeatEm: new Date(),
@@ -269,8 +282,21 @@ export class AgentesService {
         ultimoIpOrigem: ip,
         ...(telemetriaValida ? { telemetria: telemetriaValida } : {}),
       },
+      select: { comandoPendente: true },
     });
-    return { ok: true, servidorEm: new Date().toISOString() };
+
+    const comando = atualizado.comandoPendente;
+    if (comando) {
+      // Entrega única — zera na hora que esse heartbeat leva o comando,
+      // senão o agente receberia o mesmo comando de novo no próximo
+      // heartbeat (reiniciaria em loop, por exemplo).
+      await this.prisma.client.agenteInstalacaoToken.update({
+        where: { id: agenteToken.id },
+        data: { comandoPendente: null },
+      });
+    }
+
+    return { ok: true, servidorEm: new Date().toISOString(), comando };
   }
 
   async processarLoteDocumentos(

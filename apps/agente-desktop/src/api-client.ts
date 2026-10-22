@@ -31,13 +31,19 @@ export async function buscarEscopo(token: string): Promise<{ cnpjs: string[]; em
   return resposta.json() as Promise<{ cnpjs: string[]; empresas: EmpresaEscopo[] }>;
 }
 
-export async function enviarHeartbeat(token: string, versaoAgente: string, telemetria?: unknown): Promise<void> {
+export async function enviarHeartbeat(
+  token: string,
+  versaoAgente: string,
+  telemetria?: unknown
+): Promise<{ comando: "ATUALIZAR" | "REINICIAR" | null }> {
   const resposta = await fetch(`${API_URL}/agente-ingestao/heartbeat`, {
     method: "POST",
     headers: cabecalhos(token),
     body: JSON.stringify({ versaoAgente, telemetria }),
   });
   if (!resposta.ok) throw new Error(`Falha ao enviar heartbeat (${resposta.status})`);
+  const corpo = (await resposta.json().catch(() => ({}))) as { comando?: "ATUALIZAR" | "REINICIAR" | null };
+  return { comando: corpo.comando ?? null };
 }
 
 export async function enviarLoteDocumentos(
