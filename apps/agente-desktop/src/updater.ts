@@ -19,11 +19,21 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { buscarVersaoMaisRecente, baixarVersao } from "./api-client";
-import { carregarConfig, salvarConfig } from "./config";
+import { carregarConfig, salvarConfig, PASTA_CONFIG } from "./config";
 import { notificar } from "./notify";
 
 const PASTA_ATUALIZACAO = path.join(os.tmpdir(), "afe-agente-update");
 const ARQUIVO_FLAG_POS_ATUALIZACAO = path.join(PASTA_ATUALIZACAO, "atualizado.flag");
+// Fora da pasta temp (que o Windows pode limpar) — fica junto do config,
+// que já sabemos que sobrevive a reinício. É o único jeito de saber o que
+// aconteceu numa atualização que falhou: o processo Node já morreu antes
+// do script PowerShell detectado rodar, então só esse arquivo de log
+// (escrito pelo PRÓPRIO script, não pelo Node) sobra pra investigar depois
+// (achado em 2026-10-21/22: um agente ficou ~2 dias sem mandar nota
+// nenhuma depois de uma atualização, sem nenhum rastro de erro em lugar
+// nenhum — o script antigo engolia tudo com SilentlyContinue).
+const ARQUIVO_LOG_ATUALIZACAO = path.join(PASTA_CONFIG, "atualizacao.log");
+const ARQUIVO_FLAG_FALHA_ATUALIZACAO = path.join(PASTA_CONFIG, "falha-atualizacao.flag");
 
 function compararVersoes(a: string, b: string): number {
   const partesA = a.split(".").map(Number);
@@ -35,15 +45,39 @@ function compararVersoes(a: string, b: string): number {
   return 0;
 }
 
-/** Chamado uma vez no início do processo — se essa execução é resultado de uma auto-atualização, notifica e limpa a flag. */
-export function notificarSeFoiAtualizadoAgora(): void {
-  if (!fs.existsSync(ARQUIVO_FLAG_POS_ATUALIZACAO)) return;
+export interface InfoUltimaAtualizacao {
+  versao: string;
+  em: string;
+  sucesso: boolean;
+  detalhe?: string;
+}
+
+/**
+ * Chamado uma vez no início do processo — se essa execução é resultado de
+ * uma auto-atualização (bem ou mal sucedida), notifica, limpa as flags e
+ * devolve o resultado pra entrar no próximo heartbeat (ver main.ts) — é
+ * assim que o painel sabe que o agente atualizou sem precisar de nada
+ * manual.
+ */
+export function notificarSeFoiAtualizadoAgora(): InfoUltimaAtualizacao | null {
+  if (!fs.existsSync(ARQUIVO_FLAG_POS_ATUALIZACAO)) return null;
+  const em = new Date().toISOString();
+  let versao = "";
   try {
-    const versao = fs.readFileSync(ARQUIVO_FLAG_POS_ATUALIZACAO, "utf8").trim();
-    notificar("Agente Fiscal", `Atualizado para a versão ${versao}.`);
+    versao = fs.readFileSync(ARQUIVO_FLAG_POS_ATUALIZACAO, "utf8").trim();
   } finally {
     fs.rmSync(ARQUIVO_FLAG_POS_ATUALIZACAO, { force: true });
   }
+
+  if (fs.existsSync(ARQUIVO_FLAG_FALHA_ATUALIZACAO)) {
+    const detalhe = fs.readFileSync(ARQUIVO_FLAG_FALHA_ATUALIZACAO, "utf8").trim();
+    fs.rmSync(ARQUIVO_FLAG_FALHA_ATUALIZACAO, { force: true });
+    notificar("Agente Fiscal", `A atualização para ${versao} teve um problema — confira o técnico responsável.`);
+    return { versao, em, sucesso: false, detalhe };
+  }
+
+  notificar("Agente Fiscal", `Atualizado para a versão ${versao}.`);
+  return { versao, em, sucesso: true };
 }
 
 export async function verificarAtualizacao(token: string): Promise<void> {
@@ -99,16 +133,49 @@ export async function verificarAtualizacao(token: string): Promise<void> {
   // (sobrevive depois que a gente sai) espera nosso processo encerrar de
   // vez, só DEPOIS roda o instalador (e espera ele terminar de verdade,
   // "-Wait"), e só então abre o app novo — nada acontece em paralelo.
+  // Ao contrário da versão anterior (SilentlyContinue engolindo tudo), este
+  // script escreve cada passo num log persistente (fora da pasta temp) e só
+  // declara sucesso se o instalador saiu com código 0 E o executável
+  // realmente existe depois — sem isso, uma falha no meio (instalador
+  // corrompido, antivírus bloqueando, disco cheio) deixava o agente
+  // simplesmente sumir, sem log nenhum em lugar nenhum pra saber o motivo.
   fs.writeFileSync(
     scriptAtualizacao,
     [
-      "$ErrorActionPreference = 'SilentlyContinue'",
-      `Wait-Process -Id ${pidAtual} -Timeout 30`,
-      "Start-Sleep -Seconds 1",
-      `Start-Process -FilePath '${instalador}' -ArgumentList '/S' -Wait`,
-      `Start-Process -FilePath '${caminhoExeAtual}'`,
-      `Remove-Item -Path '${instalador}' -Force`,
-      `Remove-Item -Path '${scriptAtualizacao}' -Force`,
+      `$logFile = '${ARQUIVO_LOG_ATUALIZACAO}'`,
+      `function Log($msg) { Add-Content -Path $logFile -Value "$(Get-Date -Format o) $msg" -Encoding utf8 }`,
+      "try {",
+      `  Log "Atualizando para ${info.versao}: esperando processo antigo (PID ${pidAtual}) encerrar..."`,
+      `  Wait-Process -Id ${pidAtual} -Timeout 30 -ErrorAction SilentlyContinue`,
+      "  Start-Sleep -Seconds 1",
+      "  Log 'Rodando instalador silencioso...'",
+      `  $proc = Start-Process -FilePath '${instalador}' -ArgumentList '/S' -Wait -PassThru -ErrorAction Stop`,
+      "  Log \"Instalador terminou com codigo de saida $($proc.ExitCode).\"",
+      `  $exeExiste = Test-Path '${caminhoExeAtual}'`,
+      "  if ($proc.ExitCode -ne 0 -or -not $exeExiste) {",
+      "    $motivo = if (-not $exeExiste) { 'executavel nao existe apos a instalacao' } else { \"instalador saiu com codigo $($proc.ExitCode)\" }",
+      "    Log \"FALHA: $motivo\"",
+      `    Set-Content -Path '${ARQUIVO_FLAG_FALHA_ATUALIZACAO}' -Value $motivo -Encoding utf8`,
+      "  } else {",
+      "    Log 'Instalacao OK.'",
+      "  }",
+      "  if ($exeExiste) {",
+      `    Log 'Reabrindo o app...'`,
+      `    Start-Process -FilePath '${caminhoExeAtual}'`,
+      "    Log 'App reaberto.'",
+      "  } else {",
+      "    Log 'Nao foi possivel reabrir - executavel ausente. O vigia (tarefa agendada) vai tentar de novo em ate 5 minutos, mas provavelmente vai falhar tambem ate alguem reinstalar manualmente.'",
+      "  }",
+      "} catch {",
+      "  Log \"ERRO INESPERADO: $_\"",
+      `  Set-Content -Path '${ARQUIVO_FLAG_FALHA_ATUALIZACAO}' -Value "erro inesperado: $_" -Encoding utf8`,
+      "  try {",
+      `    if (Test-Path '${caminhoExeAtual}') { Start-Process -FilePath '${caminhoExeAtual}' }`,
+      "  } catch {}",
+      "} finally {",
+      `  Remove-Item -Path '${instalador}' -Force -ErrorAction SilentlyContinue`,
+      `  Remove-Item -Path '${scriptAtualizacao}' -Force -ErrorAction SilentlyContinue`,
+      "}",
     ].join("\n"),
     "utf8"
   );

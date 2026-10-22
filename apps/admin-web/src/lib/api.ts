@@ -849,6 +849,7 @@ export interface TelemetriaAgente {
   varreduraConcluida: boolean;
   arquivosNaVarredura: number;
   recusasRecentes: { em: string; arquivo?: string; status: string; detalhe?: string }[];
+  ultimaAtualizacao: { versao: string; em: string; sucesso: boolean; detalhe?: string } | null;
 }
 
 export interface AtividadeAgente {

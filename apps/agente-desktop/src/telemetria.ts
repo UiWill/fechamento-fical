@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { format } from "node:util";
 import { PASTA_CONFIG } from "./config";
+import type { InfoUltimaAtualizacao } from "./updater";
 
 export type StatusEvento =
   | "ACEITO"
@@ -49,6 +50,10 @@ const estado = {
   arquivosNaVarredura: 0,
   eventos: [] as EventoAgente[],
   recusas: [] as EventoAgente[],
+  // Preenchido só quando essa execução começou logo depois de uma
+  // auto-atualização — o painel usa isso pra avisar "atualizou agora" (ou
+  // "a atualização falhou") sem precisar de nada manual (ver updater.ts).
+  ultimaAtualizacao: null as InfoUltimaAtualizacao | null,
 };
 
 let escritasDesdeChecagem = 0;
@@ -99,11 +104,13 @@ export function configurarTelemetria(dados: {
   pastas: string[];
   filaPendente: () => number;
   dataInicioMonitoramento?: string | null;
+  ultimaAtualizacao?: InfoUltimaAtualizacao | null;
 }): void {
   estado.versao = dados.versao;
   estado.pastas = dados.pastas;
   estado.filaPendente = dados.filaPendente;
   estado.dataInicioMonitoramento = dados.dataInicioMonitoramento ?? null;
+  if (dados.ultimaAtualizacao) estado.ultimaAtualizacao = dados.ultimaAtualizacao;
 }
 
 export function registrarEvento(evento: Omit<EventoAgente, "em">): void {
@@ -185,6 +192,7 @@ export function estadoCompleto() {
     eventos: estado.eventos,
     recusas: estado.recusas,
     arquivoLog: ARQUIVO_LOG,
+    ultimaAtualizacao: estado.ultimaAtualizacao,
   };
 }
 
@@ -202,5 +210,6 @@ export function resumoParaHeartbeat() {
     varreduraConcluida: estado.varreduraConcluida,
     arquivosNaVarredura: estado.arquivosNaVarredura,
     recusasRecentes: estado.recusas.slice(0, 10),
+    ultimaAtualizacao: estado.ultimaAtualizacao,
   };
 }

@@ -309,6 +309,14 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
     else situacao = `Online, sem notas novas ${dados.servidor.ultimaNotaEm ? haTempo(dados.servidor.ultimaNotaEm) : "ainda"}.`;
   }
 
+  // Marca d'água de uma auto-atualização recente — fica visível enquanto
+  // esse processo do agente continuar rodando (reinicia ao reabrir).
+  const alertaAtualizacao = t?.ultimaAtualizacao
+    ? t.ultimaAtualizacao.sucesso
+      ? `Atualizou sozinho para a versão ${t.ultimaAtualizacao.versao} ${haTempo(t.ultimaAtualizacao.em)}.`
+      : `A atualização pra versão ${t.ultimaAtualizacao.versao} falhou ${haTempo(t.ultimaAtualizacao.em)}${t.ultimaAtualizacao.detalhe ? ` (${t.ultimaAtualizacao.detalhe})` : ""} — pode estar rodando a versão antiga ou precisar de reinstalação manual.`
+    : null;
+
   const cartao = (rotulo: string, valor: string | number) => (
     <div className="rounded-lg border p-3" style={{ borderColor: "var(--border)" }}>
       <div className="font-display text-2xl" style={{ color: "var(--paper)" }}>{valor}</div>
@@ -350,6 +358,18 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
               </span>
               <span className="text-sm" style={{ color: "var(--paper)" }}>{situacao}</span>
             </div>
+
+            {alertaAtualizacao && (
+              <p
+                className="entra-suave rounded-lg border p-3 text-sm"
+                style={{
+                  borderColor: "var(--border)",
+                  color: t?.ultimaAtualizacao?.sucesso ? "var(--muted)" : "var(--paper)",
+                }}
+              >
+                {alertaAtualizacao}
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {cartao("Recebidas hoje", dados.servidor.hoje)}

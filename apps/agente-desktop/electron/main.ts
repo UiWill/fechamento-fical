@@ -17,7 +17,7 @@ import { buscarEscopo, enviarHeartbeat, buscarVersaoMaisRecente } from "../src/a
 import { observarPastas } from "../src/watcher";
 import { criarFilaDeEnvio } from "../src/upload";
 import { notificar } from "../src/notify";
-import { verificarAtualizacao, notificarSeFoiAtualizadoAgora } from "../src/updater";
+import { verificarAtualizacao, notificarSeFoiAtualizadoAgora, type InfoUltimaAtualizacao } from "../src/updater";
 import { habilitarVigiaPeriodica } from "../src/watchdog";
 import {
   instalarLogEmArquivo,
@@ -40,6 +40,7 @@ let janelaStatus: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let pausado = false;
 let pararObservador: (() => void) | null = null;
+let infoUltimaAtualizacao: InfoUltimaAtualizacao | null = null;
 
 function criarJanela(arquivoHtml: string, opcoes: { largura: number; altura: number; titulo: string }): BrowserWindow {
   const janela = new BrowserWindow({
@@ -248,6 +249,7 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
     pastas: configInicial.pastasMonitoradas,
     filaPendente: fila.tamanhoFila,
     dataInicioMonitoramento: cortesConhecidos[0] ?? null,
+    ultimaAtualizacao: infoUltimaAtualizacao,
   });
 
   observarPastas(configInicial.pastasMonitoradas, (caminho) => {
@@ -293,7 +295,7 @@ async function main(): Promise<void> {
   await app.whenReady();
 
   instalarLogEmArquivo();
-  notificarSeFoiAtualizadoAgora();
+  infoUltimaAtualizacao = notificarSeFoiAtualizadoAgora();
   registrarIpc();
   criarTray();
 
