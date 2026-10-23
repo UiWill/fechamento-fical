@@ -22,12 +22,13 @@ model Organizacao {
   criadoEm     DateTime @default(now())
   atualizadoEm DateTime @updatedAt
 
-  empresas      Empresa[]
-  regrasFiscais RegraFiscal[]
-  usuarios      Usuario[]
-  faturas       Fatura[]
-  auditLogs     AuditLog[]
-  agenteTokens  AgenteInstalacaoToken[]
+  empresas       Empresa[]
+  regrasFiscais  RegraFiscal[]
+  regrasCorrecao RegraCorrecao[]
+  usuarios       Usuario[]
+  faturas        Fatura[]
+  auditLogs      AuditLog[]
+  agenteTokens   AgenteInstalacaoToken[]
 
   @@map("organizacoes")
 }
@@ -49,7 +50,9 @@ model Usuario {
   criadoEm      DateTime     @default(now())
   atualizadoEm  DateTime     @updatedAt
 
-  organizacao Organizacao? @relation(fields: [organizacaoId], references: [id])
+  organizacao           Organizacao?     @relation(fields: [organizacaoId], references: [id])
+  regrasCorrecaoCriadas RegraCorrecao[]
+  correcaoEventos       CorrecaoEvento[]
 
   @@index([organizacaoId])
   @@map("usuarios")
@@ -97,6 +100,7 @@ model Empresa {
   nsuControleCte        NsuControleCte?
   regrasFiscaisOverride RegraFiscal[]
   agenteTokens          AgenteInstalacaoToken[]
+  correcaoEventos       CorrecaoEvento[]
 
   @@index([organizacaoId])
   @@index([status])
@@ -215,9 +219,10 @@ model DocumentoFiscal {
   agenteInstalacaoTokenId String?
   agenteInstalacaoToken   AgenteInstalacaoToken? @relation(fields: [agenteInstalacaoTokenId], references: [id])
 
-  empresa       Empresa               @relation(fields: [empresaId], references: [id])
-  manifestacoes ManifestacaoEvento[]
-  itens         ItemDocumentoFiscal[]
+  empresa         Empresa               @relation(fields: [empresaId], references: [id])
+  manifestacoes   ManifestacaoEvento[]
+  itens           ItemDocumentoFiscal[]
+  correcaoEventos CorrecaoEvento[]
 
   @@index([empresaId, direcao, status])
   @@index([empresaId, tipo])
@@ -310,28 +315,28 @@ enum StatusAgenteInstalacao {
 // constraint (ver migration) + validacao no service, ja que Prisma nao
 // expressa XOR entre colunas nativamente.
 model AgenteInstalacaoToken {
-  id                 String                 @id @default(cuid())
-  organizacaoId      String?
-  empresaId          String?
-  nome               String // rotulo livre pro admin identificar, ex: "PC do escritorio"
-  tokenHash          String                 @unique // SHA-256 do token bruto - o bruto nunca e persistido, so mostrado 1x na criacao
-  status             StatusAgenteInstalacao @default(ATIVO)
+  id                  String                 @id @default(cuid())
+  organizacaoId       String?
+  empresaId           String?
+  nome                String // rotulo livre pro admin identificar, ex: "PC do escritorio"
+  tokenHash           String                 @unique // SHA-256 do token bruto - o bruto nunca e persistido, so mostrado 1x na criacao
+  status              StatusAgenteInstalacao @default(ATIVO)
   // Contato de quem cuida dessa maquina especifica - pra saber quem ligar
   // quando o agente para de mandar heartbeat e ninguem sabe de quem e o PC.
-  anydeskId          String?
-  nomeContato        String?
-  telefoneContato    String?
-  revogadoEm         DateTime?
+  anydeskId           String?
+  nomeContato         String?
+  telefoneContato     String?
+  revogadoEm          DateTime?
   // Tira da listagem principal sem apagar de vez (pra quando "Excluir" não
   // resolve, ex: dado que ainda não deveria sumir, ou só pra limpar a tela
   // de entradas antigas/de teste sem perder o histórico).
-  ocultoEm           DateTime?
-  ultimoHeartbeatEm  DateTime?
-  ultimaVersaoAgente String?
-  ultimoIpOrigem     String?
+  ocultoEm            DateTime?
+  ultimoHeartbeatEm   DateTime?
+  ultimaVersaoAgente  String?
+  ultimoIpOrigem      String?
   // Ultimo resumo de atividade que o proprio agente mandou no heartbeat
   // (contadores, fila, ultimas recusas) - so pra exibir no painel.
-  telemetria         Json?
+  telemetria          Json?
   // Comando que o admin pediu pelo painel ("ATUALIZAR" ou "REINICIAR") -
   // o agente le isso na resposta do PROXIMO heartbeat dele e executa, e o
   // servidor zera na hora que entrega (entrega unica, nao fica repetindo).
@@ -339,10 +344,10 @@ model AgenteInstalacaoToken {
   // disso - so heartbeat unidirecional (achado em 2026-10-22, pedido
   // explicito do usuario pra nao depender de alguem ir la no PC apertar
   // o executavel na mao).
-  comandoPendente      String?
-  comandoSolicitadoEm  DateTime?
-  criadoEm           DateTime               @default(now())
-  atualizadoEm       DateTime               @updatedAt
+  comandoPendente     String?
+  comandoSolicitadoEm DateTime?
+  criadoEm            DateTime               @default(now())
+  atualizadoEm        DateTime               @updatedAt
 
   organizacao       Organizacao?      @relation(fields: [organizacaoId], references: [id])
   empresa           Empresa?          @relation(fields: [empresaId], references: [id])
@@ -429,6 +434,106 @@ model RegraFiscal {
   @@index([organizacaoId, cfopEntrada])
   @@index([empresaId, cfopEntrada])
   @@map("regras_fiscais")
+}
+
+// ── Carta de Correção Eletrônica (CC-e) ─────────────────────────────────────
+
+enum CampoCorrecao {
+  CFOP
+  NCM
+  CST_ICMS
+  DADOS_DESTINATARIO
+  DADOS_TRANSPORTE
+  INFORMACOES_COMPLEMENTARES
+  OUTRO
+}
+
+// Regra aprendida: "esse produto, nesse CFOP, geralmente vem errado assim,
+// o certo é assim" — uma vez criada (sempre junto da primeira correção
+// aplicada por alguém), o sistema passa a sinalizar sozinho qualquer outro
+// item com o mesmo padrão, em qualquer empresa da mesma organização, com
+// um botão pra aplicar a correção de novo sem repetir o processo manual
+// (pedido explícito do usuário em 2026-10-23).
+model RegraCorrecao {
+  id                 String        @id @default(cuid())
+  organizacaoId      String
+  // Quem criou a regra — fica registrado mesmo que outra conta da mesma
+  // organização seja quem depois aplica em massa (ver CorrecaoEvento.usuarioId).
+  criadoPorUsuarioId String
+  campo              CampoCorrecao
+  // NCM + descrição aproximada do produto identificam "o mesmo produto"
+  // entre notas e empresas diferentes — cProd não é padronizado entre
+  // PDVs diferentes, NCM é bem mais estável.
+  ncm                String?
+  descricaoProduto   String?
+  // Em que CFOP (como foi emitido, errado) esse padrão aparece — escopa a
+  // regra pra não disparar em todo produto desse NCM fora de contexto.
+  cfopContexto       String?
+  valorErrado        String
+  valorCorreto       String
+  // false = campo que normalmente NÃO pode ser corrigido via CC-e (ex:
+  // CFOP quando afeta o cálculo do imposto — a SEFAZ pode rejeitar, ou
+  // aceitar e virar problema fiscal depois). A regra ainda pode ser
+  // aplicada (decisão explícita do usuário), mas a tela sempre avisa o
+  // risco antes de aplicar.
+  permiteCceSeguro   Boolean       @default(true)
+  ativa              Boolean       @default(true)
+  criadoEm           DateTime      @default(now())
+  atualizadoEm       DateTime      @updatedAt
+
+  organizacao        Organizacao      @relation(fields: [organizacaoId], references: [id])
+  criadoPor          Usuario          @relation(fields: [criadoPorUsuarioId], references: [id])
+  correcoesAplicadas CorrecaoEvento[]
+
+  @@index([organizacaoId, ncm])
+  @@index([organizacaoId, ativa])
+  @@map("regras_correcao")
+}
+
+enum StatusCorrecao {
+  PENDENTE
+  ENVIADA
+  AUTORIZADA
+  REJEITADA
+}
+
+// Cada Carta de Correção de fato mandada (ou tentada) pra SEFAZ — uma por
+// documento por aplicação, mesmo que o motivo seja um produto específico
+// dentro da nota (CC-e corrige a nota inteira, não um item isolado).
+model CorrecaoEvento {
+  id                String         @id @default(cuid())
+  empresaId         String
+  documentoFiscalId String
+  // Null = aplicada manualmente sem virar regra (ou antes da regra
+  // existir) — a maioria tem isso preenchido, já que toda correção
+  // estruturada vira regra automaticamente ao ser criada.
+  regraCorrecaoId   String?
+  // Quem efetivamente disparou ESSE envio — pode ser diferente de quem
+  // criou a regra, no caso de aplicação em massa feita por outra conta
+  // com acesso à mesma empresa.
+  usuarioId         String
+  campo             CampoCorrecao
+  valorErrado       String
+  valorCorreto      String
+  // O texto xCorrecao de fato mandado pra SEFAZ — gerado a partir de
+  // campo/valorErrado/valorCorreto por um template fixo, nunca digitado
+  // livre (é por isso que dá pra aplicar a mesma correção em lote).
+  textoEnviado      String
+  nSeqEvento        Int
+  status            StatusCorrecao @default(PENDENTE)
+  protocoloSefaz    String?
+  motivoSefaz       String?
+  enviadoEm         DateTime?
+  criadoEm          DateTime       @default(now())
+
+  empresa         Empresa         @relation(fields: [empresaId], references: [id])
+  documentoFiscal DocumentoFiscal @relation(fields: [documentoFiscalId], references: [id])
+  regraCorrecao   RegraCorrecao?  @relation(fields: [regraCorrecaoId], references: [id])
+  usuario         Usuario         @relation(fields: [usuarioId], references: [id])
+
+  @@index([empresaId])
+  @@index([documentoFiscalId])
+  @@map("correcao_eventos")
 }
 
 // ── Exportação para o Domínio Sistemas ──────────────────────────────────────

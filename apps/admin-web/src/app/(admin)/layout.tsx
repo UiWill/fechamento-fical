@@ -46,6 +46,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Regras fiscais
           </Link>
           <Link
+            href="/regras-correcao"
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
+            style={{ color: "var(--muted)" }}
+          >
+            Regras de correção
+          </Link>
+          <Link
             href="/agentes"
             className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
             style={{ color: "var(--muted)" }}

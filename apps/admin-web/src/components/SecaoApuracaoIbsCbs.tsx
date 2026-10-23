@@ -1,12 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { listarApuracaoItens, reprocessarItensDocumentoFiscal, type ItemApuracao } from "@/lib/api";
+import {
+  aplicarCorrecao,
+  listarApuracaoItens,
+  reprocessarItensDocumentoFiscal,
+  type ItemApuracao,
+} from "@/lib/api";
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
 import { exportarApuracaoIbsCbsExcel } from "@/lib/exportar-apuracao-excel";
 import { SeletorMes } from "./SeletorMes";
 import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
 import { FiltroColuna, aplicarFiltrosColuna } from "./FiltroColuna";
+import { ModalAplicarCorrecao } from "./ModalAplicarCorrecao";
 
 const LOTE_EXIBICAO = 300;
 
@@ -60,6 +66,7 @@ function resumoPorCfop(itens: ItemApuracao[]): LinhaResumoCfop[] {
 }
 
 const COLUNAS_CSV: { rotulo: string; campo: keyof ItemApuracao }[] = [
+  { rotulo: "Tipo", campo: "tipo" },
   { rotulo: "nNF", campo: "nNF" },
   { rotulo: "dhEmi", campo: "dhEmi" },
   { rotulo: "nItem", campo: "nItem" },
@@ -129,6 +136,48 @@ export function SecaoApuracaoIbsCbs({
     setLimiteExibicao(LOTE_EXIBICAO);
   };
   const itensFiltrados = aplicarFiltrosColuna(itens, filtros);
+
+  // Carta de Correção (CC-e) — mesmo fluxo de SecaoApuracaoIcms.tsx.
+  const [itemParaCorrigir, setItemParaCorrigir] = useState<ItemApuracao | null>(null);
+  const [aplicandoSugestao, setAplicandoSugestao] = useState<string | null>(null);
+
+  async function handleAplicarSugestao(item: ItemApuracao) {
+    if (!item.correcaoSugerida) return;
+    setAplicandoSugestao(item.id);
+    setMensagem(null);
+    try {
+      const valorErrado =
+        item.correcaoSugerida.campo === "CFOP"
+          ? item.cfop
+          : item.correcaoSugerida.campo === "NCM"
+            ? item.ncm
+            : (item.icmsCst ?? "");
+      const evento = await aplicarCorrecao(
+        empresaId,
+        {
+          documentoFiscalId: item.documentoFiscalId,
+          campo: item.correcaoSugerida.campo,
+          valorErrado,
+          valorCorreto: item.correcaoSugerida.valorCorreto,
+          ncm: item.ncm,
+          descricaoProduto: item.xProd,
+          cfopContexto: item.cfop,
+          regraCorrecaoId: item.correcaoSugerida.regraId,
+        },
+        token
+      );
+      setMensagem(
+        evento.status === "AUTORIZADA"
+          ? "Carta de Correção aplicada com sucesso."
+          : `A SEFAZ rejeitou a correção: ${evento.motivoSefaz ?? "motivo não informado"}.`
+      );
+      if (evento.status === "AUTORIZADA") void carregar();
+    } catch {
+      setMensagem("Não foi possível aplicar a correção agora.");
+    } finally {
+      setAplicandoSugestao(null);
+    }
+  }
 
   // Mesmo guard de SecaoApuracaoIcms.tsx — <input type="month"> dispara
   // onChange a cada dígito, duas buscas ficam "no ar" e a resposta velha
@@ -362,6 +411,7 @@ export function SecaoApuracaoIbsCbs({
               <thead className="sticky top-0 z-10">
                 <tr className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)", background: "var(--surface)" }}>
                   {([
+                    ["Tipo", "tipo"],
                     ["nNF", "nNF"],
                     ["dhEmi", "dhEmi"],
                     ["nItem", "nItem"],
@@ -384,6 +434,7 @@ export function SecaoApuracaoIbsCbs({
                       <FiltroColuna valor={filtros[campo] ?? ""} onChange={(v) => definirFiltro(campo, v)} />
                     </th>
                   ))}
+                  {direcao === "SAIDA" && <th className="whitespace-nowrap px-3 py-3 font-medium">CC-e</th>}
                 </tr>
               </thead>
               <tbody>
@@ -413,6 +464,7 @@ export function SecaoApuracaoIbsCbs({
                     style={{ borderColor: "var(--border)", background: fundo }}
                     title={titulo || undefined}
                   >
+                    <td className="whitespace-nowrap px-3 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>{i.tipo === "NFCE" ? "NFC-e" : "NF-e"}</td>
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>{i.nNF}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{formatarDataHora(i.dhEmi ?? "")}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{i.nItem}</td>
@@ -429,6 +481,29 @@ export function SecaoApuracaoIbsCbs({
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--paper)" }}>{val(i.ibsMunValor)}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{pct(i.cbsAliquota)}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--paper)" }}>{val(i.cbsValor)}</td>
+                    {direcao === "SAIDA" && (
+                      <td className="whitespace-nowrap px-3 py-3 text-xs">
+                        {i.correcaoSugerida ? (
+                          <button
+                            onClick={() => void handleAplicarSugestao(i)}
+                            disabled={aplicandoSugestao === i.id}
+                            className={CLASSE_BOTAO_LINK}
+                            style={{ color: "var(--vermelho, #e08a8a)" }}
+                            title={`Regra aprendida: trocar ${i.correcaoSugerida.campo} para "${i.correcaoSugerida.valorCorreto}"`}
+                          >
+                            {aplicandoSugestao === i.id ? "Aplicando…" : "Aplicar sugestão"}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setItemParaCorrigir(i)}
+                            className={CLASSE_BOTAO_LINK}
+                            style={{ color: "var(--paper)" }}
+                          >
+                            Corrigir
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                   );
                 })}
@@ -448,6 +523,7 @@ export function SecaoApuracaoIbsCbs({
                   <td className="px-3 py-3">{somar(itensFiltrados, "ibsMunValor")}</td>
                   <td className="px-3 py-3" />
                   <td className="px-3 py-3">{somar(itensFiltrados, "cbsValor")}</td>
+                  {direcao === "SAIDA" && <td className="px-3 py-3" />}
                 </tr>
               </tfoot>
             </table>
@@ -459,6 +535,16 @@ export function SecaoApuracaoIbsCbs({
           />
         </div>
         </>
+      )}
+
+      {itemParaCorrigir && (
+        <ModalAplicarCorrecao
+          empresaId={empresaId}
+          token={token}
+          item={itemParaCorrigir}
+          onFechar={() => setItemParaCorrigir(null)}
+          onAplicado={() => void carregar()}
+        />
       )}
     </div>
   );

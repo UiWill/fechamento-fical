@@ -87,7 +87,7 @@ export async function exportarApuracaoIcmsExcel(
   ws.addRow([]);
 
   const colunas = [
-    "nNF", "dhEmi", "nItem", "cProd", "xProd", "NCM", "CFOP",
+    "Tipo", "nNF", "dhEmi", "nItem", "cProd", "xProd", "NCM", "CFOP",
     "CST ICMS", "vBC ICMS", "pICMS", "vICMS",
     "CST IPI", "vBC IPI", "pIPI", "vIPI",
     "CST PIS", "vBC PIS", "pPIS", "vPIS",
@@ -103,7 +103,7 @@ export async function exportarApuracaoIcmsExcel(
 
   for (const i of itens) {
     const linha = ws.addRow([
-      i.nNF, i.dhEmi ?? "", i.nItem, i.cProd, i.xProd, i.ncm, i.cfop,
+      i.tipo === "NFCE" ? "NFC-e" : "NF-e", i.nNF, i.dhEmi ?? "", i.nItem, i.cProd, i.xProd, i.ncm, i.cfop,
       i.icmsCst ?? "", i.icmsBase ?? "", i.icmsAliquota ?? "", i.icmsValor ?? "",
       i.ipiCst ?? "", i.ipiBase ?? "", i.ipiAliquota ?? "", i.ipiValor ?? "",
       i.pisCst ?? "", i.pisBase ?? "", i.pisAliquota ?? "", i.pisValor ?? "",
@@ -125,8 +125,8 @@ export async function exportarApuracaoIcmsExcel(
   ws.columns.forEach((col) => {
     col.width = 14;
   });
-  ws.getColumn(5).width = 32; // xProd
-  ws.getColumn(24).width = 40; // Pendência
+  ws.getColumn(6).width = 32; // xProd
+  ws.getColumn(25).width = 40; // Pendência
 
   await baixarPlanilha(wb, `apuracao-icms-${slugify(`${empresaNome}-${mesRotulo}`)}.xlsx`);
 }
@@ -144,7 +144,7 @@ export async function exportarApuracaoIbsCbsExcel(
   ws.addRow([]);
 
   const colunas = [
-    "nNF", "dhEmi", "nItem", "cProd", "xProd", "NCM", "CFOP",
+    "Tipo", "nNF", "dhEmi", "nItem", "cProd", "xProd", "NCM", "CFOP",
     "CST", "cClassTrib", "vBC",
     "pIBS UF", "vIBS UF", "pIBS Mun", "vIBS Mun", "pCBS", "vCBS",
     "Pendência",
@@ -157,7 +157,7 @@ export async function exportarApuracaoIbsCbsExcel(
 
   for (const i of itens) {
     const linha = ws.addRow([
-      i.nNF, i.dhEmi ?? "", i.nItem, i.cProd, i.xProd, i.ncm, i.cfop,
+      i.tipo === "NFCE" ? "NFC-e" : "NF-e", i.nNF, i.dhEmi ?? "", i.nItem, i.cProd, i.xProd, i.ncm, i.cfop,
       i.ibsCbsCst ?? "", i.cClassTrib ?? "", i.ibsCbsBase ?? "",
       i.ibsUfAliquota ?? "", i.ibsUfValor ?? "", i.ibsMunAliquota ?? "", i.ibsMunValor ?? "",
       i.cbsAliquota ?? "", i.cbsValor ?? "",
@@ -178,8 +178,8 @@ export async function exportarApuracaoIbsCbsExcel(
   ws.columns.forEach((col) => {
     col.width = 14;
   });
-  ws.getColumn(5).width = 32; // xProd
-  ws.getColumn(17).width = 40; // Pendência
+  ws.getColumn(6).width = 32; // xProd
+  ws.getColumn(18).width = 40; // Pendência
 
   await baixarPlanilha(wb, `apuracao-ibs-cbs-${slugify(`${empresaNome}-${mesRotulo}`)}.xlsx`);
 }

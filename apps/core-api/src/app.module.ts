@@ -19,6 +19,7 @@ import { ExportacaoTxtModule } from "./exportacao-txt/exportacao-txt.module";
 import { FaturamentoModule } from "./faturamento/faturamento.module";
 import { SincronizacaoAgendadaModule } from "./sincronizacao-agendada/sincronizacao-agendada.module";
 import { AgentesModule } from "./agentes/agentes.module";
+import { CorrecoesModule } from "./correcoes/correcoes.module";
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AgentesModule } from "./agentes/agentes.module";
     FaturamentoModule,
     SincronizacaoAgendadaModule,
     AgentesModule,
+    CorrecoesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

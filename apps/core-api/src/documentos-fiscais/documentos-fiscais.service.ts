@@ -10,6 +10,7 @@ import { CertificadosService } from "../certificados/certificados.service";
 import { FiscalEngineClient } from "../common/fiscal-engine/fiscal-engine.client";
 import { extrairDadosBasicos } from "./xml-utils";
 import { ItensDocumentoFiscalService } from "./itens-documento-fiscal.service";
+import { CorrecoesService } from "../correcoes/correcoes.service";
 import { decodificarChaveAcesso } from "@afe/shared";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -121,7 +122,8 @@ export class DocumentosFiscaisService {
     private readonly storage: ObjectStorageService,
     private readonly certificados: CertificadosService,
     private readonly fiscalEngine: FiscalEngineClient,
-    private readonly itensDocumentoFiscal: ItensDocumentoFiscalService
+    private readonly itensDocumentoFiscal: ItensDocumentoFiscalService,
+    private readonly correcoes: CorrecoesService
   ) {}
 
   /**
@@ -558,7 +560,7 @@ export class DocumentosFiscaisService {
           emitidoEm: { gte: inicio, lte: fim },
         },
       },
-      include: { documentoFiscal: { select: { chaveAcesso: true, emitidoEm: true } } },
+      include: { documentoFiscal: { select: { chaveAcesso: true, emitidoEm: true, tipo: true } } },
       orderBy: [{ documentoFiscal: { emitidoEm: "asc" } }, { nItem: "asc" }],
     });
 
@@ -629,6 +631,19 @@ export class DocumentosFiscaisService {
       modaPorCfop.set(cfop, { aliquota: melhorAliquota, contagem: melhorContagem, total });
     }
 
+    // Regra aprendida (Carta de Correção) que já conhece esse exato
+    // padrão errado — some direto na tabela como "correção sugerida", pra
+    // aplicar com um clique em vez de repetir o processo manual (pedido
+    // explícito do usuário em 2026-10-23). Só CFOP/NCM/CST ICMS têm valor
+    // no nível do item — ver CAMPOS_COM_VALOR_NO_ITEM em correcoes.service.ts.
+    const sugestoes =
+      direcao === "SAIDA"
+        ? await this.correcoes.sugestoesParaItens(
+            empresa.organizacaoId,
+            itens.map((item) => ({ id: item.id, ncm: item.ncm, cfop: item.cfop, icmsCst: item.icmsCst }))
+          )
+        : {};
+
     return itens.map((item) => {
       const numeroNota = Number(item.documentoFiscal.chaveAcesso.slice(25, 34));
       const tributosInconsistentes = [
@@ -644,6 +659,7 @@ export class DocumentosFiscaisService {
         ...item,
         nNF: numeroNota,
         dhEmi: item.documentoFiscal.emitidoEm,
+        tipo: item.documentoFiscal.tipo,
         cfopDivergente: cfopsSaidaEsperados.size > 0 && !cfopsSaidaEsperados.has(item.cfop),
         tributosInconsistentes,
         // Só sinaliza ausência em quem já deveria ter o grupo (reforma é
@@ -660,6 +676,7 @@ export class DocumentosFiscaisService {
           if (!moda || moda.total < 3 || moda.contagem / moda.total <= 0.5) return false;
           return item.icmsAliquota.toString() !== moda.aliquota;
         })(),
+        correcaoSugerida: sugestoes[item.id] ?? null,
       };
     });
   }

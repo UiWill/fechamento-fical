@@ -108,3 +108,65 @@ export function urlConsultaProtocolo(codigoUf: number, ambiente: 1 | 2, modelo: 
   }
   return url;
 }
+
+/**
+ * URL do webservice NFeRecepcaoEvento4 (usado pra Carta de Correção, entre
+ * outros eventos de NF-e) — DIFERENTE do de Consulta Protocolo: é um
+ * serviço de ESCRITA (manda um evento assinado), não leitura, e várias UFs
+ * delegam ele pro SVRS mesmo tendo webservice de consulta próprio (não é a
+ * mesma tabela de infraestrutura).
+ *
+ * Fonte: implementação de referência já validada em produção neste mesmo
+ * workspace (NFE_MARKET/src/nfe/eventSender.js — `EVENT_ENDPOINTS` +
+ * `SVRS_CUFS`), que por sua vez usa o mesmo mapeamento sped-nfe/autorizadores
+ * já citado acima. Confirmado individualmente só pra MG/SP/PR/RS/RJ/BA/CE —
+ * o resto cai no SVRS compartilhado (`SVRS_CUFS` da referência). SC não
+ * aparecia em nenhuma das duas listas na referência; foi incluída no grupo
+ * SVRS por analogia com o padrão de Consulta Protocolo dela (que também usa
+ * o SVRS compartilhado pra SC) — ⚠️ essa inferência específica (SC) ainda
+ * não foi validada contra retorno real da SEFAZ, ao contrário das outras.
+ */
+const URL_RECEPCAO_EVENTO_POR_UF: Record<string, string> = {
+  MG: "https://nfe.fazenda.mg.gov.br/nfe2/services/NFeRecepcaoEvento4",
+  SP: "https://nfe.fazenda.sp.gov.br/nfeweb/services/NFeRecepcaoEvento4",
+  PR: "https://nfe.fazenda.pr.gov.br/nfe/NFeRecepcaoEvento4",
+  RS: "https://nfe.sefazrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx",
+  RJ: "https://nfe.fazenda.rj.gov.br/nfe/NFeRecepcaoEvento4",
+  BA: "https://nfe.sefaz.ba.gov.br/webservices/NFeRecepcaoEvento4/NFeRecepcaoEvento4",
+  CE: "https://nfe.sefaz.ce.gov.br/nfe4/services/NFeRecepcaoEvento4",
+};
+
+const URL_RECEPCAO_EVENTO_HOM_POR_UF: Record<string, string> = {
+  MG: "https://hnfe.fazenda.mg.gov.br/nfe2/services/NFeRecepcaoEvento4",
+  SP: "https://homologacao.nfe.fazenda.sp.gov.br/nfeweb/services/NFeRecepcaoEvento4",
+  PR: "https://homologacao.nfe.fazenda.pr.gov.br/nfe/NFeRecepcaoEvento4",
+  RS: "https://nfe-homologacao.sefazrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx",
+  RJ: "https://homologacao.nfe.fazenda.rj.gov.br/nfe/NFeRecepcaoEvento4",
+  BA: "https://hnfe.sefaz.ba.gov.br/webservices/NFeRecepcaoEvento4/NFeRecepcaoEvento4",
+  CE: "https://nfeh.sefaz.ce.gov.br/nfe4/services/NFeRecepcaoEvento4",
+};
+
+/** UFs sem webservice de RecepcaoEvento próprio pra esse evento — delegam pro SVRS compartilhado. */
+const UFS_SVRS_RECEPCAO_EVENTO = new Set([
+  "RO", "AC", "AM", "RR", "PA", "AP", "TO",
+  "MA", "PI", "RN", "PB", "PE", "AL", "SE", "ES",
+  "MS", "MT", "GO", "DF", "SC",
+]);
+const URL_SVRS_RECEPCAO_EVENTO_PROD = "https://nfe.svrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx";
+const URL_SVRS_RECEPCAO_EVENTO_HOM = "https://nfe-homologacao.svrs.rs.gov.br/ws/NfeRecepcaoEvento/NFeRecepcaoEvento4.asmx";
+
+export function urlRecepcaoEvento(codigoUf: number, ambiente: 1 | 2): string {
+  const sigla = SIGLA_POR_CODIGO_UF[codigoUf];
+  if (!sigla) {
+    throw new Error(`Código de UF desconhecido: ${codigoUf}.`);
+  }
+  if (UFS_SVRS_RECEPCAO_EVENTO.has(sigla)) {
+    return ambiente === 1 ? URL_SVRS_RECEPCAO_EVENTO_PROD : URL_SVRS_RECEPCAO_EVENTO_HOM;
+  }
+  const tabela = ambiente === 1 ? URL_RECEPCAO_EVENTO_POR_UF : URL_RECEPCAO_EVENTO_HOM_POR_UF;
+  const url = tabela[sigla];
+  if (!url) {
+    throw new Error(`Sem URL de Recepção de Evento conhecida pra UF ${sigla} (código ${codigoUf}).`);
+  }
+  return url;
+}

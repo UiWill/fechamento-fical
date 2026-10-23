@@ -627,6 +627,7 @@ export async function baixarXmlsZip(
 export interface ItemApuracao {
   id: string;
   documentoFiscalId: string;
+  tipo: "NFE" | "NFCE";
   nNF: number;
   dhEmi: string | null;
   nItem: number;
@@ -671,6 +672,8 @@ export interface ItemApuracao {
   regimeIcmsMisturado: boolean;
   /** true quando a alíquota de ICMS desse item destoa da alíquota majoritária usada pela própria empresa nesse mesmo CFOP no período. */
   aliquotaIcmsDivergente: boolean;
+  /** Preenchido quando uma Carta de Correção já aprendida (de qualquer empresa da organização) bate com o valor atual desse item. */
+  correcaoSugerida: { regraId: string; campo: CampoCorrecao; valorCorreto: string } | null;
 }
 
 export async function listarApuracaoItens(
@@ -685,6 +688,145 @@ export async function listarApuracaoItens(
     { headers: { authorization: `Bearer ${token}` }, cache: "no-store" }
   );
   if (!response.ok) throw new Error("Não foi possível carregar a apuração agora.");
+  return response.json();
+}
+
+// ── Carta de Correção Eletrônica (CC-e) ─────────────────────────────────────
+
+export type CampoCorrecao =
+  | "CFOP"
+  | "NCM"
+  | "CST_ICMS"
+  | "DADOS_DESTINATARIO"
+  | "DADOS_TRANSPORTE"
+  | "INFORMACOES_COMPLEMENTARES"
+  | "OUTRO";
+
+export interface ItemCatalogoCorrecao {
+  campo: CampoCorrecao;
+  rotulo: string;
+  permiteCceSeguro: boolean;
+  aviso?: string;
+}
+
+export async function buscarCatalogoCorrecao(token: string): Promise<ItemCatalogoCorrecao[]> {
+  const response = await apiFetch(`${API_URL}/correcoes/catalogo`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Não foi possível carregar o catálogo de correções agora.");
+  return response.json();
+}
+
+export interface CorrecaoEvento {
+  id: string;
+  empresaId: string;
+  documentoFiscalId: string;
+  regraCorrecaoId: string | null;
+  usuarioId: string;
+  campo: CampoCorrecao;
+  valorErrado: string;
+  valorCorreto: string;
+  textoEnviado: string;
+  nSeqEvento: number;
+  status: "PENDENTE" | "ENVIADA" | "AUTORIZADA" | "REJEITADA";
+  protocoloSefaz: string | null;
+  motivoSefaz: string | null;
+  enviadoEm: string | null;
+  criadoEm: string;
+}
+
+export interface AplicarCorrecaoInput {
+  documentoFiscalId: string;
+  campo: CampoCorrecao;
+  valorErrado: string;
+  valorCorreto: string;
+  ncm?: string;
+  descricaoProduto?: string;
+  cfopContexto?: string;
+  criarRegra?: boolean;
+  /** Regra já aprendida sendo reaplicada (fluxo de 1 clique a partir da sugestão da tabela) — vincula direto, não cria outra. */
+  regraCorrecaoId?: string;
+}
+
+export async function aplicarCorrecao(
+  empresaId: string,
+  input: AplicarCorrecaoInput,
+  token: string
+): Promise<CorrecaoEvento> {
+  const response = await apiFetch(`${API_URL}/empresas/${empresaId}/correcoes`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error("Não foi possível enviar a Carta de Correção agora.");
+  return response.json();
+}
+
+export interface RegraCorrecao {
+  id: string;
+  organizacaoId: string;
+  criadoPorUsuarioId: string;
+  criadoPor: { nome: string; email: string };
+  campo: CampoCorrecao;
+  ncm: string | null;
+  descricaoProduto: string | null;
+  cfopContexto: string | null;
+  valorErrado: string;
+  valorCorreto: string;
+  permiteCceSeguro: boolean;
+  ativa: boolean;
+  criadoEm: string;
+  _count: { correcoesAplicadas: number };
+}
+
+export async function listarRegrasCorrecao(token: string): Promise<RegraCorrecao[]> {
+  const response = await apiFetch(`${API_URL}/correcoes/regras`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Não foi possível carregar as regras de correção agora.");
+  return response.json();
+}
+
+export async function desativarRegraCorrecao(id: string, token: string): Promise<void> {
+  const response = await apiFetch(`${API_URL}/correcoes/regras/${id}/desativar`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Não foi possível desativar a regra agora.");
+}
+
+export interface CandidatoCorrecao {
+  documentoFiscalId: string;
+  empresaId: string;
+  empresaNome: string;
+  chaveAcesso: string;
+}
+
+export async function listarCandidatosCorrecao(
+  regraId: string,
+  token: string
+): Promise<CandidatoCorrecao[]> {
+  const response = await apiFetch(`${API_URL}/correcoes/regras/${regraId}/candidatos`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Não foi possível buscar os candidatos agora.");
+  return response.json();
+}
+
+export async function aplicarCorrecaoEmMassa(
+  regraId: string,
+  documentoFiscalIds: string[],
+  token: string
+): Promise<{ total: number; sucesso: number; falha: number }> {
+  const response = await apiFetch(`${API_URL}/correcoes/regras/${regraId}/aplicar-em-massa`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ documentoFiscalIds }),
+  });
+  if (!response.ok) throw new Error("Não foi possível aplicar a correção em massa agora.");
   return response.json();
 }
 

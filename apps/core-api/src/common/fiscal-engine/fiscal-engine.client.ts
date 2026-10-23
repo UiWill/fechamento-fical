@@ -44,6 +44,24 @@ export interface EnviarEventoResponse {
   protocolo?: string;
 }
 
+export interface EnviarCartaCorrecaoRequest {
+  codigoUf: number;
+  ambiente: 1 | 2;
+  cnpj: string;
+  chaveAcesso: string;
+  /** 1 a 20 — cada CC-e enviada pra mesma nota soma, não substitui a anterior. */
+  numeroSequencial: number;
+  /** 15 a 1000 caracteres — o texto legal obrigatório é adicionado automaticamente, não precisa incluir aqui. */
+  xCorrecao: string;
+  certificado: CertificadoParaEngine;
+}
+
+export interface EnviarCartaCorrecaoResponse {
+  cStat: string;
+  xMotivo: string;
+  protocolo?: string;
+}
+
 export interface ConsultarProtocoloRequest {
   codigoUf: number;
   ambiente: 1 | 2;
@@ -131,6 +149,21 @@ export class FiscalEngineClient {
   }
 
   /** Consulta a situação (cStat) de uma NF-e/NFC-e na SEFAZ por chave de acesso. */
+  async enviarCartaCorrecao(input: EnviarCartaCorrecaoRequest): Promise<EnviarCartaCorrecaoResponse> {
+    const response = await fetch(`${this.baseUrl}/nfe/carta-correcao`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`fiscal-engine respondeu ${response.status}: ${body}`);
+    }
+
+    return response.json() as Promise<EnviarCartaCorrecaoResponse>;
+  }
+
   async consultarProtocolo(input: ConsultarProtocoloRequest): Promise<ConsultarProtocoloResponse> {
     const response = await fetch(`${this.baseUrl}/nfe/consultar-protocolo`, {
       method: "POST",

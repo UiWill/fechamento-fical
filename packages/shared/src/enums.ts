@@ -60,4 +60,18 @@ export type PapelUsuario = (typeof PAPEL_USUARIO)[number];
 export const STATUS_AGENTE_INSTALACAO = ["ATIVO", "REVOGADO"] as const;
 export type StatusAgenteInstalacao = (typeof STATUS_AGENTE_INSTALACAO)[number];
 
+export const CAMPO_CORRECAO = [
+  "CFOP",
+  "NCM",
+  "CST_ICMS",
+  "DADOS_DESTINATARIO",
+  "DADOS_TRANSPORTE",
+  "INFORMACOES_COMPLEMENTARES",
+  "OUTRO",
+] as const;
+export type CampoCorrecao = (typeof CAMPO_CORRECAO)[number];
+
+export const STATUS_CORRECAO = ["PENDENTE", "ENVIADA", "AUTORIZADA", "REJEITADA"] as const;
+export type StatusCorrecao = (typeof STATUS_CORRECAO)[number];
+
 export const VALOR_MENSALIDADE_POR_CNPJ = 49.9;

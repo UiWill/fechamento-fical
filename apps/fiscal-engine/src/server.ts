@@ -6,6 +6,7 @@ import { manifestacaoRoutes } from "./routes/manifestacao";
 import { cteDistribuicaoRoutes } from "./routes/cte-distribuicao";
 import { consultarProtocoloRoutes } from "./routes/consultar-protocolo";
 import { consultarProtocoloCteRoutes } from "./routes/consultar-protocolo-cte";
+import { cartaCorrecaoRoutes } from "./routes/carta-correcao";
 
 export function buildServer() {
   const app = Fastify({
@@ -21,6 +22,7 @@ export function buildServer() {
   app.register(cteDistribuicaoRoutes);
   app.register(consultarProtocoloRoutes);
   app.register(consultarProtocoloCteRoutes);
+  app.register(cartaCorrecaoRoutes);
 
   return app;
 }
