@@ -300,10 +300,18 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
     ? Date.now() - new Date(dados.servidor.ultimaNotaEm).getTime() < 5 * 60_000
     : false;
 
+  // >= 3 starts em 30min quase sempre é o vigia religando um processo que
+  // está morrendo quase na hora que abre — crash-loop de verdade, não só
+  // "atrasado". Prioridade máxima na situação mostrada, porque de fora
+  // (só olhando "último sinal") isso parece ONLINE normal.
+  const emCrashLoop = Boolean(t && t.reiniciosRecentes >= 3);
+
   let situacao = "Carregando…";
   if (dados) {
     if (dados.agente.status === "REVOGADO") situacao = "Revogado — não aceita mais notas.";
     else if (!dados.online) situacao = `Sem sinal do agente ${haTempo(dados.agente.ultimoHeartbeatEm)} — o PC pode estar desligado ou o agente parado.`;
+    else if (emCrashLoop)
+      situacao = `Crash-loop: reiniciou ${t!.reiniciosRecentes}x nos últimos 30 minutos — o processo está morrendo antes de terminar de ler a pasta.`;
     else if (t?.ultimoErro) situacao = `Online, mas com falha ao enviar: ${t.ultimoErro.mensagem}`;
     else if (t && !t.varreduraConcluida) situacao = `Online, lendo a pasta pela primeira vez (${t.arquivosNaVarredura} arquivos vistos)…`;
     else if (recebendoAgora) situacao = "Online e enviando notas agora.";
@@ -359,6 +367,40 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
               </span>
               <span className="text-sm" style={{ color: "var(--paper)" }}>{situacao}</span>
             </div>
+
+            {emCrashLoop && (
+              <div className="entra-suave rounded-lg border p-4" style={{ borderColor: "var(--vermelho, #e08a8a)" }}>
+                <p className="text-sm font-medium" style={{ color: "var(--paper)" }}>
+                  O agente está travando repetidamente logo depois de iniciar — o "vigia" (tarefa agendada local)
+                  fica tentando reabrir, mas o processo morre de novo antes de terminar de ler a pasta.
+                </p>
+                {t?.ultimoErroFatal ? (
+                  <div className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
+                    <p>
+                      Último erro capturado ({haTempo(t.ultimoErroFatal.em)}, {t.ultimoErroFatal.origem}):
+                    </p>
+                    <p className="mt-1 font-mono" style={{ color: "var(--paper)" }}>
+                      {t.ultimoErroFatal.mensagem}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
+                    Nenhum erro específico foi capturado ainda (o crash pode estar acontecendo antes da rede de
+                    segurança do agente entrar em ação — isso melhora nas próximas versões). Peça pro responsável
+                    mandar o arquivo <code>agente.log</code> da pasta <code>%LOCALAPPDATA%\AfeAgenteDesktop\</code> do
+                    PC.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {t && t.pastasInacessiveis.length > 0 && (
+              <div className="entra-suave rounded-lg border p-3 text-sm" style={{ borderColor: "var(--vermelho, #e08a8a)" }}>
+                Pasta(s) configurada(s) não encontrada(s) no PC agora:{" "}
+                <span className="font-mono text-xs">{t.pastasInacessiveis.join(" | ")}</span> — disco removido, pasta
+                renomeada ou rede fora do ar.
+              </div>
+            )}
 
             {alertaAtualizacao && (
               <p

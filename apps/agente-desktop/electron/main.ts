@@ -19,6 +19,7 @@ import { criarFilaDeEnvio } from "../src/upload";
 import { notificar } from "../src/notify";
 import { verificarAtualizacao, notificarSeFoiAtualizadoAgora, type InfoUltimaAtualizacao } from "../src/updater";
 import { habilitarVigiaPeriodica } from "../src/watchdog";
+import { registrarInicioEContarReinicios, registrarErroFatal, lerELimparUltimoErroFatal, pastasInacessiveis } from "../src/diagnostico";
 import {
   instalarLogEmArquivo,
   configurarTelemetria,
@@ -41,6 +42,25 @@ let tray: Tray | null = null;
 let pausado = false;
 let pararObservador: (() => void) | null = null;
 let infoUltimaAtualizacao: InfoUltimaAtualizacao | null = null;
+
+// Rede de segurança — sem isso, qualquer exceção não prevista em algum
+// lugar (ex: um XML com um formato nunca visto antes) derruba o processo
+// INTEIRO sem log nenhum, e como o chokidar sempre varre a pasta na mesma
+// ordem, o mesmo arquivo quebra de novo a cada reinício — crash-loop
+// permanente e silencioso (achado em 2026-10-22, investigando um agente
+// que ficou dias sem mandar nota nenhuma; ver também o try/catch
+// específico em upload.ts, que é o fix principal — isto aqui é só o
+// último recurso pra qualquer coisa que escape dele). Registrar um
+// handler already impede o Node de sair sozinho — não precisa (nem deve)
+// chamar process.exit aqui.
+process.on("uncaughtException", (err) => {
+  console.error(`[main] EXCEÇÃO NÃO TRATADA (agente continua rodando): ${err?.stack ?? err}`);
+  registrarErroFatal("uncaughtException", err);
+});
+process.on("unhandledRejection", (motivo) => {
+  console.error(`[main] PROMISE REJEITADA SEM CATCH (agente continua rodando): ${motivo}`);
+  registrarErroFatal("unhandledRejection", motivo);
+});
 
 function criarJanela(arquivoHtml: string, opcoes: { largura: number; altura: number; titulo: string }): BrowserWindow {
   const janela = new BrowserWindow({
@@ -250,6 +270,9 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
     filaPendente: fila.tamanhoFila,
     dataInicioMonitoramento: cortesConhecidos[0] ?? null,
     ultimaAtualizacao: infoUltimaAtualizacao,
+    reiniciosRecentes: registrarInicioEContarReinicios(),
+    ultimoErroFatal: lerELimparUltimoErroFatal(),
+    pastasInacessiveis: pastasInacessiveis(configInicial.pastasMonitoradas),
   });
 
   observarPastas(configInicial.pastasMonitoradas, (caminho) => {

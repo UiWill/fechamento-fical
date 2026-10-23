@@ -117,7 +117,11 @@ export function criarFilaDeEnvio(token: string) {
         console.error(`[upload] não consegui ler ${entrada.entryName} dentro de ${caminhoZip}: ${err}`);
         continue;
       }
-      processarConteudoXml(`${caminhoZip} > ${entrada.entryName}`, conteudo);
+      try {
+        processarConteudoXml(`${caminhoZip} > ${entrada.entryName}`, conteudo);
+      } catch (err) {
+        console.error(`[upload] erro ao processar ${entrada.entryName} dentro de ${caminhoZip} — pulado: ${err}`);
+      }
     }
   }
 
@@ -152,7 +156,25 @@ export function criarFilaDeEnvio(token: string) {
       return;
     }
 
-    const corteUsado = processarConteudoXml(caminhoArquivo, conteudo);
+    // Sem esse try/catch, um XML malformado de um jeito que o parser não
+    // previu (regex sem match num lugar que não trata null, data inválida,
+    // etc.) derruba o processo INTEIRO — pior ainda, como o chokidar varre
+    // a pasta sempre na mesma ordem, o mesmo arquivo "ruim" quebra de novo
+    // logo no início de toda tentativa seguinte, virando um crash-loop
+    // permanente sem log nenhum do motivo (achado em 2026-10-22,
+    // investigando um agente que ficou dias sem mandar nota nenhuma).
+    let corteUsado: string | undefined;
+    try {
+      corteUsado = processarConteudoXml(caminhoArquivo, conteudo);
+    } catch (err) {
+      console.error(`[upload] erro ao processar ${caminhoArquivo} — arquivo pulado, agente continua: ${err}`);
+      registrarEvento({
+        arquivo: caminhoArquivo,
+        status: "IGNORADO",
+        detalhe: `erro inesperado ao processar: ${err instanceof Error ? err.message : err}`,
+      });
+      return;
+    }
     if (corteUsado) {
       config.arquivosAntigosIgnorados[caminhoArquivo] = { mtimeMs, cortadoEm: corteUsado };
       configSujo = true;

@@ -12,6 +12,7 @@ import path from "node:path";
 import { format } from "node:util";
 import { PASTA_CONFIG } from "./config";
 import type { InfoUltimaAtualizacao } from "./updater";
+import type { ErroFatal } from "./diagnostico";
 
 export type StatusEvento =
   | "ACEITO"
@@ -54,6 +55,13 @@ const estado = {
   // auto-atualização — o painel usa isso pra avisar "atualizou agora" (ou
   // "a atualização falhou") sem precisar de nada manual (ver updater.ts).
   ultimaAtualizacao: null as InfoUltimaAtualizacao | null,
+  // Ver diagnostico.ts — sobrevivem ao processo morrer, lidos uma vez no
+  // start seguinte. reiniciosRecentes >= 3 em 30min é sinal forte de
+  // crash-loop; ultimoErroFatal é o motivo (quando um handler global
+  // conseguiu capturar antes de morrer).
+  reiniciosRecentes: 1,
+  ultimoErroFatal: null as ErroFatal | null,
+  pastasInacessiveis: [] as string[],
 };
 
 let escritasDesdeChecagem = 0;
@@ -105,12 +113,18 @@ export function configurarTelemetria(dados: {
   filaPendente: () => number;
   dataInicioMonitoramento?: string | null;
   ultimaAtualizacao?: InfoUltimaAtualizacao | null;
+  reiniciosRecentes?: number;
+  ultimoErroFatal?: ErroFatal | null;
+  pastasInacessiveis?: string[];
 }): void {
   estado.versao = dados.versao;
   estado.pastas = dados.pastas;
   estado.filaPendente = dados.filaPendente;
   estado.dataInicioMonitoramento = dados.dataInicioMonitoramento ?? null;
   if (dados.ultimaAtualizacao) estado.ultimaAtualizacao = dados.ultimaAtualizacao;
+  if (dados.reiniciosRecentes !== undefined) estado.reiniciosRecentes = dados.reiniciosRecentes;
+  if (dados.ultimoErroFatal) estado.ultimoErroFatal = dados.ultimoErroFatal;
+  if (dados.pastasInacessiveis) estado.pastasInacessiveis = dados.pastasInacessiveis;
 }
 
 export function registrarEvento(evento: Omit<EventoAgente, "em">): void {
@@ -193,6 +207,9 @@ export function estadoCompleto() {
     recusas: estado.recusas,
     arquivoLog: ARQUIVO_LOG,
     ultimaAtualizacao: estado.ultimaAtualizacao,
+    reiniciosRecentes: estado.reiniciosRecentes,
+    ultimoErroFatal: estado.ultimoErroFatal,
+    pastasInacessiveis: estado.pastasInacessiveis,
   };
 }
 
@@ -211,5 +228,8 @@ export function resumoParaHeartbeat() {
     arquivosNaVarredura: estado.arquivosNaVarredura,
     recusasRecentes: estado.recusas.slice(0, 10),
     ultimaAtualizacao: estado.ultimaAtualizacao,
+    reiniciosRecentes: estado.reiniciosRecentes,
+    ultimoErroFatal: estado.ultimoErroFatal,
+    pastasInacessiveis: estado.pastasInacessiveis,
   };
 }

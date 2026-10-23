@@ -868,6 +868,12 @@ export interface TelemetriaAgente {
   arquivosNaVarredura: number;
   recusasRecentes: { em: string; arquivo?: string; status: string; detalhe?: string }[];
   ultimaAtualizacao: { versao: string; em: string; sucesso: boolean; detalhe?: string } | null;
+  /** >= 3 em 30min é sinal forte de crash-loop (processo morrendo e sendo relançado pelo vigia). */
+  reiniciosRecentes: number;
+  /** Motivo do crash anterior, quando um handler global conseguiu capturar antes do processo morrer. */
+  ultimoErroFatal: { em: string; origem: string; mensagem: string; stack?: string } | null;
+  /** Pastas configuradas que sumiram/ficaram inacessíveis (disco removido, rede caiu, pasta renomeada). */
+  pastasInacessiveis: string[];
 }
 
 export interface AtividadeAgente {
