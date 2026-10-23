@@ -370,6 +370,15 @@ model VersaoAgente {
   objetoStorageExe String
   obrigatoria      Boolean  @default(false)
   notas            String?
+  // SHA-256 do instalador (hex), calculado no momento da publicação —
+  // o agente confere o que baixou contra isso antes de rodar o
+  // instalador silencioso. Sem isso, um download corrompido (rede ruim
+  // no PC do cliente) ou um objeto incompleto no storage rodava silencioso
+  // do mesmo jeito, podendo quebrar a instalação sem erro nenhum visível
+  // (prática padrão de atualizador automático — é assim que
+  // Chrome/VS Code/etc conferem o pacote antes de aplicar). Nullable só
+  // pra não quebrar versões publicadas antes dessa coluna existir.
+  sha256           String?
   publicadoEm      DateTime @default(now())
 
   @@map("versoes_agente")

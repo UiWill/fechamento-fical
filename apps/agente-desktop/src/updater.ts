@@ -15,6 +15,7 @@
  */
 import { spawn } from "node:child_process";
 import { app } from "electron";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -80,17 +81,50 @@ export function notificarSeFoiAtualizadoAgora(): InfoUltimaAtualizacao | null {
   return { versao, em, sucesso: true };
 }
 
+// Em vez de esperar o próximo ciclo normal (6h, ver INTERVALO_ATUALIZACAO_MS
+// em main.ts) depois de uma falha de rede/download/hash, tenta de novo bem
+// mais cedo — uma queda momentânea de internet no PC do cliente não devia
+// custar 6h de atraso pra pegar uma correção publicada.
+const ATRASO_RETENTATIVA_MS = 15 * 60_000;
+
+// Evita duas verificações rodando ao mesmo tempo (a nova tentativa curta
+// podendo coincidir com o ciclo normal de 6h, ou com um comando remoto
+// "ATUALIZAR") — sem isso, dava pra baixar/instalar duas vezes em paralelo.
+let verificandoAgora = false;
+
+function agendarNovaTentativa(token: string, motivo: string): void {
+  console.log(
+    `[updater] ${motivo} — tentando de novo em ${ATRASO_RETENTATIVA_MS / 60_000} min em vez de esperar o próximo ciclo.`
+  );
+  setTimeout(() => {
+    verificarAtualizacao(token).catch((err) => console.error(`[updater] falha na nova tentativa: ${err}`));
+  }, ATRASO_RETENTATIVA_MS);
+}
+
 export async function verificarAtualizacao(token: string): Promise<void> {
   if (process.platform !== "win32" || !app.isPackaged) {
     return; // auto-atualização só faz sentido no app instalado (Windows)
   }
+  if (verificandoAgora) {
+    console.log("[updater] já tem uma verificação em andamento, pulando essa chamada.");
+    return;
+  }
 
+  verificandoAgora = true;
+  try {
+    await verificarAtualizacaoInterna(token);
+  } finally {
+    verificandoAgora = false;
+  }
+}
+
+async function verificarAtualizacaoInterna(token: string): Promise<void> {
   const config = carregarConfig();
   let info;
   try {
     info = await buscarVersaoMaisRecente(token, config.versaoAgente);
   } catch (err) {
-    console.error(`[updater] falha ao verificar versão: ${err}`);
+    agendarNovaTentativa(token, `falha ao verificar versão: ${err}`);
     return;
   }
 
@@ -105,9 +139,28 @@ export async function verificarAtualizacao(token: string): Promise<void> {
   try {
     conteudo = await baixarVersao(token, info.versao);
   } catch (err) {
-    console.error(`[updater] falha ao baixar a versão ${info.versao}: ${err}`);
+    agendarNovaTentativa(token, `falha ao baixar a versão ${info.versao}: ${err}`);
     return;
   }
+
+  // Confere o que foi baixado antes de rodar — mesma prática de qualquer
+  // atualizador automático de verdade (Chrome, VS Code, etc.): uma rede
+  // ruim no PC do cliente pode entregar um arquivo incompleto/corrompido
+  // que passa pelo HTTP sem erro nenhum, e rodar um instalador corrompido
+  // silenciosamente pode quebrar a instalação sem log nenhum do motivo.
+  // sha256 nulo (versão publicada antes dessa checagem existir) não
+  // bloqueia — só versões novas têm o hash pra conferir.
+  if (info.sha256) {
+    const hashBaixado = crypto.createHash("sha256").update(conteudo).digest("hex");
+    if (hashBaixado !== info.sha256) {
+      agendarNovaTentativa(
+        token,
+        `hash do download não bate (esperado ${info.sha256}, recebido ${hashBaixado}) — abortando essa tentativa`
+      );
+      return;
+    }
+  }
+
   fs.writeFileSync(instalador, conteudo);
 
   // Grava a versão nova ANTES de reiniciar — se o processo novo checar de

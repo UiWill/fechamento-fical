@@ -27,12 +27,20 @@ import {
   resumoParaHeartbeat,
   estadoCompleto,
   atualizarPastasInacessiveis,
+  atualizarVigiaAtiva,
   ARQUIVO_LOG,
 } from "../src/telemetria";
 
 const INTERVALO_FLUSH_MS = 5_000;
 const INTERVALO_HEARTBEAT_MS = 60_000;
 const INTERVALO_ATUALIZACAO_MS = 6 * 60 * 60_000;
+// Reconfere (e recria, se preciso) a Tarefa Agendada do vigia enquanto o
+// app já está rodando — sem isso, só se garantia a proteção uma vez, no
+// início; se antivírus/política/o próprio usuário apagasse a tarefa
+// depois, o agente ficava sem vigia pro resto da execução sem ninguém
+// perceber (pedido explícito do usuário em 2026-10-23, depois de achar 3
+// agentes sem vigia nenhum travados há dias sem religar sozinhos).
+const INTERVALO_REVERIFICAR_VIGIA_MS = 60 * 60_000;
 
 const ICONE = path.join(__dirname, "../assets/agente-fiscal.ico");
 const EH_VIGIA = process.argv.includes("--vigia");
@@ -255,6 +263,14 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
 
   const vigiaAtiva = habilitarVigiaPeriodica(app.getPath("exe"));
   app.setLoginItemSettings({ openAtLogin: true, path: app.getPath("exe") });
+
+  // habilitarVigiaPeriodica usa /f (força recriar), então chamar de novo
+  // periodicamente é seguro e idempotente — é a mesma função, só que
+  // repetida, pra pegar o caso de alguém/algo apagar a tarefa DEPOIS do
+  // início (não só garantir uma vez e esquecer).
+  setInterval(() => {
+    atualizarVigiaAtiva(habilitarVigiaPeriodica(app.getPath("exe")));
+  }, INTERVALO_REVERIFICAR_VIGIA_MS);
 
   // Espera o check de atualização terminar ANTES de começar a varrer a
   // pasta (chokidar) — se tem versão nova, ela quase sempre consegue

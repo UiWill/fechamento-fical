@@ -142,7 +142,45 @@ export function criarFilaDeEnvio(token: string) {
     }
   }
 
+  // Fila de descoberta: o watcher empurra caminhos pra cá na hora (barato,
+  // só um push); o processamento de verdade (ler+parsear) roda em lotes
+  // pequenos, com uma pausa (devolve o controle pro event loop) entre cada
+  // lote. Sem isso, uma pasta com milhares de arquivos ainda não cacheados
+  // (primeira execução, ou depois de reinstalar) processava tudo numa
+  // rajada síncrona só — em PC fraco isso trava o processo por minutos
+  // (parece "não responde"), e o flush() (envio pro servidor, a cada 5s)
+  // nunca tinha chance de rodar no meio, deixando o backlog INTEIRO
+  // acumulado em memória em `pendentes` antes do primeiro envio — risco de
+  // estourar memória também, não só travar (achado em 2026-10-23, loja com
+  // PC fraco e pasta com histórico de anos; pedido explícito do usuário).
+  const LOTE_PROCESSAMENTO = 25;
+  let filaDescoberta: string[] = [];
+  let processandoFilaDescoberta = false;
+
   function enfileirar(caminhoArquivo: string): void {
+    filaDescoberta.push(caminhoArquivo);
+    if (!processandoFilaDescoberta) void processarFilaDescoberta();
+  }
+
+  async function processarFilaDescoberta(): Promise<void> {
+    processandoFilaDescoberta = true;
+    try {
+      while (filaDescoberta.length > 0) {
+        const lote = filaDescoberta.splice(0, LOTE_PROCESSAMENTO);
+        for (const caminho of lote) {
+          processarArquivo(caminho);
+        }
+        // Yield pro event loop entre lotes — dá chance do flush() e do
+        // heartbeat (ambos em setInterval, em main.ts) rodarem no MEIO de
+        // uma varredura grande, em vez de só depois dela terminar inteira.
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+    } finally {
+      processandoFilaDescoberta = false;
+    }
+  }
+
+  function processarArquivo(caminhoArquivo: string): void {
     if (caminhoArquivo.toLowerCase().endsWith(".zip")) {
       enfileirarZip(caminhoArquivo);
       return;

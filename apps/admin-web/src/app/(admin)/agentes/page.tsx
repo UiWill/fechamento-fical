@@ -13,6 +13,7 @@ import {
   restaurarTokenAgente,
   enviarComandoAgente,
   buscarAtividadeAgente,
+  buscarVersaoAgenteMaisRecente,
   type AtividadeAgente,
   type EmpresaResumo,
   type AgenteInstalacao,
@@ -33,6 +34,28 @@ function estaAtrasado(agente: AgenteInstalacao): boolean {
 // próprio na listagem, não só dentro do detalhe de cada um.
 function estaEmCrashLoop(agente: AgenteInstalacao): boolean {
   return (agente.telemetria?.reiniciosRecentes ?? 0) >= 3;
+}
+
+/** Mesma comparação de updater.ts — maior que 0 quer dizer que `versao` é mais nova que `atual`. */
+function compararVersoes(versao: string, atual: string): number {
+  const partesA = versao.split(".").map(Number);
+  const partesB = atual.split(".").map(Number);
+  for (let i = 0; i < Math.max(partesA.length, partesB.length); i++) {
+    const diferenca = (partesA[i] ?? 0) - (partesB[i] ?? 0);
+    if (diferenca !== 0) return diferenca;
+  }
+  return 0;
+}
+
+// Agente desatualizado não é necessariamente um problema (a checagem
+// periódica do próprio app leva até 6h pra pegar uma versão recém
+// publicada) — só vira sinal de alerta de verdade combinado com atraso
+// de heartbeat, que é quando provavelmente ficou preso numa versão sem
+// conseguir se atualizar sozinho (achado em 2026-10-23: 5 agentes presos
+// em versão de dias atrás sem ninguém perceber até consulta manual).
+function estaDesatualizado(agente: AgenteInstalacao, versaoMaisRecente: string | null): boolean {
+  if (!versaoMaisRecente || !agente.ultimaVersaoAgente) return false;
+  return compararVersoes(versaoMaisRecente, agente.ultimaVersaoAgente) > 0;
 }
 
 function ModalNovoToken({
@@ -547,6 +570,7 @@ export default function AgentesPage() {
   const [organizacaoId, setOrganizacaoId] = useState<string | null>(null);
   const [empresas, setEmpresas] = useState<EmpresaResumo[]>([]);
   const [agentes, setAgentes] = useState<AgenteInstalacao[]>([]);
+  const [versaoMaisRecente, setVersaoMaisRecente] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
@@ -555,12 +579,14 @@ export default function AgentesPage() {
 
   const carregar = useCallback(async (t: string, orgId: string, incluirOcultos: boolean) => {
     try {
-      const [empresasData, agentesData] = await Promise.all([
+      const [empresasData, agentesData, versaoData] = await Promise.all([
         listarEmpresas(orgId, t),
         listarAgentes(orgId, t, incluirOcultos),
+        buscarVersaoAgenteMaisRecente(t),
       ]);
       setEmpresas(empresasData);
       setAgentes(agentesData);
+      setVersaoMaisRecente(versaoData?.versao ?? null);
     } catch {
       setErro("Não foi possível carregar os agentes agora.");
     } finally {
@@ -679,6 +705,29 @@ export default function AgentesPage() {
         </p>
       )}
 
+      {!carregando &&
+        !erro &&
+        versaoMaisRecente &&
+        (() => {
+          // Desatualizado sozinho não quer dizer nada (a checagem do
+          // próprio app leva até 6h) — só combinado com atraso de
+          // heartbeat é que vira sinal real de "travado, não vai se
+          // atualizar sozinho", que é exatamente o que passou despercebido
+          // até alguém checar manualmente (achado em 2026-10-23).
+          const presos = agentes.filter(
+            (a) => a.status === "ATIVO" && !a.ocultoEm && estaDesatualizado(a, versaoMaisRecente) && estaAtrasado(a)
+          );
+          if (presos.length === 0) return null;
+          return (
+            <div className="entra rounded-lg border p-4" style={{ borderColor: "var(--amarelo, #e0c86a)" }}>
+              <p className="text-sm" style={{ color: "var(--paper)" }}>
+                {presos.length} agente(s) desatualizado(s) e sem sinal recente — provavelmente travados numa versão
+                antiga, sem conseguir se atualizar sozinhos: {presos.map((p) => p.nome).join(", ")}.
+              </p>
+            </div>
+          );
+        })()}
+
       {!carregando && !erro && agentes.length === 0 && (
         <div className="entra rounded-lg border border-dashed p-10 text-center" style={{ borderColor: "var(--border)" }}>
           <p className="font-display text-lg italic" style={{ color: "var(--paper)" }}>
@@ -736,6 +785,15 @@ export default function AgentesPage() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>
                     {agente.ultimaVersaoAgente ?? "—"}
+                    {estaDesatualizado(agente, versaoMaisRecente) && (
+                      <span
+                        className="ml-2"
+                        style={{ color: "var(--amarelo, #e0c86a)" }}
+                        title={`Versão mais recente publicada: ${versaoMaisRecente}. Esse agente pode levar até 6h pra se atualizar sozinho — se ficar parado aqui por mais tempo que isso, provavelmente está travado.`}
+                      >
+                        ⚠ desatualizado
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>
                     {agente.ultimoHeartbeatEm ? formatarDataHora(agente.ultimoHeartbeatEm) : "nunca"}

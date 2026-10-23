@@ -67,6 +67,8 @@ export interface InfoVersaoMaisRecente {
   versao: string | null;
   obrigatoria: boolean;
   urlDownload: string | null;
+  /** SHA-256 (hex) do instalador — conferido antes de rodar, ver updater.ts. Nulo só em versão publicada antes dessa coluna existir. */
+  sha256: string | null;
 }
 
 export async function buscarVersaoMaisRecente(token: string, versaoAtual: string): Promise<InfoVersaoMaisRecente> {

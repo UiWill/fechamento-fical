@@ -98,6 +98,17 @@ export class AgentesController {
   }
 
   /**
+   * Versão vigente — o admin-web usa isso pra sinalizar na listagem quais
+   * agentes estão desatualizados, sem precisar de ninguém rodar consulta
+   * manual no banco pra descobrir (achado em 2026-10-23: vários agentes
+   * ficaram parados em versão antiga por dias sem ninguém perceber).
+   */
+  @Get("versoes/mais-recente")
+  versaoMaisRecente() {
+    return this.service.obterVersaoMaisRecente();
+  }
+
+  /**
    * Registra uma versão nova como vigente. O .exe já precisa estar no
    * storage antes de chamar isso — ver comentário em agentes.service.ts.
    */

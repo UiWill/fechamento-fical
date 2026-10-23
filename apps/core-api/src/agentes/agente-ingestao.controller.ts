@@ -75,10 +75,15 @@ export class AgenteIngestaoController {
   @Get("versoes/mais-recente")
   async versaoMaisRecente(@Query("versaoAtual") versaoAtual?: string) {
     if (!versaoAtual || !/^2\./.test(versaoAtual)) {
-      return { versao: null, obrigatoria: false, urlDownload: null };
+      return { versao: null, obrigatoria: false, urlDownload: null, sha256: null };
     }
     const registro = await this.service.obterVersaoMaisRecente();
-    return { versao: registro?.versao ?? null, obrigatoria: registro?.obrigatoria ?? false, urlDownload: null };
+    return {
+      versao: registro?.versao ?? null,
+      obrigatoria: registro?.obrigatoria ?? false,
+      urlDownload: null,
+      sha256: registro?.sha256 ?? null,
+    };
   }
 
   @Get("versoes/:versao/download")

@@ -135,6 +135,11 @@ export function atualizarPastasInacessiveis(lista: string[]): void {
   estado.pastasInacessiveis = lista;
 }
 
+/** Mesma lógica — se a Tarefa Agendada do vigia foi apagada (antivírus, política, usuário mexendo no Agendador de Tarefas) depois do início, só se percebe reconferindo de novo, não só na primeira vez. */
+export function atualizarVigiaAtiva(ativa: boolean): void {
+  estado.vigiaAtiva = ativa;
+}
+
 export function registrarEvento(evento: Omit<EventoAgente, "em">): void {
   const completo: EventoAgente = { em: new Date().toISOString(), ...evento, arquivo: nomeCurto(evento.arquivo) };
   estado.eventos.unshift(completo);

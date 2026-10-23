@@ -894,6 +894,23 @@ export interface AgenteInstalacao {
   telemetria: TelemetriaAgente | null;
 }
 
+export interface VersaoAgentePublicada {
+  versao: string;
+  obrigatoria: boolean;
+  notas: string | null;
+  publicadoEm: string;
+}
+
+/** Usado pra sinalizar na listagem quais agentes estão desatualizados. */
+export async function buscarVersaoAgenteMaisRecente(token: string): Promise<VersaoAgentePublicada | null> {
+  const response = await apiFetch(`${API_URL}/agentes/versoes/mais-recente`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) return null;
+  return response.json();
+}
+
 export async function listarAgentes(
   organizacaoId: string,
   token: string,

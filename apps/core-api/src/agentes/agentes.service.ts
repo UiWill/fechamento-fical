@@ -492,16 +492,28 @@ export class AgentesService {
    * versão é um processo manual (poucas vezes por mês), não justifica um
    * endpoint de upload de arquivo grande.
    */
-  publicarVersao(input: { versao: string; obrigatoria?: boolean; notas?: string }) {
+  async publicarVersao(input: { versao: string; obrigatoria?: boolean; notas?: string }) {
     if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(input.versao)) {
       throw new BadRequestException('Versão deve seguir o formato "X.Y.Z" (ex: 1.2.3)');
     }
+    const objetoStorageExe = `agente-fiscal-${input.versao}.exe`;
+    // SHA-256 calculado a partir do PRÓPRIO arquivo já no storage (não
+    // recebido por parâmetro) — garante que o hash publicado é sempre do
+    // binário que vai ser servido de verdade, sem depender de quem rodou o
+    // script de publicação ter calculado certo. O agente confere isso
+    // antes de rodar o instalador baixado (ver updater.ts) — mesma prática
+    // de atualizador automático usada por Chrome/VS Code/etc: nunca
+    // executar um pacote baixado sem conferir a integridade primeiro.
+    const conteudo = await this.storage.getObject(BUCKET_AGENTE_RELEASES, objetoStorageExe);
+    const sha256 = crypto.createHash("sha256").update(conteudo).digest("hex");
+
     return this.prisma.client.versaoAgente.create({
       data: {
         versao: input.versao,
-        objetoStorageExe: `agente-fiscal-${input.versao}.exe`,
+        objetoStorageExe,
         obrigatoria: input.obrigatoria ?? false,
         notas: input.notas,
+        sha256,
       },
     });
   }
