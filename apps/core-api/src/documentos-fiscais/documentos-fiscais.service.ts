@@ -636,11 +636,15 @@ export class DocumentosFiscaisService {
     // aplicar com um clique em vez de repetir o processo manual (pedido
     // explícito do usuário em 2026-10-23). Só CFOP/NCM/CST ICMS têm valor
     // no nível do item — ver CAMPOS_COM_VALOR_NO_ITEM em correcoes.service.ts.
+    // Só NF-e entra — CC-e não existe pra NFC-e na SEFAZ (ver aviso em
+    // correcoes.service.ts, aplicarCorrecao).
     const sugestoes =
       direcao === "SAIDA"
         ? await this.correcoes.sugestoesParaItens(
             empresa.organizacaoId,
-            itens.map((item) => ({ id: item.id, ncm: item.ncm, cfop: item.cfop, icmsCst: item.icmsCst }))
+            itens
+              .filter((item) => item.documentoFiscal.tipo === "NFE")
+              .map((item) => ({ id: item.id, ncm: item.ncm, cfop: item.cfop, icmsCst: item.icmsCst }))
           )
         : {};
 

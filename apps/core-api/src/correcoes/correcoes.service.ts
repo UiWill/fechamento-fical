@@ -259,8 +259,14 @@ export class CorrecoesService {
         "Carta de Correção só pode ser enviada pra notas de SAÍDA (emitidas pela própria empresa)."
       );
     }
-    if (documento.tipo !== "NFE" && documento.tipo !== "NFCE") {
-      throw new BadRequestException("Carta de Correção só se aplica a NF-e/NFC-e.");
+    // CC-e (evento 110110) só existe pro modelo 55 (NF-e) — a NFC-e
+    // (modelo 65) não tem esse evento no Manual de Orientação do
+    // Contribuinte, só aceita cancelamento. Erro em NFC-e se resolve
+    // cancelando e reemitindo, não com Carta de Correção.
+    if (documento.tipo !== "NFE") {
+      throw new BadRequestException(
+        "Carta de Correção só existe pra NF-e — NFC-e não tem esse evento na SEFAZ (um erro em NFC-e se resolve cancelando e reemitindo a nota)."
+      );
     }
 
     const numeroSequencial = await this.proximoNumeroSequencial(input.documentoFiscalId);
@@ -369,7 +375,8 @@ export class CorrecoesService {
         documentoFiscalId: { notIn: idsJaAplicados },
         documentoFiscal: {
           direcao: "SAIDA",
-          tipo: { in: ["NFE", "NFCE"] },
+          // CC-e só existe pra NF-e (ver aviso em aplicarCorrecao).
+          tipo: "NFE",
           empresa: { organizacaoId },
         },
       },
@@ -387,7 +394,7 @@ export class CorrecoesService {
 
     const porDocumento = new Map<
       string,
-      { documentoFiscalId: string; empresaId: string; empresaNome: string; chaveAcesso: string }
+      { documentoFiscalId: string; empresaId: string; empresaNome: string; chaveAcesso: string; nNF: number }
     >();
     for (const item of itens) {
       if (valorAtualNoItem(regra.campo, item) !== regra.valorErrado) continue;
@@ -397,6 +404,9 @@ export class CorrecoesService {
         empresaId: item.documentoFiscal.empresaId,
         empresaNome: item.documentoFiscal.empresa.razaoSocial,
         chaveAcesso: item.documentoFiscal.chaveAcesso,
+        // Número da nota embutido na própria chave de acesso (posições
+        // 26-34) — evita mais um join só pra exibir isso na tela.
+        nNF: Number(item.documentoFiscal.chaveAcesso.slice(25, 34)),
       });
     }
     return [...porDocumento.values()];

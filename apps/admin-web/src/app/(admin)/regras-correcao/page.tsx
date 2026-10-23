@@ -121,6 +121,10 @@ export default function RegrasCorrecaoPage() {
           Apuração, e pode ser corrigida com um clique. Aqui você vê todas as regras aprendidas, quem criou cada
           uma, e pode aplicar em massa ou desativar uma regra que não deveria mais disparar.
         </p>
+        <p className="mt-2 max-w-2xl text-xs" style={{ color: "var(--muted)" }}>
+          Só se aplica a notas de NF-e — NFC-e não tem o evento de Carta de Correção na SEFAZ (um erro em NFC-e se
+          resolve cancelando e reemitindo a nota).
+        </p>
       </div>
 
       {mensagem && (
@@ -222,7 +226,8 @@ export default function RegrasCorrecaoPage() {
                             <ul className="space-y-1 text-xs" style={{ color: "var(--muted)" }}>
                               {candidatosPorRegra[regra.id]!.slice(0, 20).map((c) => (
                                 <li key={c.documentoFiscalId}>
-                                  {c.empresaNome} — <span className="chave-mascarada">{c.chaveAcesso}</span>
+                                  {c.empresaNome} — nota {c.nNF}{" "}
+                                  <span className="chave-mascarada">({c.chaveAcesso})</span>
                                 </li>
                               ))}
                               {candidatosPorRegra[regra.id]!.length > 20 && (

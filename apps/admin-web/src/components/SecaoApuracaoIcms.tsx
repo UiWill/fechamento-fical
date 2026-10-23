@@ -16,6 +16,7 @@ import { SeletorMes } from "./SeletorMes";
 import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
 import { FiltroColuna, aplicarFiltrosColuna } from "./FiltroColuna";
 import { ModalAplicarCorrecao } from "./ModalAplicarCorrecao";
+import { ModalConfirmarSugestoes, type LinhaConfirmacaoSugestao } from "./ModalConfirmarSugestoes";
 
 const LOTE_EXIBICAO = 300;
 
@@ -188,19 +189,61 @@ export function SecaoApuracaoIcms({
   };
   const itensFiltrados = aplicarFiltrosColuna(itens, filtros);
 
-  // Carta de Correção (CC-e) — modal pra correção manual, e aplicação de
-  // 1 clique quando a tabela já sugere a correção (regra aprendida de
-  // outra nota/empresa que bate com esse mesmo erro).
+  // Carta de Correção (CC-e) — só existe pra NF-e (NFC-e não tem esse
+  // evento na SEFAZ, ver correcoes.service.ts). Modal pra correção manual,
+  // e aplicação de 1 clique quando a tabela já sugere a correção (regra
+  // aprendida de outra nota/empresa que bate com esse mesmo erro) — nos
+  // dois casos, antes de enviar de verdade, uma tela de confirmação lista
+  // nota + produto + o que vai ser corrigido (pedido explícito do usuário
+  // em 2026-10-23: CC-e autorizada não pode ser desfeita).
   const [itemParaCorrigir, setItemParaCorrigir] = useState<ItemApuracao | null>(null);
   const [aplicandoSugestao, setAplicandoSugestao] = useState<string | null>(null);
   const [aplicandoTodasSugestoes, setAplicandoTodasSugestoes] = useState(false);
-  const sugestoesPendentes = itensFiltrados.filter((i) => i.correcaoSugerida !== null);
+  const [confirmandoSugestao, setConfirmandoSugestao] = useState<ItemApuracao | "todas" | null>(null);
+  const sugestoesPendentes = itensFiltrados.filter((i) => i.tipo === "NFE" && i.correcaoSugerida !== null);
+
+  function valorErradoAtual(item: ItemApuracao): string {
+    if (!item.correcaoSugerida) return "";
+    if (item.correcaoSugerida.campo === "CFOP") return item.cfop;
+    if (item.correcaoSugerida.campo === "NCM") return item.ncm;
+    return item.icmsCst ?? "";
+  }
+
+  const linhasParaConfirmar: LinhaConfirmacaoSugestao[] =
+    confirmandoSugestao === "todas"
+      ? sugestoesPendentes.map((item) => ({
+          id: item.id,
+          nNF: item.nNF,
+          xProd: item.xProd,
+          campo: item.correcaoSugerida!.campo,
+          valorErrado: valorErradoAtual(item),
+          valorCorreto: item.correcaoSugerida!.valorCorreto,
+        }))
+      : confirmandoSugestao
+        ? [
+            {
+              id: confirmandoSugestao.id,
+              nNF: confirmandoSugestao.nNF,
+              xProd: confirmandoSugestao.xProd,
+              campo: confirmandoSugestao.correcaoSugerida!.campo,
+              valorErrado: valorErradoAtual(confirmandoSugestao),
+              valorCorreto: confirmandoSugestao.correcaoSugerida!.valorCorreto,
+            },
+          ]
+        : [];
+
+  async function handleConfirmarSugestoes() {
+    if (confirmandoSugestao === "todas") {
+      await handleAplicarTodasSugestoes();
+    } else if (confirmandoSugestao) {
+      await handleAplicarSugestao(confirmandoSugestao);
+    }
+    setConfirmandoSugestao(null);
+  }
 
   // Aplica todas as sugestões visíveis de uma vez — agrupa por regra (uma
   // nota pode ter mais de um item batendo com a mesma regra, então deduplica
-  // por documento) e manda um "aplicar em massa" por regra, em vez de abrir
-  // qualquer lista ou modal na tela (pedido explícito do usuário em
-  // 2026-10-23: aplicar em massa sem poluir a tela).
+  // por documento) e manda um "aplicar em massa" por regra.
   async function handleAplicarTodasSugestoes() {
     const idsPorRegra = new Map<string, Set<string>>();
     for (const item of sugestoesPendentes) {
@@ -237,12 +280,7 @@ export function SecaoApuracaoIcms({
     setAplicandoSugestao(item.id);
     setMensagem(null);
     try {
-      const valorErrado =
-        item.correcaoSugerida.campo === "CFOP"
-          ? item.cfop
-          : item.correcaoSugerida.campo === "NCM"
-            ? item.ncm
-            : (item.icmsCst ?? "");
+      const valorErrado = valorErradoAtual(item);
       const evento = await aplicarCorrecao(
         empresaId,
         {
@@ -448,11 +486,11 @@ export function SecaoApuracaoIcms({
           </button>
           {direcao === "SAIDA" && sugestoesPendentes.length > 0 && (
             <button
-              onClick={() => void handleAplicarTodasSugestoes()}
+              onClick={() => setConfirmandoSugestao("todas")}
               disabled={aplicandoTodasSugestoes}
               className={CLASSE_BOTAO_LINK}
               style={{ color: "var(--vermelho, #e08a8a)" }}
-              title="Aplica de uma vez todas as correções sugeridas visíveis, agrupadas por regra"
+              title="Mostra a lista do que vai ser corrigido antes de enviar, agrupado por regra"
             >
               {aplicandoTodasSugestoes ? "Aplicando…" : `Aplicar sugestões (${sugestoesPendentes.length})`}
             </button>
@@ -642,9 +680,13 @@ export function SecaoApuracaoIcms({
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--paper)" }}>{val(i.cofinsValor)}</td>
                     {direcao === "SAIDA" && (
                       <td className="whitespace-nowrap px-3 py-3 text-xs">
-                        {i.correcaoSugerida ? (
+                        {i.tipo !== "NFE" ? (
+                          <span style={{ color: "var(--muted)" }} title="CC-e só existe pra NF-e — NFC-e não tem esse evento na SEFAZ">
+                            —
+                          </span>
+                        ) : i.correcaoSugerida ? (
                           <button
-                            onClick={() => void handleAplicarSugestao(i)}
+                            onClick={() => setConfirmandoSugestao(i)}
                             disabled={aplicandoSugestao === i.id}
                             className={CLASSE_BOTAO_LINK}
                             style={{ color: "var(--vermelho, #e08a8a)" }}
@@ -711,6 +753,15 @@ export function SecaoApuracaoIcms({
           item={itemParaCorrigir}
           onFechar={() => setItemParaCorrigir(null)}
           onAplicado={() => void carregar()}
+        />
+      )}
+
+      {confirmandoSugestao && (
+        <ModalConfirmarSugestoes
+          itens={linhasParaConfirmar}
+          aplicando={aplicandoTodasSugestoes || aplicandoSugestao !== null}
+          onCancelar={() => setConfirmandoSugestao(null)}
+          onConfirmar={() => void handleConfirmarSugestoes()}
         />
       )}
     </div>

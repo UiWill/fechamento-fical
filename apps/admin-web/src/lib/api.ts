@@ -802,6 +802,7 @@ export interface CandidatoCorrecao {
   empresaId: string;
   empresaNome: string;
   chaveAcesso: string;
+  nNF: number;
 }
 
 export async function listarCandidatosCorrecao(
