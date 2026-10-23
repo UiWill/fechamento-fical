@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   aplicarCorrecao,
+  aplicarCorrecaoEmMassa,
   listarApuracaoItens,
   reprocessarItensDocumentoFiscal,
   type ItemApuracao,
@@ -140,6 +141,41 @@ export function SecaoApuracaoIbsCbs({
   // Carta de Correção (CC-e) — mesmo fluxo de SecaoApuracaoIcms.tsx.
   const [itemParaCorrigir, setItemParaCorrigir] = useState<ItemApuracao | null>(null);
   const [aplicandoSugestao, setAplicandoSugestao] = useState<string | null>(null);
+  const [aplicandoTodasSugestoes, setAplicandoTodasSugestoes] = useState(false);
+  const sugestoesPendentes = itensFiltrados.filter((i) => i.correcaoSugerida !== null);
+
+  // Mesmo fluxo de SecaoApuracaoIcms.tsx — agrupa por regra (dedupe por
+  // documento) e aplica em massa por regra, sem abrir lista/modal na tela.
+  async function handleAplicarTodasSugestoes() {
+    const idsPorRegra = new Map<string, Set<string>>();
+    for (const item of sugestoesPendentes) {
+      if (!item.correcaoSugerida) continue;
+      const ids = idsPorRegra.get(item.correcaoSugerida.regraId) ?? new Set<string>();
+      ids.add(item.documentoFiscalId);
+      idsPorRegra.set(item.correcaoSugerida.regraId, ids);
+    }
+    if (idsPorRegra.size === 0) return;
+
+    setAplicandoTodasSugestoes(true);
+    setMensagem(null);
+    try {
+      let total = 0;
+      let sucesso = 0;
+      let falha = 0;
+      for (const [regraId, ids] of idsPorRegra) {
+        const resultado = await aplicarCorrecaoEmMassa(regraId, [...ids], token);
+        total += resultado.total;
+        sucesso += resultado.sucesso;
+        falha += resultado.falha;
+      }
+      setMensagem(`Aplicado em ${total} nota(s): ${sucesso} autorizada(s), ${falha} com falha.`);
+      void carregar();
+    } catch {
+      setMensagem("Não foi possível aplicar as sugestões agora.");
+    } finally {
+      setAplicandoTodasSugestoes(false);
+    }
+  }
 
   async function handleAplicarSugestao(item: ItemApuracao) {
     if (!item.correcaoSugerida) return;
@@ -327,6 +363,17 @@ export function SecaoApuracaoIbsCbs({
           <button onClick={() => void handleReprocessar()} disabled={reprocessando} className={CLASSE_BOTAO_LINK} style={{ color: "var(--paper)" }}>
             {reprocessando ? "Reprocessando…" : "Reprocessar itens"}
           </button>
+          {direcao === "SAIDA" && sugestoesPendentes.length > 0 && (
+            <button
+              onClick={() => void handleAplicarTodasSugestoes()}
+              disabled={aplicandoTodasSugestoes}
+              className={CLASSE_BOTAO_LINK}
+              style={{ color: "var(--vermelho, #e08a8a)" }}
+              title="Aplica de uma vez todas as correções sugeridas visíveis, agrupadas por regra"
+            >
+              {aplicandoTodasSugestoes ? "Aplicando…" : `Aplicar sugestões (${sugestoesPendentes.length})`}
+            </button>
+          )}
         </div>
       </div>
 
