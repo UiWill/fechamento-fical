@@ -116,6 +116,7 @@ function limparConfiguracaoEReiniciar(): void {
     ultimoHeartbeatEm: null,
     escopoEmpresas: [],
     arquivosAntigosIgnorados: {},
+    arquivosJaEnviados: {},
   });
   app.relaunch();
   app.exit(0);
@@ -254,7 +255,21 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
   habilitarVigiaPeriodica(app.getPath("exe"));
   app.setLoginItemSettings({ openAtLogin: true, path: app.getPath("exe") });
 
-  void verificarAtualizacao(configInicial.token!).catch((err) => console.error(`[main] falha ao verificar atualização: ${err}`));
+  // Espera o check de atualização terminar ANTES de começar a varrer a
+  // pasta (chokidar) — se tem versão nova, ela quase sempre consegue
+  // baixar e trocar antes de qualquer coisa ter chance de travar o
+  // processo. Antes esse check só era disparado (não esperado) e corria
+  // em paralelo com a varredura; se o processo morresse por qualquer
+  // motivo durante a varredura, a atualização em andamento morria junto,
+  // deixando o agente preso na versão antiga pra sempre (achado
+  // investigando um agente em crash-loop há dias sem atualizar, em
+  // 2026-10-22/23). Tempo limite de 25s pra não travar o início pra
+  // sempre se a rede estiver ruim — o ciclo de 6h abaixo ainda cobre esse caso.
+  await Promise.race([
+    verificarAtualizacao(configInicial.token!).catch((err) => console.error(`[main] falha ao verificar atualização: ${err}`)),
+    new Promise((resolve) => setTimeout(resolve, 25_000)),
+  ]);
+
   setInterval(() => {
     verificarAtualizacao(configInicial.token!).catch((err) => console.error(`[main] falha ao verificar atualização: ${err}`));
   }, INTERVALO_ATUALIZACAO_MS);

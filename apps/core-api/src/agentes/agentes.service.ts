@@ -91,6 +91,10 @@ export class AgentesService {
         telefoneContato: true,
         criadoEm: true,
         ocultoEm: true,
+        // Só o necessário pra listagem já mostrar sinal de crash-loop sem
+        // precisar abrir o detalhe de cada agente um por um (o objeto
+        // telemetria inteiro é pequeno, já limitado a 30KB no heartbeat).
+        telemetria: true,
       },
       orderBy: { criadoEm: "desc" },
     });

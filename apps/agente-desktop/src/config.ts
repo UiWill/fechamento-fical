@@ -48,6 +48,16 @@ export interface ConfigAgente {
   // Caminho absoluto -> quando foi avaliado como "antigo demais" (pulado
   // sem precisar reler o arquivo nas proximas varreduras).
   arquivosAntigosIgnorados: Record<string, { mtimeMs: number; cortadoEm: string }>;
+  // Caminho absoluto -> ja enviado com sucesso (ACEITO ou DUPLICADO) com
+  // esse mtime exato. Sem isso, toda varredura (todo reinicio do PC) lia
+  // e reprocessava o CONTEUDO de todo arquivo ja enviado so pra
+  // redescobrir a mesma chave de acesso e so entao pular pelo
+  // chavesEnviadas -- trabalho de CPU/disco repetido a toa em PC fraco
+  // com anos de XML na pasta. Com isso, pula sem nem abrir o arquivo,
+  // mesmo padrao ja usado em arquivosAntigosIgnorados (pedido do usuario
+  // em 2026-10-22: tirar peso do PC do cliente sempre que der, sem mudar
+  // o resultado final).
+  arquivosJaEnviados: Record<string, { mtimeMs: number; chaveAcesso: string }>;
 }
 
 // Embutido em tempo de build (ver build-exe.mjs) com a versão real que
@@ -64,6 +74,7 @@ const CONFIG_PADRAO: ConfigAgente = {
   ultimoHeartbeatEm: null,
   escopoEmpresas: [],
   arquivosAntigosIgnorados: {},
+  arquivosJaEnviados: {},
 };
 
 export function carregarConfig(): ConfigAgente {

@@ -12,6 +12,12 @@ const INTERVALO_MIN_AVISO_MS = 2 * 60_000;
 interface ItemPendente extends ItemDocumentoUpload {
   chaveAcesso: string;
   completo: boolean;
+  // mtime do arquivo no disco no momento em que foi lido — -1 pra itens
+  // vindos de dentro de um .zip (não tem um arquivo próprio no disco pra
+  // cachear por caminho+mtime). Usado só depois que o servidor confirma o
+  // envio (ver flush()), pra então poder pular esse mesmo arquivo sem
+  // reler nada em varreduras futuras (ver arquivosJaEnviados).
+  mtimeMs: number;
 }
 
 /**
@@ -59,8 +65,8 @@ export function criarFilaDeEnvio(token: string) {
     return cortes.length > 0 ? (cortes.sort()[0] ?? null) : null;
   }
 
-  /** Devolve o corte (ISO) usado quando o XML é antigo demais, ou undefined quando foi enfileirado/descartado por outro motivo. */
-  function processarConteudoXml(nomeArquivoOriginal: string, conteudo: string): string | undefined {
+  /** Devolve o corte (ISO) usado quando o XML é antigo demais, ou undefined quando foi enfileirado/descartado por outro motivo. mtimeMs só existe pra arquivo solto (não pra item de dentro de .zip) — usado pra alimentar o cache de caminho+mtime. */
+  function processarConteudoXml(nomeArquivoOriginal: string, conteudo: string, mtimeMs?: number): string | undefined {
     const dados = extrairDadosBasicos(conteudo);
     if (!dados || !validarDigitoVerificadorChave(dados.chaveAcesso)) {
       // Não é um XML fiscal reconhecível (ou está corrompido/incompleto) —
@@ -76,7 +82,17 @@ export function criarFilaDeEnvio(token: string) {
     }
 
     const completoAgora = Boolean(dados.cfop && dados.valorTotal != null);
-    if (jaProcessado(dados.chaveAcesso, completoAgora)) return undefined;
+    if (jaProcessado(dados.chaveAcesso, completoAgora)) {
+      // Já se sabe que esse arquivo (por mtime) dá nessa chave já enviada
+      // — grava no cache de caminho+mtime agora, pra PRÓXIMA varredura já
+      // pular sem nem reabrir o arquivo (essa ainda precisou ler, só a de
+      // depois que fica rápida).
+      if (mtimeMs !== undefined) {
+        config.arquivosJaEnviados[nomeArquivoOriginal] = { mtimeMs, chaveAcesso: dados.chaveAcesso };
+        configSujo = true;
+      }
+      return undefined;
+    }
 
     const corte = obterCorte(dados.cnpjEmitente);
     if (corte && dados.dataEmissao && dados.dataEmissao < new Date(corte)) {
@@ -94,6 +110,7 @@ export function criarFilaDeEnvio(token: string) {
       xmlBase64: Buffer.from(conteudo, "utf8").toString("base64"),
       chaveAcesso: dados.chaveAcesso,
       completo: completoAgora,
+      mtimeMs: mtimeMs ?? -1,
     });
     return undefined;
   }
@@ -148,6 +165,18 @@ export function criarFilaDeEnvio(token: string) {
       return;
     }
 
+    // Mesma lógica, pro caso comum: arquivo que já foi enviado com
+    // sucesso antes, com o mesmo mtime exato — pula sem reabrir o
+    // arquivo. Sem isso, TODO reinício relia e reprocessava o conteúdo de
+    // TODO arquivo já enviado, só pra redescobrir a mesma chave de acesso
+    // e então pular — trabalho repetido à toa em PC fraco com anos de
+    // histórico na pasta (pedido do usuário em 2026-10-22: tirar peso do
+    // PC do cliente sempre que der, sem mudar o resultado final).
+    const jaEnviado = config.arquivosJaEnviados[caminhoArquivo];
+    if (jaEnviado && jaEnviado.mtimeMs === mtimeMs) {
+      return;
+    }
+
     let conteudo: string;
     try {
       conteudo = fs.readFileSync(caminhoArquivo, "utf8");
@@ -165,7 +194,7 @@ export function criarFilaDeEnvio(token: string) {
     // investigando um agente que ficou dias sem mandar nota nenhuma).
     let corteUsado: string | undefined;
     try {
-      corteUsado = processarConteudoXml(caminhoArquivo, conteudo);
+      corteUsado = processarConteudoXml(caminhoArquivo, conteudo, mtimeMs);
     } catch (err) {
       console.error(`[upload] erro ao processar ${caminhoArquivo} — arquivo pulado, agente continua: ${err}`);
       registrarEvento({
@@ -202,11 +231,25 @@ export function criarFilaDeEnvio(token: string) {
 
     try {
       const completoPorChave = new Map(lote.map((item) => [item.chaveAcesso, item.completo]));
+      const mtimePorArquivo = new Map(lote.map((item) => [item.nomeArquivoOriginal, item.mtimeMs]));
       const resultados = await enviarLoteDocumentos(token, lote);
       let aceitos = 0;
       for (const resultado of resultados) {
         if (resultado.chaveAcesso) {
           registrarResultado(resultado.chaveAcesso, resultado.status, completoPorChave.get(resultado.chaveAcesso) ?? true);
+          // Só agora, com confirmação do servidor, é seguro cachear
+          // caminho+mtime como "já enviado" — se tivesse feito isso na
+          // hora de enfileirar (antes da resposta), uma falha de rede
+          // faria o agente achar que já tinha enviado um arquivo que na
+          // verdade nunca chegou no servidor.
+          const mtimeMs = mtimePorArquivo.get(resultado.nomeArquivoOriginal);
+          if (
+            mtimeMs !== undefined &&
+            mtimeMs >= 0 &&
+            (resultado.status === "ACEITO" || resultado.status === "DUPLICADO")
+          ) {
+            config.arquivosJaEnviados[resultado.nomeArquivoOriginal] = { mtimeMs, chaveAcesso: resultado.chaveAcesso };
+          }
         }
         registrarEvento({
           arquivo: resultado.nomeArquivoOriginal,

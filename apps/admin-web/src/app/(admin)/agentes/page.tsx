@@ -27,6 +27,14 @@ function estaAtrasado(agente: AgenteInstalacao): boolean {
   return minutosDesdeUltimoSinal > MINUTOS_PARA_CONSIDERAR_ATRASADO;
 }
 
+// >= 3 reinícios em 30min quase sempre é o vigia religando um processo
+// que está morrendo quase na hora que abre — de fora (só pelo "último
+// sinal") isso parece um agente ONLINE normal, então precisa de um sinal
+// próprio na listagem, não só dentro do detalhe de cada um.
+function estaEmCrashLoop(agente: AgenteInstalacao): boolean {
+  return (agente.telemetria?.reiniciosRecentes ?? 0) >= 3;
+}
+
 function ModalNovoToken({
   empresas,
   organizacaoId,
@@ -720,10 +728,27 @@ export default function AgentesPage() {
                   <td className="px-4 py-3">
                     <span
                       className={`selo ${
-                        agente.status === "REVOGADO" ? "selo--inativa" : estaAtrasado(agente) ? "selo--inativa" : "selo--ativa"
+                        agente.status === "REVOGADO"
+                          ? "selo--inativa"
+                          : estaEmCrashLoop(agente)
+                            ? "selo--inativa pulso-atencao"
+                            : estaAtrasado(agente)
+                              ? "selo--inativa"
+                              : "selo--ativa"
                       }`}
+                      title={
+                        estaEmCrashLoop(agente)
+                          ? `Reiniciou ${agente.telemetria?.reiniciosRecentes}x nos últimos 30 minutos — processo travando repetidamente, veja Atividade`
+                          : undefined
+                      }
                     >
-                      {agente.status === "REVOGADO" ? "Revogado" : estaAtrasado(agente) ? "Atrasado" : "Ativo"}
+                      {agente.status === "REVOGADO"
+                        ? "Revogado"
+                        : estaEmCrashLoop(agente)
+                          ? "Crash-loop"
+                          : estaAtrasado(agente)
+                            ? "Atrasado"
+                            : "Ativo"}
                     </span>
                   </td>
                   <td className="px-4 py-3">

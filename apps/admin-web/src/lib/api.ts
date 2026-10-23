@@ -748,6 +748,7 @@ export interface AgenteInstalacao {
   telefoneContato: string | null;
   criadoEm: string;
   ocultoEm: string | null;
+  telemetria: TelemetriaAgente | null;
 }
 
 export async function listarAgentes(
