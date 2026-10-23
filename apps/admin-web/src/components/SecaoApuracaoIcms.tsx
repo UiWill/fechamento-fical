@@ -9,7 +9,7 @@ import {
   type NumeroFaltando,
 } from "@/lib/api";
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
-import { exportarApuracaoIcmsExcel } from "@/lib/exportar-apuracao-excel";
+import { exportarApuracaoIcmsExcel, exportarRelatorioIcmsCst } from "@/lib/exportar-apuracao-excel";
 import { SeletorMes } from "./SeletorMes";
 import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
 import { FiltroColuna, aplicarFiltrosColuna } from "./FiltroColuna";
@@ -233,6 +233,19 @@ export function SecaoApuracaoIcms({
     }
   }
 
+  const [gerandoRelatorioCst, setGerandoRelatorioCst] = useState(false);
+
+  async function handleBaixarRelatorioCst() {
+    setGerandoRelatorioCst(true);
+    try {
+      await exportarRelatorioIcmsCst(itensFiltrados, empresaNome, cnpj, rotuloMes(mes));
+    } catch {
+      setMensagem("Não foi possível gerar o relatório agora.");
+    } finally {
+      setGerandoRelatorioCst(false);
+    }
+  }
+
   async function handleReprocessar() {
     setReprocessando(true);
     setMensagem(null);
@@ -334,6 +347,15 @@ export function SecaoApuracaoIcms({
             style={{ color: "var(--paper)" }}
           >
             {gerandoExcel ? "Gerando…" : "Baixar Excel"}
+          </button>
+          <button
+            onClick={() => void handleBaixarRelatorioCst()}
+            disabled={itensFiltrados.length === 0 || gerandoRelatorioCst}
+            className={CLASSE_BOTAO_LINK}
+            style={{ color: "var(--paper)" }}
+            title="Mapa de apuração do ICMS por CFOP x situação tributária (CST) — B.Reduzido, Isentos, Não Trib., Diferido, ST, Suspensão, Outras"
+          >
+            {gerandoRelatorioCst ? "Gerando…" : "Relatório ICMS (CST)"}
           </button>
           <button onClick={() => void handleReprocessar()} disabled={reprocessando} className={CLASSE_BOTAO_LINK} style={{ color: "var(--paper)" }}>
             {reprocessando ? "Reprocessando…" : "Reprocessar itens"}

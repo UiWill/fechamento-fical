@@ -183,3 +183,149 @@ export async function exportarApuracaoIbsCbsExcel(
 
   await baixarPlanilha(wb, `apuracao-ibs-cbs-${slugify(`${empresaNome}-${mesRotulo}`)}.xlsx`);
 }
+
+// Mapa de apuração do ICMS por CST (quadro clássico de livro fiscal) —
+// pedido explícito do contador em 2026-10-22 (áudio): quebra o valor
+// contábil de cada CFOP por situação tributária do ICMS, pra bater com o
+// livro de apuração que ele já preenche manualmente hoje.
+const CST_BUCKET: Record<string, keyof LinhaRelatorioCst["buckets"]> = {
+  "20": "bReduzido",
+  "40": "isentos",
+  "41": "naoTrib",
+  "51": "diferido",
+  "60": "st",
+  "10": "st",
+  "50": "suspensao",
+};
+
+interface LinhaRelatorioCst {
+  cfop: string;
+  valorContabil: number;
+  baseCalculo: number;
+  icms: number;
+  buckets: {
+    bReduzido: number;
+    isentos: number;
+    naoTrib: number;
+    diferido: number;
+    st: number;
+    suspensao: number;
+    outras: number;
+  };
+}
+
+function relatorioIcmsPorCst(itens: ItemApuracao[]): LinhaRelatorioCst[] {
+  const porCfop = new Map<string, LinhaRelatorioCst>();
+  for (const i of itens) {
+    const linha = porCfop.get(i.cfop) ?? {
+      cfop: i.cfop,
+      valorContabil: 0,
+      baseCalculo: 0,
+      icms: 0,
+      buckets: { bReduzido: 0, isentos: 0, naoTrib: 0, diferido: 0, st: 0, suspensao: 0, outras: 0 },
+    };
+    const valor = Number(i.valorProdutos);
+    linha.valorContabil += valor;
+    linha.baseCalculo += Number(i.icmsBase ?? 0);
+    linha.icms += Number(i.icmsValor ?? 0);
+    const bucket = i.icmsCst ? CST_BUCKET[i.icmsCst] : undefined;
+    linha.buckets[bucket ?? "outras"] += valor;
+    porCfop.set(i.cfop, linha);
+  }
+  return [...porCfop.values()].sort((a, b) => a.cfop.localeCompare(b.cfop));
+}
+
+export async function exportarRelatorioIcmsCst(
+  itens: ItemApuracao[],
+  empresaNome: string,
+  cnpj: string,
+  mesRotulo: string
+): Promise<void> {
+  const linhas = relatorioIcmsPorCst(itens);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Apuração ICMS por CST");
+
+  ws.addRow([`Apuração do ICMS por CST - ${empresaNome} (${cnpj}) - ${mesRotulo}`]);
+  ws.getRow(1).font = { bold: true, size: 13 };
+  ws.addRow([]);
+
+  const colunas = [
+    "CFOP",
+    "Valor Contábil",
+    "Base Cálculo",
+    "ICMS",
+    "B.Reduzido (CST 20)",
+    "Isentos (CST 40)",
+    "Não Trib. (CST 41)",
+    "Diferido (CST 51)",
+    "ST (CST 60/10)",
+    "Suspensão (CST 50)",
+    "Outras (CST 90 e demais)",
+  ];
+  const linhaCabecalho = ws.addRow(colunas);
+  linhaCabecalho.eachCell((cell) => {
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E1E1E" } };
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+  });
+
+  const totais = {
+    valorContabil: 0,
+    baseCalculo: 0,
+    icms: 0,
+    bReduzido: 0,
+    isentos: 0,
+    naoTrib: 0,
+    diferido: 0,
+    st: 0,
+    suspensao: 0,
+    outras: 0,
+  };
+
+  for (const l of linhas) {
+    ws.addRow([
+      l.cfop,
+      l.valorContabil.toFixed(2),
+      l.baseCalculo.toFixed(2),
+      l.icms.toFixed(2),
+      l.buckets.bReduzido.toFixed(2),
+      l.buckets.isentos.toFixed(2),
+      l.buckets.naoTrib.toFixed(2),
+      l.buckets.diferido.toFixed(2),
+      l.buckets.st.toFixed(2),
+      l.buckets.suspensao.toFixed(2),
+      l.buckets.outras.toFixed(2),
+    ]);
+    totais.valorContabil += l.valorContabil;
+    totais.baseCalculo += l.baseCalculo;
+    totais.icms += l.icms;
+    totais.bReduzido += l.buckets.bReduzido;
+    totais.isentos += l.buckets.isentos;
+    totais.naoTrib += l.buckets.naoTrib;
+    totais.diferido += l.buckets.diferido;
+    totais.st += l.buckets.st;
+    totais.suspensao += l.buckets.suspensao;
+    totais.outras += l.buckets.outras;
+  }
+
+  const linhaTotal = ws.addRow([
+    "Total",
+    totais.valorContabil.toFixed(2),
+    totais.baseCalculo.toFixed(2),
+    totais.icms.toFixed(2),
+    totais.bReduzido.toFixed(2),
+    totais.isentos.toFixed(2),
+    totais.naoTrib.toFixed(2),
+    totais.diferido.toFixed(2),
+    totais.st.toFixed(2),
+    totais.suspensao.toFixed(2),
+    totais.outras.toFixed(2),
+  ]);
+  linhaTotal.font = { bold: true };
+
+  ws.columns.forEach((col) => {
+    col.width = 16;
+  });
+  ws.getColumn(1).width = 10;
+
+  await baixarPlanilha(wb, `apuracao-icms-cst-${slugify(`${empresaNome}-${mesRotulo}`)}.xlsx`);
+}
