@@ -271,7 +271,19 @@ export class CorrecoesService {
     const certificado = await this.certificados.obterParaUso(empresaId);
 
     let regraCorrecaoId = input.regraCorrecaoId ?? null;
-    if (!regraCorrecaoId && input.criarRegra) {
+    if (regraCorrecaoId) {
+      // regraCorrecaoId chega direto do corpo da requisição (fluxo de 1
+      // clique a partir da sugestão da tabela) — sem essa checagem, um
+      // usuário autenticado de QUALQUER organização poderia informar o id
+      // de uma regra de outra organização e vincular o evento a ela
+      // (achado em revisão de segurança automática em 2026-10-23).
+      const regra = await this.prisma.client.regraCorrecao.findUnique({
+        where: { id: regraCorrecaoId },
+      });
+      if (!regra || regra.organizacaoId !== organizacaoId || !regra.ativa) {
+        throw new NotFoundException(`Regra ${regraCorrecaoId} não encontrada`);
+      }
+    } else if (input.criarRegra) {
       const regra = await this.criarOuReutilizarRegra(organizacaoId, usuarioId, input);
       regraCorrecaoId = regra.id;
     }
