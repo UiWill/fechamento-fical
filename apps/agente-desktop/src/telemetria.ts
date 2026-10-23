@@ -62,6 +62,7 @@ const estado = {
   reiniciosRecentes: 1,
   ultimoErroFatal: null as ErroFatal | null,
   pastasInacessiveis: [] as string[],
+  vigiaAtiva: true,
 };
 
 let escritasDesdeChecagem = 0;
@@ -116,6 +117,7 @@ export function configurarTelemetria(dados: {
   reiniciosRecentes?: number;
   ultimoErroFatal?: ErroFatal | null;
   pastasInacessiveis?: string[];
+  vigiaAtiva?: boolean;
 }): void {
   estado.versao = dados.versao;
   estado.pastas = dados.pastas;
@@ -125,6 +127,12 @@ export function configurarTelemetria(dados: {
   if (dados.reiniciosRecentes !== undefined) estado.reiniciosRecentes = dados.reiniciosRecentes;
   if (dados.ultimoErroFatal) estado.ultimoErroFatal = dados.ultimoErroFatal;
   if (dados.pastasInacessiveis) estado.pastasInacessiveis = dados.pastasInacessiveis;
+  if (dados.vigiaAtiva !== undefined) estado.vigiaAtiva = dados.vigiaAtiva;
+}
+
+/** Chamado periodicamente (não só no start) — rede caindo ou disco sendo removido no meio da execução só se nota se alguém checar de novo, não só uma vez no início. */
+export function atualizarPastasInacessiveis(lista: string[]): void {
+  estado.pastasInacessiveis = lista;
 }
 
 export function registrarEvento(evento: Omit<EventoAgente, "em">): void {
@@ -210,6 +218,7 @@ export function estadoCompleto() {
     reiniciosRecentes: estado.reiniciosRecentes,
     ultimoErroFatal: estado.ultimoErroFatal,
     pastasInacessiveis: estado.pastasInacessiveis,
+    vigiaAtiva: estado.vigiaAtiva,
   };
 }
 
@@ -231,5 +240,6 @@ export function resumoParaHeartbeat() {
     reiniciosRecentes: estado.reiniciosRecentes,
     ultimoErroFatal: estado.ultimoErroFatal,
     pastasInacessiveis: estado.pastasInacessiveis,
+    vigiaAtiva: estado.vigiaAtiva,
   };
 }

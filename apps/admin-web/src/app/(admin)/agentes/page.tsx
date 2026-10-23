@@ -410,6 +410,21 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
               </div>
             )}
 
+            {t && t.varreduraConcluida && t.arquivosNaVarredura === 0 && t.contadores.aceitos === 0 && (
+              <div className="entra-suave rounded-lg border p-3 text-sm" style={{ borderColor: "var(--vermelho, #e08a8a)" }}>
+                A pasta configurada está vazia (nenhum XML encontrado) — provavelmente a pasta certa não é essa, ou
+                o PDV/ERP do cliente salva em outro lugar. Confira o caminho configurado.
+              </div>
+            )}
+
+            {t && !t.vigiaAtiva && (
+              <div className="entra-suave rounded-lg border p-3 text-sm" style={{ borderColor: "var(--vermelho, #e08a8a)" }}>
+                A proteção contra travamento (tarefa agendada que religa o agente sozinho) não conseguiu se registrar
+                nesse PC — se o processo travar, ninguém vai religar automaticamente até alguém abrir manualmente.
+                Pode ser antivírus, política do Windows, ou o serviço "Agendador de Tarefas" desligado.
+              </div>
+            )}
+
             {alertaAtualizacao && (
               <p
                 className="entra-suave rounded-lg border p-3 text-sm"

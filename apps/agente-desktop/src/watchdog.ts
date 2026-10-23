@@ -13,10 +13,20 @@ import { execFileSync } from "node:child_process";
 
 const NOME_TAREFA = "AfeAgenteDesktopVigia";
 
-export function habilitarVigiaPeriodica(caminhoExecutavel: string): void {
+/**
+ * Devolve se a tarefa ficou registrada — sem isso, uma falha aqui
+ * (antivírus bloqueando schtasks, política corporativa desabilitando
+ * Tarefas Agendadas, serviço "Agendador de Tarefas" do Windows
+ * desligado) ficava só num log local que ninguém olha, e o agente perdia
+ * TODA a proteção contra travamento sem nenhum aviso em lugar nenhum
+ * (achado numa varredura de QA em 2026-10-23, depois do crash-loop da
+ * Josiane — o vigia é exatamente o que deveria ter religado aquele
+ * agente rápido, então uma falha silenciosa aqui é especialmente grave).
+ */
+export function habilitarVigiaPeriodica(caminhoExecutavel: string): boolean {
   if (process.platform !== "win32") {
     console.log("[watchdog] plataforma não é Windows — pulando tarefa de vigia.");
-    return;
+    return false;
   }
   try {
     execFileSync("schtasks", [
@@ -32,7 +42,9 @@ export function habilitarVigiaPeriodica(caminhoExecutavel: string): void {
       "/f",
     ]);
     console.log("[watchdog] tarefa de vigia habilitada (confere a cada 5 minutos).");
+    return true;
   } catch (err) {
-    console.error(`[watchdog] falha ao habilitar tarefa de vigia: ${err}`);
+    console.error(`[watchdog] FALHA ao habilitar tarefa de vigia — agente SEM proteção contra travamento: ${err}`);
+    return false;
   }
 }

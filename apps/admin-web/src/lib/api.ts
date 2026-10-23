@@ -875,6 +875,8 @@ export interface TelemetriaAgente {
   ultimoErroFatal: { em: string; origem: string; mensagem: string; stack?: string } | null;
   /** Pastas configuradas que sumiram/ficaram inacessíveis (disco removido, rede caiu, pasta renomeada). */
   pastasInacessiveis: string[];
+  /** false = a tarefa agendada que religa o agente se ele travar não conseguiu se registrar nesse PC (antivírus, política, serviço desligado) — SEM proteção contra travamento. */
+  vigiaAtiva: boolean;
 }
 
 export interface AtividadeAgente {

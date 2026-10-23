@@ -26,6 +26,7 @@ import {
   registrarHeartbeatOk,
   resumoParaHeartbeat,
   estadoCompleto,
+  atualizarPastasInacessiveis,
   ARQUIVO_LOG,
 } from "../src/telemetria";
 
@@ -252,7 +253,7 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
     return;
   }
 
-  habilitarVigiaPeriodica(app.getPath("exe"));
+  const vigiaAtiva = habilitarVigiaPeriodica(app.getPath("exe"));
   app.setLoginItemSettings({ openAtLogin: true, path: app.getPath("exe") });
 
   // Espera o check de atualização terminar ANTES de começar a varrer a
@@ -288,6 +289,7 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
     reiniciosRecentes: registrarInicioEContarReinicios(),
     ultimoErroFatal: lerELimparUltimoErroFatal(),
     pastasInacessiveis: pastasInacessiveis(configInicial.pastasMonitoradas),
+    vigiaAtiva,
   });
 
   observarPastas(configInicial.pastasMonitoradas, (caminho) => {
@@ -296,6 +298,14 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
   pararObservador = () => undefined; // chokidar não expõe um "parar" simples aqui — ver watcher.ts se precisar no futuro
 
   setInterval(() => void fila.flush(), INTERVALO_FLUSH_MS);
+
+  // Checagem periódica (não só no início) — rede/disco removido NO MEIO
+  // da execução só se percebe se alguém conferir de novo, não só uma vez
+  // no start (achado numa varredura de QA em 2026-10-23).
+  setInterval(
+    () => atualizarPastasInacessiveis(pastasInacessiveis(configInicial.pastasMonitoradas)),
+    10 * 60_000
+  );
 
   const mandarHeartbeat = () =>
     enviarHeartbeat(configInicial.token!, configInicial.versaoAgente, resumoParaHeartbeat())
