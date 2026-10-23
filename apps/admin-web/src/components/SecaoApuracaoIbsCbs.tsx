@@ -6,6 +6,7 @@ import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/forma
 import { exportarApuracaoIbsCbsExcel } from "@/lib/exportar-apuracao-excel";
 import { SeletorMes } from "./SeletorMes";
 import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
+import { FiltroColuna, aplicarFiltrosColuna } from "./FiltroColuna";
 
 const LOTE_EXIBICAO = 300;
 
@@ -121,6 +122,13 @@ export function SecaoApuracaoIbsCbs({
   // Mesma paginação de SecaoApuracaoIcms.tsx — empresas grandes passam de
   // 15 mil itens/mês, renderizar tudo de uma vez deixa a página lenta.
   const [limiteExibicao, setLimiteExibicao] = useState(LOTE_EXIBICAO);
+  // Filtro por coluna, estilo Excel — ver FiltroColuna.tsx.
+  const [filtros, setFiltros] = useState<Record<string, string>>({});
+  const definirFiltro = (campo: string, valor: string) => {
+    setFiltros((atual) => ({ ...atual, [campo]: valor }));
+    setLimiteExibicao(LOTE_EXIBICAO);
+  };
+  const itensFiltrados = aplicarFiltrosColuna(itens, filtros);
 
   // Mesmo guard de SecaoApuracaoIcms.tsx — <input type="month"> dispara
   // onChange a cada dígito, duas buscas ficam "no ar" e a resposta velha
@@ -137,6 +145,7 @@ export function SecaoApuracaoIbsCbs({
       if (idDestaChamada !== idRequisicao.current) return;
       setItens(dados);
       setLimiteExibicao(LOTE_EXIBICAO);
+      setFiltros({});
       setErro(null);
     } catch {
       if (idDestaChamada !== idRequisicao.current) return;
@@ -156,7 +165,7 @@ export function SecaoApuracaoIbsCbs({
   async function handleBaixarExcel() {
     setGerandoExcel(true);
     try {
-      await exportarApuracaoIbsCbsExcel(itens, empresaNome, cnpj, rotuloMes(mes));
+      await exportarApuracaoIbsCbsExcel(itensFiltrados, empresaNome, cnpj, rotuloMes(mes));
     } catch {
       setMensagem("Não foi possível gerar o Excel agora.");
     } finally {
@@ -238,7 +247,12 @@ export function SecaoApuracaoIbsCbs({
             <SeletorMes value={mes} onChange={setMes} />
           </div>
           <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
-            {rotuloMes(mes)} · {itens.length === 0 ? "nenhum item nesse mês" : `${itens.length} item(ns)`}
+            {rotuloMes(mes)} ·{" "}
+            {itensFiltrados.length === itens.length
+              ? itens.length === 0
+                ? "nenhum item nesse mês"
+                : `${itens.length} item(ns)`
+              : `${itensFiltrados.length} de ${itens.length} item(ns) (filtrado)`}
             {pendencias > 0 && (
               <span style={{ color: "var(--vermelho, #e08a8a)" }}> · {pendencias} com pendência</span>
             )}
@@ -246,8 +260,8 @@ export function SecaoApuracaoIbsCbs({
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => exportarCsv(itens, `apuracao-ibs-cbs-${direcao.toLowerCase()}-${mes}.csv`)}
-            disabled={itens.length === 0}
+            onClick={() => exportarCsv(itensFiltrados, `apuracao-ibs-cbs-${direcao.toLowerCase()}-${mes}.csv`)}
+            disabled={itensFiltrados.length === 0}
             className={CLASSE_BOTAO_LINK}
             style={{ color: "var(--paper)" }}
           >
@@ -255,7 +269,7 @@ export function SecaoApuracaoIbsCbs({
           </button>
           <button
             onClick={() => void handleBaixarExcel()}
-            disabled={itens.length === 0 || gerandoExcel}
+            disabled={itensFiltrados.length === 0 || gerandoExcel}
             className={CLASSE_BOTAO_LINK}
             style={{ color: "var(--paper)" }}
           >
@@ -300,6 +314,15 @@ export function SecaoApuracaoIbsCbs({
             tela ainda não tem itens extraídos).
           </p>
         </div>
+      ) : itensFiltrados.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: "var(--border)" }}>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Nenhum item corresponde ao filtro aplicado.{" "}
+            <button onClick={() => setFiltros({})} className={CLASSE_BOTAO_LINK} style={{ color: "var(--paper)" }}>
+              Limpar filtros
+            </button>
+          </p>
+        </div>
       ) : (
         <>
         <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
@@ -319,7 +342,7 @@ export function SecaoApuracaoIbsCbs({
               </tr>
             </thead>
             <tbody>
-              {resumoPorCfop(itens).map((r) => (
+              {resumoPorCfop(itensFiltrados).map((r) => (
                 <tr key={`${r.cfop}-${r.cClassTrib}`} className="border-t text-xs" style={{ borderColor: "var(--border)" }}>
                   <td className="px-3 py-2" style={{ color: "var(--paper)" }}>{r.cfop}</td>
                   <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.cClassTrib}</td>
@@ -338,26 +361,33 @@ export function SecaoApuracaoIbsCbs({
             <table className="w-full min-w-[90rem] text-left text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)", background: "var(--surface)" }}>
-                  <th className="px-3 py-3 font-medium">nNF</th>
-                  <th className="px-3 py-3 font-medium">dhEmi</th>
-                  <th className="px-3 py-3 font-medium">nItem</th>
-                  <th className="px-3 py-3 font-medium">cProd</th>
-                  <th className="px-3 py-3 font-medium">xProd</th>
-                  <th className="px-3 py-3 font-medium">NCM</th>
-                  <th className="px-3 py-3 font-medium">CFOP</th>
-                  <th className="px-3 py-3 font-medium">CST</th>
-                  <th className="px-3 py-3 font-medium">cClassTrib</th>
-                  <th className="px-3 py-3 font-medium">vBC</th>
-                  <th className="px-3 py-3 font-medium">pIBS UF</th>
-                  <th className="px-3 py-3 font-medium">vIBS UF</th>
-                  <th className="px-3 py-3 font-medium">pIBS Mun</th>
-                  <th className="px-3 py-3 font-medium">vIBS Mun</th>
-                  <th className="px-3 py-3 font-medium">pCBS</th>
-                  <th className="px-3 py-3 font-medium">vCBS</th>
+                  {([
+                    ["nNF", "nNF"],
+                    ["dhEmi", "dhEmi"],
+                    ["nItem", "nItem"],
+                    ["cProd", "cProd"],
+                    ["xProd", "xProd"],
+                    ["NCM", "ncm"],
+                    ["CFOP", "cfop"],
+                    ["CST", "ibsCbsCst"],
+                    ["cClassTrib", "cClassTrib"],
+                    ["vBC", "ibsCbsBase"],
+                    ["pIBS UF", "ibsUfAliquota"],
+                    ["vIBS UF", "ibsUfValor"],
+                    ["pIBS Mun", "ibsMunAliquota"],
+                    ["vIBS Mun", "ibsMunValor"],
+                    ["pCBS", "cbsAliquota"],
+                    ["vCBS", "cbsValor"],
+                  ] as [string, string][]).map(([rotulo, campo]) => (
+                    <th key={campo} className="whitespace-nowrap px-3 py-3 font-medium">
+                      {rotulo}
+                      <FiltroColuna valor={filtros[campo] ?? ""} onChange={(v) => definirFiltro(campo, v)} />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {itens.slice(0, limiteExibicao).map((i) => {
+                {itensFiltrados.slice(0, limiteExibicao).map((i) => {
                   const inconsistente = i.tributosInconsistentes.length > 0;
                   const titulo = [
                     i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
@@ -411,20 +441,20 @@ export function SecaoApuracaoIbsCbs({
                   <td className="px-3 py-3" colSpan={9}>
                     Total do período
                   </td>
-                  <td className="px-3 py-3">{somar(itens, "ibsCbsBase")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "ibsCbsBase")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "ibsUfValor")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "ibsUfValor")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "ibsMunValor")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "ibsMunValor")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "cbsValor")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "cbsValor")}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
           <BotaoCarregarMais
-            totalItens={itens.length}
-            itensExibidos={Math.min(limiteExibicao, itens.length)}
+            totalItens={itensFiltrados.length}
+            itensExibidos={Math.min(limiteExibicao, itensFiltrados.length)}
             onCarregarMais={() => setLimiteExibicao((l) => l + LOTE_EXIBICAO)}
           />
         </div>

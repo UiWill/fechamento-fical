@@ -12,6 +12,7 @@ import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/forma
 import { exportarApuracaoIcmsExcel } from "@/lib/exportar-apuracao-excel";
 import { SeletorMes } from "./SeletorMes";
 import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
+import { FiltroColuna, aplicarFiltrosColuna } from "./FiltroColuna";
 
 const LOTE_EXIBICAO = 300;
 
@@ -175,6 +176,13 @@ export function SecaoApuracaoIcms({
   // resumo por CFOP e os totais do rodapé continuam somando TUDO, só a
   // tabela detalhada é que pagina.
   const [limiteExibicao, setLimiteExibicao] = useState(LOTE_EXIBICAO);
+  // Filtro por coluna, estilo Excel — ver FiltroColuna.tsx.
+  const [filtros, setFiltros] = useState<Record<string, string>>({});
+  const definirFiltro = (campo: string, valor: string) => {
+    setFiltros((atual) => ({ ...atual, [campo]: valor }));
+    setLimiteExibicao(LOTE_EXIBICAO);
+  };
+  const itensFiltrados = aplicarFiltrosColuna(itens, filtros);
 
   // Contador de requisição — o <input type="month"> dispara onChange a
   // cada dígito digitado (ex: "2026-09" vira "2026-0", "2026-09" em dois
@@ -196,6 +204,7 @@ export function SecaoApuracaoIcms({
       if (idDestaChamada !== idRequisicao.current) return; // resposta de uma busca já superada
       setItens(dados);
       setLimiteExibicao(LOTE_EXIBICAO);
+      setFiltros({});
       setNumeracaoFaltando(numeracao.faltando);
       setNumeracaoTruncada(numeracao.truncado);
       setErro(null);
@@ -216,7 +225,7 @@ export function SecaoApuracaoIcms({
   async function handleBaixarExcel() {
     setGerandoExcel(true);
     try {
-      await exportarApuracaoIcmsExcel(itens, empresaNome, cnpj, rotuloMes(mes));
+      await exportarApuracaoIcmsExcel(itensFiltrados, empresaNome, cnpj, rotuloMes(mes));
     } catch {
       setMensagem("Não foi possível gerar o Excel agora.");
     } finally {
@@ -298,7 +307,12 @@ export function SecaoApuracaoIcms({
             <SeletorMes value={mes} onChange={setMes} />
           </div>
           <span className="text-xs capitalize" style={{ color: "var(--muted)" }}>
-            {rotuloMes(mes)} · {itens.length === 0 ? "nenhum item nesse mês" : `${itens.length} item(ns)`}
+            {rotuloMes(mes)} ·{" "}
+            {itensFiltrados.length === itens.length
+              ? itens.length === 0
+                ? "nenhum item nesse mês"
+                : `${itens.length} item(ns)`
+              : `${itensFiltrados.length} de ${itens.length} item(ns) (filtrado)`}
             {pendencias > 0 && (
               <span style={{ color: "var(--vermelho, #e08a8a)" }}> · {pendencias} com pendência</span>
             )}
@@ -306,8 +320,8 @@ export function SecaoApuracaoIcms({
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => exportarCsv(itens, `apuracao-icms-${direcao.toLowerCase()}-${mes}.csv`)}
-            disabled={itens.length === 0}
+            onClick={() => exportarCsv(itensFiltrados, `apuracao-icms-${direcao.toLowerCase()}-${mes}.csv`)}
+            disabled={itensFiltrados.length === 0}
             className={CLASSE_BOTAO_LINK}
             style={{ color: "var(--paper)" }}
           >
@@ -315,7 +329,7 @@ export function SecaoApuracaoIcms({
           </button>
           <button
             onClick={() => void handleBaixarExcel()}
-            disabled={itens.length === 0 || gerandoExcel}
+            disabled={itensFiltrados.length === 0 || gerandoExcel}
             className={CLASSE_BOTAO_LINK}
             style={{ color: "var(--paper)" }}
           >
@@ -373,6 +387,15 @@ export function SecaoApuracaoIcms({
             tela ainda não tem itens extraídos).
           </p>
         </div>
+      ) : itensFiltrados.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-8 text-center" style={{ borderColor: "var(--border)" }}>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Nenhum item corresponde ao filtro aplicado.{" "}
+            <button onClick={() => setFiltros({})} className={CLASSE_BOTAO_LINK} style={{ color: "var(--paper)" }}>
+              Limpar filtros
+            </button>
+          </p>
+        </div>
       ) : (
         <>
         <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--border)" }}>
@@ -391,7 +414,7 @@ export function SecaoApuracaoIcms({
               </tr>
             </thead>
             <tbody>
-              {resumoPorCfop(itens).map((r) => (
+              {resumoPorCfop(itensFiltrados).map((r) => (
                 <tr key={`${r.cfop}-${r.cstIcms}`} className="border-t text-xs" style={{ borderColor: "var(--border)" }}>
                   <td className="px-3 py-2" style={{ color: "var(--paper)" }}>{r.cfop}</td>
                   <td className="px-3 py-2" style={{ color: "var(--muted)" }}>{r.cstIcms}</td>
@@ -409,33 +432,40 @@ export function SecaoApuracaoIcms({
             <table className="w-full min-w-[110rem] text-left text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)", background: "var(--surface)" }}>
-                  <th className="px-3 py-3 font-medium">nNF</th>
-                  <th className="px-3 py-3 font-medium">dhEmi</th>
-                  <th className="px-3 py-3 font-medium">nItem</th>
-                  <th className="px-3 py-3 font-medium">cProd</th>
-                  <th className="px-3 py-3 font-medium">xProd</th>
-                  <th className="px-3 py-3 font-medium">NCM</th>
-                  <th className="px-3 py-3 font-medium">CFOP</th>
-                  <th className="px-3 py-3 font-medium">CST ICMS</th>
-                  <th className="px-3 py-3 font-medium">vBC</th>
-                  <th className="px-3 py-3 font-medium">pICMS</th>
-                  <th className="px-3 py-3 font-medium">vICMS</th>
-                  <th className="px-3 py-3 font-medium">CST IPI</th>
-                  <th className="px-3 py-3 font-medium">vBC</th>
-                  <th className="px-3 py-3 font-medium">pIPI</th>
-                  <th className="px-3 py-3 font-medium">vIPI</th>
-                  <th className="px-3 py-3 font-medium">CST PIS</th>
-                  <th className="px-3 py-3 font-medium">vBC</th>
-                  <th className="px-3 py-3 font-medium">pPIS</th>
-                  <th className="px-3 py-3 font-medium">vPIS</th>
-                  <th className="px-3 py-3 font-medium">CST COFINS</th>
-                  <th className="px-3 py-3 font-medium">vBC</th>
-                  <th className="px-3 py-3 font-medium">pCOFINS</th>
-                  <th className="px-3 py-3 font-medium">vCOFINS</th>
+                  {([
+                    ["nNF", "nNF"],
+                    ["dhEmi", "dhEmi"],
+                    ["nItem", "nItem"],
+                    ["cProd", "cProd"],
+                    ["xProd", "xProd"],
+                    ["NCM", "ncm"],
+                    ["CFOP", "cfop"],
+                    ["CST ICMS", "icmsCst"],
+                    ["vBC", "icmsBase"],
+                    ["pICMS", "icmsAliquota"],
+                    ["vICMS", "icmsValor"],
+                    ["CST IPI", "ipiCst"],
+                    ["vBC", "ipiBase"],
+                    ["pIPI", "ipiAliquota"],
+                    ["vIPI", "ipiValor"],
+                    ["CST PIS", "pisCst"],
+                    ["vBC", "pisBase"],
+                    ["pPIS", "pisAliquota"],
+                    ["vPIS", "pisValor"],
+                    ["CST COFINS", "cofinsCst"],
+                    ["vBC", "cofinsBase"],
+                    ["pCOFINS", "cofinsAliquota"],
+                    ["vCOFINS", "cofinsValor"],
+                  ] as [string, string][]).map(([rotulo, campo]) => (
+                    <th key={campo} className="whitespace-nowrap px-3 py-3 font-medium">
+                      {rotulo}
+                      <FiltroColuna valor={filtros[campo] ?? ""} onChange={(v) => definirFiltro(campo, v)} />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {itens.slice(0, limiteExibicao).map((i) => {
+                {itensFiltrados.slice(0, limiteExibicao).map((i) => {
                   const inconsistente = i.tributosInconsistentes.length > 0;
                   const titulo = [
                     i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
@@ -500,28 +530,28 @@ export function SecaoApuracaoIcms({
                   <td className="px-3 py-3" colSpan={8}>
                     Total do período
                   </td>
-                  <td className="px-3 py-3">{somar(itens, "icmsBase")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "icmsBase")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "icmsValor")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "icmsValor")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "ipiBase")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "ipiBase")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "ipiValor")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "ipiValor")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "pisBase")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "pisBase")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "pisValor")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "pisValor")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "cofinsBase")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "cofinsBase")}</td>
                   <td className="px-3 py-3" />
-                  <td className="px-3 py-3">{somar(itens, "cofinsValor")}</td>
+                  <td className="px-3 py-3">{somar(itensFiltrados, "cofinsValor")}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
           <BotaoCarregarMais
-            totalItens={itens.length}
-            itensExibidos={Math.min(limiteExibicao, itens.length)}
+            totalItens={itensFiltrados.length}
+            itensExibidos={Math.min(limiteExibicao, itensFiltrados.length)}
             onCarregarMais={() => setLimiteExibicao((l) => l + LOTE_EXIBICAO)}
           />
         </div>
