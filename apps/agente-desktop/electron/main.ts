@@ -254,11 +254,36 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
   } catch (err) {
     console.error(`[main] não consegui validar o token com o servidor: ${err}`);
     if (!EH_VIGIA) {
-      dialog.showErrorBox(
-        "Agente Fiscal",
-        "Não consegui confirmar o código de instalação com o servidor.\n\n" +
-          "Confira se este computador está com internet e tente de novo. Se persistir, gere um código novo no painel."
-      );
+      // 401 é diferente de falha de rede: um token revogado/excluído NUNCA
+      // vai funcionar de novo sozinho, não importa quantas vezes tentar —
+      // nesse caso específico (só esse, não em qualquer erro, pra não
+      // apagar a configuração de um cliente real por uma oscilação
+      // momentânea de internet) oferece limpar e reconfigurar na hora, em
+      // vez de só avisar e deixar travado (pedido do usuário em 2026-10-26,
+      // testando com um token de teste já excluído).
+      const tokenInvalido = err instanceof Error && err.message.includes("(401)");
+      if (tokenInvalido) {
+        const resposta = dialog.showMessageBoxSync({
+          type: "error",
+          title: "Agente Fiscal",
+          message: "Esse código de instalação não é mais válido.",
+          detail:
+            "Ele pode ter sido revogado ou excluído no painel. Quer limpar a configuração e colar um código novo agora?",
+          buttons: ["Cancelar", "Limpar e reconfigurar"],
+          defaultId: 1,
+          cancelId: 0,
+        });
+        if (resposta === 1) {
+          limparConfiguracaoEReiniciar();
+          return;
+        }
+      } else {
+        dialog.showErrorBox(
+          "Agente Fiscal",
+          "Não consegui confirmar o código de instalação com o servidor.\n\n" +
+            "Confira se este computador está com internet e tente de novo. Se persistir, gere um código novo no painel."
+        );
+      }
     }
     return;
   }
