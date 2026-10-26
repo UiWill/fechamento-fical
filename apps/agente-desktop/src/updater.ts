@@ -213,82 +213,100 @@ async function verificarAtualizacaoInterna(token: string): Promise<void> {
   // reabre a versão nova depois.
   const caminhoExeAtual = app.getPath("exe");
   const pidAtual = process.pid;
-  const scriptAtualizacao = path.join(PASTA_ATUALIZACAO, "atualizar.ps1");
+  const scriptAtualizacao = path.join(PASTA_ATUALIZACAO, "atualizar.bat");
 
   // IMPORTANTE: não dá pra só rodar o instalador e sair em seguida — o
   // instalador (NSIS /S) e o nosso próprio processo ficariam os DOIS
   // mexendo nos mesmos arquivos ao mesmo tempo (nós ainda de pé, segurando
   // os arquivos; ele tentando sobrescrever), e isso já deixou uma
   // instalação pela metade (ícone/recurso faltando, app parava de abrir
-  // sem nem mostrar erro). Em vez disso, um script PowerShell DESTACADO
-  // (sobrevive depois que a gente sai) espera nosso processo encerrar de
-  // vez, só DEPOIS roda o instalador (e espera ele terminar de verdade,
-  // "-Wait"), e só então abre o app novo — nada acontece em paralelo.
-  // Ao contrário da versão anterior (SilentlyContinue engolindo tudo), este
-  // script escreve cada passo num log persistente (fora da pasta temp) e só
-  // declara sucesso se o instalador saiu com código 0 E o executável
-  // realmente existe depois — sem isso, uma falha no meio (instalador
-  // corrompido, antivírus bloqueando, disco cheio) deixava o agente
-  // simplesmente sumir, sem log nenhum em lugar nenhum pra saber o motivo.
+  // sem nem mostrar erro). Em vez disso, um script DESTACADO (sobrevive
+  // depois que a gente sai) espera nosso processo encerrar de vez, só
+  // DEPOIS roda o instalador (espera ele terminar de verdade), e só então
+  // abre o app novo — nada acontece em paralelo.
+  //
+  // É um .bat (CMD puro), não .ps1 — achado em 2026-10-26: mesmo com
+  // -ExecutionPolicy Bypass, o PowerShell nunca chegava a rodar o script
+  // em PC com a Política de Execução travada por Diretiva de Grupo do
+  // Windows (GPO sempre tem prioridade sobre a flag de linha de comando,
+  // não tem bypass nenhum pra isso) — a atualização "funcionava" (flag
+  // local gravado, sem erro nenhum visível) mas o script literalmente
+  // nunca executava uma linha sequer, e o vigia só reabria o binário
+  // antigo, intocado, repetindo pra sempre. Script .bat não tem conceito
+  // de política de execução — roda em qualquer Windows, sempre.
   fs.writeFileSync(
     scriptAtualizacao,
     [
-      `$logFile = '${ARQUIVO_LOG_ATUALIZACAO}'`,
-      `function Log($msg) { Add-Content -Path $logFile -Value "$(Get-Date -Format o) $msg" -Encoding utf8 }`,
-      "try {",
-      `  Log "Atualizando para ${info.versao}: esperando processo antigo (PID ${pidAtual}) encerrar..."`,
-      `  Wait-Process -Id ${pidAtual} -Timeout 30 -ErrorAction SilentlyContinue`,
-      "  Start-Sleep -Seconds 1",
-      "  Log 'Rodando instalador silencioso...'",
-      `  $proc = Start-Process -FilePath '${instalador}' -ArgumentList '/S' -Wait -PassThru -ErrorAction Stop`,
-      "  Log \"Instalador terminou com codigo de saida $($proc.ExitCode).\"",
-      `  $exeExiste = Test-Path '${caminhoExeAtual}'`,
-      "  if ($proc.ExitCode -ne 0 -or -not $exeExiste) {",
-      "    $motivo = if (-not $exeExiste) { 'executavel nao existe apos a instalacao' } else { \"instalador saiu com codigo $($proc.ExitCode)\" }",
-      "    Log \"FALHA: $motivo\"",
-      `    Set-Content -Path '${ARQUIVO_FLAG_FALHA_ATUALIZACAO}' -Value $motivo -Encoding utf8`,
-      "  } else {",
-      "    Log 'Instalacao OK.'",
-      "  }",
-      "  if ($exeExiste) {",
-      `    Log 'Reabrindo o app...'`,
-      `    Start-Process -FilePath '${caminhoExeAtual}'`,
-      "    Log 'App reaberto.'",
-      "  } else {",
-      "    Log 'Nao foi possivel reabrir - executavel ausente. O vigia (tarefa agendada) vai tentar de novo em ate 5 minutos, mas provavelmente vai falhar tambem ate alguem reinstalar manualmente.'",
-      "  }",
-      "} catch {",
-      "  Log \"ERRO INESPERADO: $_\"",
-      `  Set-Content -Path '${ARQUIVO_FLAG_FALHA_ATUALIZACAO}' -Value "erro inesperado: $_" -Encoding utf8`,
-      "  try {",
-      `    if (Test-Path '${caminhoExeAtual}') { Start-Process -FilePath '${caminhoExeAtual}' }`,
-      "  } catch {}",
-      "} finally {",
-      `  Remove-Item -Path '${instalador}' -Force -ErrorAction SilentlyContinue`,
-      `  Remove-Item -Path '${scriptAtualizacao}' -Force -ErrorAction SilentlyContinue`,
-      "}",
-    ].join("\n"),
+      "@echo off",
+      "setlocal EnableDelayedExpansion",
+      `set "LOGFILE=${ARQUIVO_LOG_ATUALIZACAO}"`,
+      `set "PID=${pidAtual}"`,
+      `set "INSTALADOR=${instalador}"`,
+      `set "EXEATUAL=${caminhoExeAtual}"`,
+      `set "FALHAFLAG=${ARQUIVO_FLAG_FALHA_ATUALIZACAO}"`,
+      "",
+      `call :log "Atualizando para ${info.versao}: esperando processo antigo (PID %PID%) encerrar..."`,
+      "",
+      "set /a CONT=0",
+      ":esperar",
+      'tasklist /FI "PID eq %PID%" 2^>NUL ^| find "%PID%" >NUL',
+      "if %ERRORLEVEL%==0 (",
+      "  set /a CONT+=1",
+      "  if !CONT! GEQ 30 goto acabouespera",
+      "  timeout /t 1 /nobreak >NUL",
+      "  goto esperar",
+      ")",
+      ":acabouespera",
+      "",
+      "timeout /t 1 /nobreak >NUL",
+      'call :log "Rodando instalador silencioso..."',
+      'start "" /wait "%INSTALADOR%" /S',
+      'set "CODIGO=%ERRORLEVEL%"',
+      'call :log "Instalador terminou com codigo de saida %CODIGO%."',
+      "",
+      'if exist "%EXEATUAL%" (set "EXEEXISTE=1") else (set "EXEEXISTE=0")',
+      "",
+      'if not "%CODIGO%"=="0" (',
+      '  call :log "FALHA: instalador saiu com codigo %CODIGO%"',
+      '  > "%FALHAFLAG%" echo instalador saiu com codigo %CODIGO%',
+      ') else if "%EXEEXISTE%"=="0" (',
+      '  call :log "FALHA: executavel nao existe apos a instalacao"',
+      '  > "%FALHAFLAG%" echo executavel nao existe apos a instalacao',
+      ") else (",
+      '  call :log "Instalacao OK."',
+      ")",
+      "",
+      'if "%EXEEXISTE%"=="1" (',
+      '  call :log "Reabrindo o app..."',
+      '  start "" "%EXEATUAL%"',
+      '  call :log "App reaberto."',
+      ") else (",
+      '  call :log "Nao foi possivel reabrir - executavel ausente. O vigia vai tentar de novo em ate 1 minuto, mas provavelmente vai falhar tambem ate alguem reinstalar manualmente."',
+      ")",
+      "",
+      'del "%INSTALADOR%" >NUL 2>&1',
+      "goto fim",
+      "",
+      ":log",
+      '>> "%LOGFILE%" echo %date% %time% %~1',
+      "exit /b",
+      "",
+      ":fim",
+      'del "%~f0" >NUL 2>&1',
+    ].join("\r\n"),
     "utf8"
   );
 
   console.log("[updater] saindo e deixando o instalador + reabertura por conta do script destacado...");
-  // -ExecutionPolicy Bypass é ESSENCIAL aqui — sem isso, rodar um .ps1 via
-  // "-File" falha na hora em qualquer PC com política de execução restrita
-  // (padrão de fábrica em boa parte das instalações do Windows, não só
-  // ambiente corporativo administrado). Com stdio "ignore" essa falha não
-  // aparecia em lugar nenhum — nem log nenhum (achado em 2026-10-26: 3
-  // tentativas de atualização "bem sucedidas" (flag local gravado antes de
-  // tentar rodar o script) sem o script NUNCA ter chegado a rodar de
-  // verdade — o vigia só reabria o binário antigo, intocado, de novo).
-  const helper = spawn(
-    "powershell.exe",
-    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptAtualizacao],
-    { detached: true, stdio: "ignore" }
-  );
+  const helper = spawn("cmd.exe", ["/c", scriptAtualizacao], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  });
   helper.on("error", (err) => {
-    // Só pega falha de LANÇAR o processo (ex: powershell.exe não existe no
-    // PATH) — erros de DENTRO do script (ExecutionPolicy antes do fix,
-    // instalador corrompido, etc.) não chegam aqui, ficam só no
+    // Só pega falha de LANÇAR o processo em si (ex: cmd.exe bloqueado por
+    // alguma política muito incomum) — erros de DENTRO do script
+    // (instalador corrompido, etc.) não chegam aqui, ficam só no
     // atualizacao.log do próprio script. Mesmo assim, melhor logar isso do
     // que morrer em silêncio total.
     console.error(`[updater] falha ao lançar o script de atualização: ${err}`);
