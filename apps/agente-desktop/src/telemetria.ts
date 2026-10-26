@@ -140,6 +140,18 @@ export function atualizarVigiaAtiva(ativa: boolean): void {
   estado.vigiaAtiva = ativa;
 }
 
+/**
+ * Diferente de configurarTelemetria (que só é lido de diagnostico.ts uma
+ * vez, no início do processo) — isso é chamado a qualquer momento durante
+ * a execução (ex: freio de loop de atualização em updater.ts) pra aparecer
+ * já no PRÓXIMO heartbeat, sem esperar um reinício futuro que pode nunca
+ * acontecer (o processo continua rodando normal depois do freio, não
+ * reinicia sozinho).
+ */
+export function definirErroFatalAoVivo(erro: ErroFatal): void {
+  estado.ultimoErroFatal = erro;
+}
+
 export function registrarEvento(evento: Omit<EventoAgente, "em">): void {
   const completo: EventoAgente = { em: new Date().toISOString(), ...evento, arquivo: nomeCurto(evento.arquivo) };
   estado.eventos.unshift(completo);

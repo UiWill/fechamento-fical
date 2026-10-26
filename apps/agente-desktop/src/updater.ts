@@ -22,6 +22,12 @@ import os from "node:os";
 import { buscarVersaoMaisRecente, baixarVersao } from "./api-client";
 import { carregarConfig, salvarConfig, PASTA_CONFIG } from "./config";
 import { notificar } from "./notify";
+import { definirErroFatalAoVivo } from "./telemetria";
+
+// Depois dessa quantidade de tentativas seguidas seguindo pro MESMO alvo
+// sem nunca avançar de verdade, desiste de tentar sozinho — ver freio de
+// loop logo abaixo.
+const MAX_TENTATIVAS_MESMA_VERSAO = 3;
 
 const PASTA_ATUALIZACAO = path.join(os.tmpdir(), "afe-agente-update");
 const ARQUIVO_FLAG_POS_ATUALIZACAO = path.join(PASTA_ATUALIZACAO, "atualizado.flag");
@@ -128,9 +134,41 @@ async function verificarAtualizacaoInterna(token: string): Promise<void> {
     return;
   }
 
-  if (!info.versao || compararVersoes(info.versao, config.versaoAgente) <= 0) return;
+  if (!info.versao || compararVersoes(info.versao, config.versaoAgente) <= 0) {
+    // Já está na versão mais recente (ou não tem nenhuma nova) — se tinha
+    // ficado preso tentando uma versão antes, reseta: não é mais problema.
+    if (config.ultimaVersaoAlvoAtualizacao) {
+      config.ultimaVersaoAlvoAtualizacao = null;
+      config.tentativasAtualizacaoFalhas = 0;
+      salvarConfig(config);
+    }
+    return;
+  }
 
   console.log(`[updater] nova versão disponível: ${info.versao} (atual: ${config.versaoAgente})`);
+
+  // Freio de segurança: se o alvo é o MESMO de tentativas anteriores (ou
+  // seja, a versão nunca avançou de verdade — ver carregarConfig, que
+  // sempre reflete a versão do binário que está de fato rodando agora),
+  // depois de algumas tentativas seguidas desiste de tentar sozinho em vez
+  // de ficar baixando e reinstalando pra sempre (achado em 2026-10-26: 3
+  // agentes de teste entraram nesse loop quando o instalador não
+  // conseguiu substituir o binário por algum motivo). Fica rodando na
+  // versão atual, vivo, com o erro visível no painel.
+  if (config.ultimaVersaoAlvoAtualizacao === info.versao) {
+    config.tentativasAtualizacaoFalhas += 1;
+  } else {
+    config.ultimaVersaoAlvoAtualizacao = info.versao;
+    config.tentativasAtualizacaoFalhas = 1;
+  }
+  salvarConfig(config);
+
+  if (config.tentativasAtualizacaoFalhas > MAX_TENTATIVAS_MESMA_VERSAO) {
+    const mensagem = `Tentou atualizar pra ${info.versao} ${config.tentativasAtualizacaoFalhas - 1}x seguidas sem a versão avançar de verdade — desistiu de tentar sozinho, continua rodando na ${config.versaoAgente}. Provavelmente o instalador não está substituindo o binário (processo antigo com arquivo ainda em uso, ou falha silenciosa do NSIS).`;
+    console.error(`[updater] ${mensagem}`);
+    definirErroFatalAoVivo({ em: new Date().toISOString(), origem: "updater-loop", mensagem });
+    return;
+  }
 
   fs.mkdirSync(PASTA_ATUALIZACAO, { recursive: true });
   const instalador = path.join(PASTA_ATUALIZACAO, `agente-fiscal-setup-${info.versao}.exe`);

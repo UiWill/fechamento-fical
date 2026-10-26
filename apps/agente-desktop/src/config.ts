@@ -58,6 +58,13 @@ export interface ConfigAgente {
   // em 2026-10-22: tirar peso do PC do cliente sempre que der, sem mudar
   // o resultado final).
   arquivosJaEnviados: Record<string, { mtimeMs: number; chaveAcesso: string }>;
+  // Freio de segurança contra loop de atualização — ver updater.ts. Se o
+  // alvo não muda entre tentativas, a versão nunca avançou de verdade
+  // (instalador não substituiu o binário por algum motivo), e depois de
+  // algumas tentativas seguidas o agente desiste de tentar sozinho em vez
+  // de ficar baixando e reinstalando pra sempre (achado em 2026-10-26).
+  ultimaVersaoAlvoAtualizacao: string | null;
+  tentativasAtualizacaoFalhas: number;
 }
 
 // Embutido em tempo de build (ver build-exe.mjs) com a versão real que
@@ -75,6 +82,8 @@ const CONFIG_PADRAO: ConfigAgente = {
   escopoEmpresas: [],
   arquivosAntigosIgnorados: {},
   arquivosJaEnviados: {},
+  ultimaVersaoAlvoAtualizacao: null,
+  tentativasAtualizacaoFalhas: 0,
 };
 
 export function carregarConfig(): ConfigAgente {

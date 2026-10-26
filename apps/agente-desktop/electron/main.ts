@@ -126,6 +126,8 @@ function limparConfiguracaoEReiniciar(): void {
     escopoEmpresas: [],
     arquivosAntigosIgnorados: {},
     arquivosJaEnviados: {},
+    ultimaVersaoAlvoAtualizacao: null,
+    tentativasAtualizacaoFalhas: 0,
   });
   app.relaunch();
   app.exit(0);
