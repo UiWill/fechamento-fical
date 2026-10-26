@@ -272,9 +272,26 @@ async function verificarAtualizacaoInterna(token: string): Promise<void> {
   );
 
   console.log("[updater] saindo e deixando o instalador + reabertura por conta do script destacado...");
-  const helper = spawn("powershell.exe", ["-NoProfile", "-WindowStyle", "Hidden", "-File", scriptAtualizacao], {
-    detached: true,
-    stdio: "ignore",
+  // -ExecutionPolicy Bypass é ESSENCIAL aqui — sem isso, rodar um .ps1 via
+  // "-File" falha na hora em qualquer PC com política de execução restrita
+  // (padrão de fábrica em boa parte das instalações do Windows, não só
+  // ambiente corporativo administrado). Com stdio "ignore" essa falha não
+  // aparecia em lugar nenhum — nem log nenhum (achado em 2026-10-26: 3
+  // tentativas de atualização "bem sucedidas" (flag local gravado antes de
+  // tentar rodar o script) sem o script NUNCA ter chegado a rodar de
+  // verdade — o vigia só reabria o binário antigo, intocado, de novo).
+  const helper = spawn(
+    "powershell.exe",
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", scriptAtualizacao],
+    { detached: true, stdio: "ignore" }
+  );
+  helper.on("error", (err) => {
+    // Só pega falha de LANÇAR o processo (ex: powershell.exe não existe no
+    // PATH) — erros de DENTRO do script (ExecutionPolicy antes do fix,
+    // instalador corrompido, etc.) não chegam aqui, ficam só no
+    // atualizacao.log do próprio script. Mesmo assim, melhor logar isso do
+    // que morrer em silêncio total.
+    console.error(`[updater] falha ao lançar o script de atualização: ${err}`);
   });
   helper.unref();
 
