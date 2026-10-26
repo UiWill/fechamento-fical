@@ -13,7 +13,7 @@
  * agentes.service.ts `publicarVersao`) é esse instalador, não mais um
  * executável solto.
  */
-import { spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { app } from "electron";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -41,6 +41,55 @@ const ARQUIVO_FLAG_POS_ATUALIZACAO = path.join(PASTA_ATUALIZACAO, "atualizado.fl
 // nenhum — o script antigo engolia tudo com SilentlyContinue).
 const ARQUIVO_LOG_ATUALIZACAO = path.join(PASTA_CONFIG, "atualizacao.log");
 const ARQUIVO_FLAG_FALHA_ATUALIZACAO = path.join(PASTA_CONFIG, "falha-atualizacao.flag");
+
+// Nome da Tarefa Agendada usada só pra DISPARAR o script auxiliar (não
+// tem agendamento de verdade — ver garantirTarefaAtualizador). Separada
+// do vigia (AfeAgenteDesktopVigia, em watchdog.ts), que é outra tarefa
+// com outro propósito (religar o app se cair).
+const NOME_TAREFA_ATUALIZADOR = "AfeAgenteDesktopAtualizador";
+
+/**
+ * Garante que a tarefa existe, apontando sempre pro MESMO arquivo fixo
+ * (${scriptAtualizacao} é reescrito a cada tentativa, o caminho não
+ * muda) — criar com /f é idempotente, seguro chamar toda vez. O gatilho
+ * "once" com horário já passado nunca dispara sozinho; só serve pra
+ * schtasks aceitar criar a tarefa (ela exige algum gatilho). O disparo
+ * de verdade é sempre manual, via "schtasks /run" em dispararAtualizador.
+ */
+function garantirTarefaAtualizador(scriptAtualizacao: string): void {
+  execFileSync("schtasks", [
+    "/create",
+    "/tn",
+    NOME_TAREFA_ATUALIZADOR,
+    "/tr",
+    `cmd.exe /c "${scriptAtualizacao}"`,
+    "/sc",
+    "once",
+    "/st",
+    "00:00",
+    "/sd",
+    "01/01/2020",
+    "/f",
+  ]);
+}
+
+/**
+ * Dispara a tarefa AGORA, de forma 100% independente do nosso processo —
+ * é o Serviço Agendador de Tarefas do Windows (svchost, não um filho do
+ * nosso processo) que lança o script, não a gente diretamente. Isso
+ * contorna um problema real do Windows com processos "destacados"
+ * lançados via spawn/child_process: mesmo marcados como detached, eles
+ * costumam ficar presos ao mesmo grupo/job do processo pai e acabam
+ * sendo encerrados junto quando o Electron sai — achado em 2026-10-26,
+ * testando com PowerShell E com .bat: nenhum dos dois conseguia
+ * sobreviver tempo suficiente pra escrever uma linha sequer no log,
+ * mesmo os dois tendo sido lançados como "destacados". A tarefa agendada
+ * já é comprovadamente independente (é assim que o vigia religa o app
+ * depois de um crash de verdade, sem depender do processo que caiu).
+ */
+function dispararAtualizador(): void {
+  execFileSync("schtasks", ["/run", "/tn", NOME_TAREFA_ATUALIZADOR]);
+}
 
 function compararVersoes(a: string, b: string): number {
   const partesA = a.split(".").map(Number);
@@ -297,21 +346,20 @@ async function verificarAtualizacaoInterna(token: string): Promise<void> {
     "utf8"
   );
 
-  console.log("[updater] saindo e deixando o instalador + reabertura por conta do script destacado...");
-  const helper = spawn("cmd.exe", ["/c", scriptAtualizacao], {
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true,
-  });
-  helper.on("error", (err) => {
-    // Só pega falha de LANÇAR o processo em si (ex: cmd.exe bloqueado por
-    // alguma política muito incomum) — erros de DENTRO do script
-    // (instalador corrompido, etc.) não chegam aqui, ficam só no
-    // atualizacao.log do próprio script. Mesmo assim, melhor logar isso do
-    // que morrer em silêncio total.
-    console.error(`[updater] falha ao lançar o script de atualização: ${err}`);
-  });
-  helper.unref();
+  console.log("[updater] saindo e deixando o instalador + reabertura por conta da tarefa agendada...");
+  try {
+    garantirTarefaAtualizador(scriptAtualizacao);
+    dispararAtualizador();
+  } catch (err) {
+    // Só pega falha de CRIAR/DISPARAR a tarefa em si (ex: Agendador de
+    // Tarefas desabilitado por política — mesmo caso que já derruba o
+    // vigia, ver watchdog.ts) — erros de DENTRO do script (instalador
+    // corrompido, etc.) não chegam aqui, ficam só no atualizacao.log do
+    // próprio script. Mesmo assim, melhor logar isso do que morrer em
+    // silêncio total.
+    console.error(`[updater] falha ao disparar a tarefa de atualização: ${err}`);
+    return;
+  }
 
   app.quit();
 }
