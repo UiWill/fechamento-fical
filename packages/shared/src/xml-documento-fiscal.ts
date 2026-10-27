@@ -55,6 +55,18 @@ export interface DadosBasicosDocumentoFiscal {
    * sendo necessária.
    */
   protocolo: { cStat: string; xMotivo: string; nProt: string } | null;
+  /**
+   * À vista x a prazo — usado pelo motor de RegraFiscal pra decidir o
+   * acumulador certo quando o mesmo CFOP tem acumuladores diferentes pra
+   * cada condição (pedido do cliente: ex. venda à vista CFOP 5102 x venda
+   * a prazo do mesmo CFOP usam acumuladores diferentes no Domínio). Lido
+   * de <indPag> quando presente (0 = à vista, 1 = a prazo); sem essa tag,
+   * cai pra contagem de <dup> (duplicatas): 0 ou 1 = à vista, 2+ = a
+   * prazo. Nulo quando o XML não traz nenhuma das duas informações (ex:
+   * resumo/resNFe) — regra sem condição cadastrada (ver
+   * RegraFiscal.condicaoPagamento) continua valendo pra esse caso.
+   */
+  condicaoPagamento: "AVISTA" | "APRAZO" | null;
 }
 
 function extractText(xml: string, tag: string): string {
@@ -69,6 +81,17 @@ function extrairProtocolo(xml: string): { cStat: string; xMotivo: string; nProt:
   const cStat = extractText(bloco, "cStat");
   if (!cStat) return null;
   return { cStat, xMotivo: extractText(bloco, "xMotivo"), nProt: extractText(bloco, "nProt") };
+}
+
+/** Ver comentário de DadosBasicosDocumentoFiscal.condicaoPagamento. */
+function extrairCondicaoPagamento(xml: string): "AVISTA" | "APRAZO" | null {
+  const indPagValores = [...xml.matchAll(/<indPag>\s*(\d)\s*<\/indPag>/gi)].map((m) => m[1]);
+  if (indPagValores.length > 0) {
+    return indPagValores.includes("1") ? "APRAZO" : "AVISTA";
+  }
+  const duplicatas = xml.match(/<dup>[\s\S]*?<\/dup>/gi)?.length ?? 0;
+  if (duplicatas === 0) return null;
+  return duplicatas >= 2 ? "APRAZO" : "AVISTA";
 }
 
 function tipoPorModelo(modelo: string): TipoDocumentoFiscalDetectado | null {
@@ -118,5 +141,6 @@ export function extrairDadosBasicos(xml: string): DadosBasicosDocumentoFiscal | 
     valorTotal: valorTotal !== null && !Number.isNaN(valorTotal) ? valorTotal : null,
     cancelada,
     protocolo: extrairProtocolo(xml),
+    condicaoPagamento: tipo !== "CTE" ? extrairCondicaoPagamento(xml) : null,
   };
 }

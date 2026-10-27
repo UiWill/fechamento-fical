@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   AMBIENTE_FISCAL,
+  CONDICAO_PAGAMENTO,
   DIRECAO_DOCUMENTO,
   STATUS_DOCUMENTO_FISCAL,
   STATUS_EMPRESA,
@@ -50,6 +51,7 @@ export const documentoFiscalSchema = z.object({
   direcao: z.enum(DIRECAO_DOCUMENTO),
   status: z.enum(STATUS_DOCUMENTO_FISCAL),
   cfop: z.string().nullable(),
+  condicaoPagamento: z.enum(CONDICAO_PAGAMENTO).nullable(),
   emitidoEm: z.coerce.date().nullable(),
   recebidoEm: z.coerce.date(),
 });
@@ -62,6 +64,10 @@ export const criarRegraFiscalSchema = z.object({
   // CFOP esperado na saída quando essa entrada é revendida/transferida —
   // alimenta a checagem de divergência nas telas de Apuração do ICMS/IBS-CBS.
   cfopSaidaEsperado: z.string().length(4).optional(),
+  // Nulo/ausente = regra vale pra qualquer condição de pagamento. Preenchido
+  // = só casa com documento cuja condição detectada seja exatamente essa —
+  // permite o mesmo CFOP usar acumuladores diferentes pra à vista x a prazo.
+  condicaoPagamento: z.enum(CONDICAO_PAGAMENTO).optional(),
   descricao: z.string().min(1),
   observacao: z.string().optional(),
   acumulador: z.string().optional(),

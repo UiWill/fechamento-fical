@@ -412,6 +412,7 @@ export class AgentesService {
           where: { id: existente.id },
           data: {
             cfop: existente.cfop ?? dados.cfop,
+            condicaoPagamento: existente.condicaoPagamento ?? dados.condicaoPagamento,
             valorTotal: existente.valorTotal ?? dados.valorTotal,
             nomeEmitente: existente.nomeEmitente ?? dados.nomeEmitente,
             cancelada: existente.cancelada || dados.cancelada,
@@ -452,6 +453,7 @@ export class AgentesService {
           direcao: "SAIDA",
           nomeEmitente: dados.nomeEmitente,
           cfop: dados.cfop,
+          condicaoPagamento: dados.condicaoPagamento,
           valorTotal: dados.valorTotal,
           cancelada: dados.cancelada,
           objetoStorageXml,

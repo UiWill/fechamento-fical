@@ -283,6 +283,7 @@ export class DocumentosFiscaisService {
             nsu: BigInt(doc.nsu),
             nomeEmitente: dadosBasicos.nomeEmitente,
             cfop: dadosBasicos.cfop,
+            condicaoPagamento: dadosBasicos.condicaoPagamento,
             valorTotal: dadosBasicos.valorTotal,
             objetoStorageXml,
             emitidoEm: dadosBasicos.dataEmissao,
@@ -304,6 +305,7 @@ export class DocumentosFiscaisService {
           update: {
             nomeEmitente: dadosBasicos.nomeEmitente,
             cfop: dadosBasicos.cfop,
+            condicaoPagamento: dadosBasicos.condicaoPagamento,
             valorTotal: dadosBasicos.valorTotal,
             ...(dadosBasicos.protocolo
               ? {

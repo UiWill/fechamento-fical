@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
-import type { CriarRegraFiscalInput } from "@afe/shared";
+import type { CondicaoPagamento, CriarRegraFiscalInput } from "@afe/shared";
 
 @Injectable()
 export class RegrasFiscaisService {
@@ -18,28 +18,54 @@ export class RegrasFiscaisService {
   }
 
   /**
-   * Resolve a regra aplicável a um CFOP: prioriza override específico da
-   * empresa; cai para a regra padrão da organização se não houver override.
-   * Motor de classificação completo (aplicar em lote sobre documentos
-   * recebidos) é fase 2 — isto é só a resolução de uma regra isolada.
+   * Resolve a regra aplicável a um CFOP (de entrada ou de saída — o mesmo
+   * mecanismo serve pros dois lados, é só o CFOP do documento que muda):
+   * prioriza override específico da empresa; cai para a regra padrão da
+   * organização se não houver override. Dentro de cada escopo, prioriza
+   * regra com a condição de pagamento batendo exatamente com a do
+   * documento; regra sem condição cadastrada (condicaoPagamento null)
+   * vale pra qualquer condição — é o comportamento de antes dessa coluna
+   * existir, continua valendo pras regras já cadastradas. Alguns CFOPs têm
+   * acumulador diferente pra à vista x a prazo no Domínio (ex: venda CFOP
+   * 5102 à vista x a mesma venda a prazo) — foi pra isso que esse segundo
+   * critério foi adicionado.
    */
-  async resolver(organizacaoId: string, empresaId: string, cfopEntrada: string) {
-    const override = await this.prisma.client.regraFiscal.findFirst({
-      where: { empresaId, cfopEntrada, ativa: true },
-    });
+  async resolver(
+    organizacaoId: string,
+    empresaId: string,
+    cfop: string,
+    condicaoPagamento: CondicaoPagamento | null
+  ) {
+    const override = await this.melhorRegra(cfop, condicaoPagamento, { empresaId });
     if (override) return override;
 
+    return this.melhorRegra(cfop, condicaoPagamento, { organizacaoId, empresaId: null });
+  }
+
+  private async melhorRegra(
+    cfop: string,
+    condicaoPagamento: CondicaoPagamento | null,
+    escopo: { empresaId: string } | { organizacaoId: string; empresaId: null }
+  ) {
+    if (condicaoPagamento) {
+      const exata = await this.prisma.client.regraFiscal.findFirst({
+        where: { ...escopo, cfopEntrada: cfop, condicaoPagamento, ativa: true },
+      });
+      if (exata) return exata;
+    }
+
     return this.prisma.client.regraFiscal.findFirst({
-      where: { organizacaoId, empresaId: null, cfopEntrada, ativa: true },
+      where: { ...escopo, cfopEntrada: cfop, condicaoPagamento: null, ativa: true },
     });
   }
 
   /**
-   * Aplica o motor de regras a todos os documentos ENTRADA da empresa que
-   * ainda não foram classificados e têm CFOP conhecido. O CFOP só existe
-   * quando a Distribuição DFe trouxe o XML completo (não o resNFe/resumo) —
-   * documentos sem CFOP ficam pendentes até a SEFAZ mandar a versão
-   * completa (isso é comportamento normal da SEFAZ, não um bug).
+   * Aplica o motor de regras a todos os documentos (entrada e saída) da
+   * empresa que ainda não foram classificados e têm CFOP conhecido. O CFOP
+   * só existe quando a Distribuição DFe trouxe o XML completo (não o
+   * resNFe/resumo) ou, pra saída, quando o agente desktop já enviou o XML
+   * autorizado — documentos sem CFOP ficam pendentes até isso acontecer
+   * (comportamento normal, não um bug).
    */
   async classificarPendentes(empresaId: string) {
     const empresa = await this.prisma.client.empresa.findUnique({
@@ -50,7 +76,7 @@ export class RegrasFiscaisService {
     const pendentes = await this.prisma.client.documentoFiscal.findMany({
       where: {
         empresaId,
-        direcao: "ENTRADA",
+        direcao: { in: ["ENTRADA", "SAIDA"] },
         classificadoEm: null,
         cfop: { not: null },
       },
@@ -60,7 +86,12 @@ export class RegrasFiscaisService {
     let semRegra = 0;
 
     for (const doc of pendentes) {
-      const regra = await this.resolver(empresa.organizacaoId, empresaId, doc.cfop!);
+      const regra = await this.resolver(
+        empresa.organizacaoId,
+        empresaId,
+        doc.cfop!,
+        doc.condicaoPagamento
+      );
       if (!regra) {
         semRegra++;
         continue;
@@ -82,7 +113,12 @@ export class RegrasFiscaisService {
       classificados,
       semRegra,
       semCfop: await this.prisma.client.documentoFiscal.count({
-        where: { empresaId, direcao: "ENTRADA", classificadoEm: null, cfop: null },
+        where: {
+          empresaId,
+          direcao: { in: ["ENTRADA", "SAIDA"] },
+          classificadoEm: null,
+          cfop: null,
+        },
       }),
     };
   }

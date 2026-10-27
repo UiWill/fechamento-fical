@@ -670,7 +670,12 @@ export default function EmpresaDetalhePage() {
       if (resultado.semRegra > 0) partes.push(`${resultado.semRegra} sem regra cadastrada`);
       if (resultado.semCfop > 0) partes.push(`${resultado.semCfop} ainda sem CFOP (SEFAZ mandou só o resumo)`);
       setResultadoClassificacao(partes.join(" · "));
-      await carregarDocumentosEntrada(token, mesFiltro);
+      // O motor classifica entrada e saída juntos (mesmo CFOP, regras
+      // compartilhadas) — recarrega as duas listas pra refletir na hora.
+      await Promise.all([
+        carregarDocumentosEntrada(token, mesFiltro),
+        carregarDocumentosSaida(token, mesFiltroSaida),
+      ]);
     } catch (err) {
       setErroClassificacao(
         err instanceof Error ? err.message : "Não foi possível classificar os documentos agora."

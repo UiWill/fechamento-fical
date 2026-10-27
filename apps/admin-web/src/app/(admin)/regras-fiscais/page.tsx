@@ -8,6 +8,7 @@ import {
   listarEmpresas,
   type RegraFiscal,
   type EmpresaResumo,
+  type CondicaoPagamento,
 } from "@/lib/api";
 import { SeletorAcumulador } from "@/components/SeletorAcumulador";
 
@@ -22,6 +23,7 @@ export default function RegrasFiscaisPage() {
 
   const [cfopEntrada, setCfopEntrada] = useState("");
   const [cfopSaidaEsperado, setCfopSaidaEsperado] = useState("");
+  const [condicaoPagamento, setCondicaoPagamento] = useState<CondicaoPagamento | "">("");
   const [descricao, setDescricao] = useState("");
   const [observacao, setObservacao] = useState("");
   const [acumulador, setAcumulador] = useState("");
@@ -87,6 +89,7 @@ export default function RegrasFiscaisPage() {
           empresaId: empresaId || null,
           cfopEntrada,
           cfopSaidaEsperado: cfopSaidaEsperado || undefined,
+          condicaoPagamento: condicaoPagamento || undefined,
           descricao: descricao.trim(),
           observacao: observacao.trim() || undefined,
           acumulador: acumulador.trim() || undefined,
@@ -95,6 +98,7 @@ export default function RegrasFiscaisPage() {
       );
       setCfopEntrada("");
       setCfopSaidaEsperado("");
+      setCondicaoPagamento("");
       setDescricao("");
       setObservacao("");
       setAcumulador("");
@@ -117,13 +121,20 @@ export default function RegrasFiscaisPage() {
           Regras fiscais por CFOP
         </h1>
         <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
-          Cada CFOP de entrada mapeia pra uma observação e/ou acumulador. Deixe "empresa" em
-          branco pra criar a regra padrão da organização (vale pra todo CNPJ que não tiver
-          uma regra própria); escolha uma empresa quando o mesmo CFOP precisar de tratamento
-          diferente só pra ela — a regra da empresa sempre tem prioridade sobre a padrão. O
-          "CFOP de saída esperado" é opcional e alimenta a checagem de divergência nas telas
-          de Apuração do ICMS e Apuração do IBS/CBS (destaca quando o CFOP real de um item
-          não é um dos esperados por nenhuma regra ativa).
+          Cada CFOP (de um documento de entrada ou de saída) mapeia pra uma observação e/ou
+          acumulador. Deixe "empresa" em branco pra criar a regra padrão da organização (vale
+          pra todo CNPJ que não tiver uma regra própria); escolha uma empresa quando o mesmo
+          CFOP precisar de tratamento diferente só pra ela — a regra da empresa sempre tem
+          prioridade sobre a padrão. O "CFOP de saída esperado" é opcional e alimenta a
+          checagem de divergência nas telas de Apuração do ICMS e Apuração do IBS/CBS (destaca
+          quando o CFOP real de um item não é um dos esperados por nenhuma regra ativa).
+        </p>
+        <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
+          A "Condição de pagamento" é opcional e serve pro mesmo CFOP precisar de acumuladores
+          diferentes dependendo se a venda/compra foi à vista ou a prazo (é assim que o Domínio
+          classifica alguns casos) — deixe em "Qualquer" quando o CFOP sempre usa o mesmo
+          acumulador independente disso; uma regra com condição específica tem prioridade sobre
+          uma regra "Qualquer" pro mesmo CFOP.
         </p>
         <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
           O campo "Acumulador" busca no catálogo oficial do Domínio (código + nome) em vez de
@@ -139,12 +150,12 @@ export default function RegrasFiscaisPage() {
       >
         <div className="space-y-1.5">
           <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
-            CFOP de entrada
+            CFOP (de entrada ou de saída)
           </label>
           <input
             value={cfopEntrada}
             onChange={(e) => setCfopEntrada(e.target.value.replace(/\D/g, "").slice(0, 4))}
-            placeholder="1102"
+            placeholder="1102 ou 5102"
             className="campo"
             required
           />
@@ -160,6 +171,21 @@ export default function RegrasFiscaisPage() {
             placeholder="5102"
             className="campo"
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+            Condição de pagamento (opcional)
+          </label>
+          <select
+            value={condicaoPagamento}
+            onChange={(e) => setCondicaoPagamento(e.target.value as CondicaoPagamento | "")}
+            className="campo"
+          >
+            <option value="">Qualquer (padrão)</option>
+            <option value="AVISTA">À vista</option>
+            <option value="APRAZO">A prazo</option>
+          </select>
         </div>
 
         <div className="space-y-1.5">
@@ -248,8 +274,9 @@ export default function RegrasFiscaisPage() {
                 className="font-mono text-[0.625rem] uppercase tracking-[0.1em]"
                 style={{ color: "var(--muted)", background: "var(--surface)" }}
               >
-                <th className="px-4 py-3 font-medium">CFOP entrada</th>
+                <th className="px-4 py-3 font-medium">CFOP</th>
                 <th className="px-4 py-3 font-medium">CFOP saída esperado</th>
+                <th className="px-4 py-3 font-medium">Condição</th>
                 <th className="px-4 py-3 font-medium">Descrição</th>
                 <th className="px-4 py-3 font-medium">Observação</th>
                 <th className="px-4 py-3 font-medium">Acumulador</th>
@@ -268,6 +295,13 @@ export default function RegrasFiscaisPage() {
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
                     {regra.cfopSaidaEsperado ?? "—"}
+                  </td>
+                  <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
+                    {regra.condicaoPagamento === "AVISTA"
+                      ? "À vista"
+                      : regra.condicaoPagamento === "APRAZO"
+                        ? "A prazo"
+                        : "Qualquer"}
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--paper)" }}>
                     {regra.descricao}

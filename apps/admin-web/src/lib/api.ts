@@ -309,6 +309,7 @@ export interface DocumentoFiscal {
   status: string;
   nomeEmitente: string | null;
   cfop: string | null;
+  condicaoPagamento: CondicaoPagamento | null;
   observacao: string | null;
   acumulador: string | null;
   classificadoEm: string | null;
@@ -420,12 +421,15 @@ export async function sincronizarDocumentos(
   return response.json();
 }
 
+export type CondicaoPagamento = "AVISTA" | "APRAZO";
+
 export interface RegraFiscal {
   id: string;
   organizacaoId: string;
   empresaId: string | null;
   cfopEntrada: string;
   cfopSaidaEsperado: string | null;
+  condicaoPagamento: CondicaoPagamento | null;
   descricao: string;
   observacao: string | null;
   acumulador: string | null;
@@ -451,6 +455,7 @@ export interface CriarRegraFiscalInput {
   empresaId?: string | null;
   cfopEntrada: string;
   cfopSaidaEsperado?: string;
+  condicaoPagamento?: CondicaoPagamento;
   descricao: string;
   observacao?: string;
   acumulador?: string;

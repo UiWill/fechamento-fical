@@ -181,6 +181,14 @@ enum StatusDocumentoFiscal {
   ERRO
 }
 
+// À vista x a prazo (ver DocumentoFiscal.condicaoPagamento e
+// RegraFiscal.condicaoPagamento) — detectado do <indPag> da NFe/NFCe, ou
+// pela quantidade de duplicatas quando o XML não traz essa tag.
+enum CondicaoPagamento {
+  AVISTA
+  APRAZO
+}
+
 model DocumentoFiscal {
   id               String                @id @default(cuid())
   empresaId        String
@@ -190,6 +198,11 @@ model DocumentoFiscal {
   nsu              BigInt?
   status           StatusDocumentoFiscal @default(RECEBIDO)
   cfop             String?
+  // À vista x a prazo — detectado do XML (indPag, ou nº de duplicatas
+  // quando indPag não vem) porque, pra alguns CFOPs, o acumulador do
+  // Domínio correto depende disso, não só do CFOP (pedido do cliente,
+  // ver RegraFiscal.condicaoPagamento). Nulo = não foi possível detectar.
+  condicaoPagamento CondicaoPagamento?
   observacao       String?
   acumulador       String?
   classificadoEm   DateTime?
@@ -437,6 +450,12 @@ model RegraFiscal {
   // entrada vira revenda/transferência etc. — nulo = regra só classifica
   // entrada, sem checagem de divergência nas telas de apuração.
   cfopSaidaEsperado String?
+  // Nulo = regra vale pra qualquer condição de pagamento (comportamento
+  // de antes dessa coluna existir — continua funcionando sem quebrar
+  // regras já cadastradas). Preenchido = só casa com documento cuja
+  // condição detectada seja exatamente essa; permite o mesmo CFOP ter
+  // acumuladores diferentes pra à vista x a prazo, como o cliente pediu.
+  condicaoPagamento CondicaoPagamento?
   descricao         String
   observacao        String?
   acumulador        String?

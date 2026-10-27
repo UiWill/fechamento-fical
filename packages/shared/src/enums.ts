@@ -23,6 +23,11 @@ export const STATUS_DOCUMENTO_FISCAL = [
 ] as const;
 export type StatusDocumentoFiscal = (typeof STATUS_DOCUMENTO_FISCAL)[number];
 
+// À vista x a prazo — ver comentário em xml-documento-fiscal.ts e no
+// schema.prisma (DocumentoFiscal.condicaoPagamento / RegraFiscal.condicaoPagamento).
+export const CONDICAO_PAGAMENTO = ["AVISTA", "APRAZO"] as const;
+export type CondicaoPagamento = (typeof CONDICAO_PAGAMENTO)[number];
+
 export const TIPO_EVENTO_MANIFESTACAO = [
   "CIENCIA_OPERACAO",
   "CONFIRMACAO_OPERACAO",
