@@ -11,8 +11,9 @@
  * primeira configuração.
  */
 import { app, BrowserWindow, Tray, Menu, ipcMain, dialog, shell, nativeImage } from "electron";
+import fs from "node:fs";
 import path from "node:path";
-import { carregarConfig, salvarConfig, type ConfigAgente } from "../src/config";
+import { carregarConfig, salvarConfig, PASTA_CONFIG, type ConfigAgente } from "../src/config";
 import { buscarEscopo, enviarHeartbeat, buscarVersaoMaisRecente } from "../src/api-client";
 import { observarPastas } from "../src/watcher";
 import { criarFilaDeEnvio } from "../src/upload";
@@ -114,21 +115,26 @@ function abrirJanelaStatus(): void {
   });
 }
 
-/** Apaga token, pasta e o histórico de chaves já enviadas, e reinicia o app do zero (volta pra tela de configuração). */
+/**
+ * Apaga TUDO que o agente guarda nesse PC (token, config, cache de
+ * arquivos já enviados, log, contador de reinícios/loop) — não só zera o
+ * config.json, apaga os arquivos físicos da pasta inteira — e reinicia o
+ * app do zero (volta pra tela de configuração). Mesmo resultado de
+ * apagar a pasta %LOCALAPPDATA%\AfeAgenteDesktop manualmente pelo
+ * Explorador de Arquivos, só que com um clique daqui (pedido do usuário
+ * em 2026-10-27, pra não precisar caçar a pasta toda vez que for testar
+ * uma reinstalação do zero).
+ */
 function limparConfiguracaoEReiniciar(): void {
-  const config = carregarConfig();
-  salvarConfig({
-    token: null,
-    pastasMonitoradas: [],
-    chavesEnviadas: {},
-    versaoAgente: config.versaoAgente,
-    ultimoHeartbeatEm: null,
-    escopoEmpresas: [],
-    arquivosAntigosIgnorados: {},
-    arquivosJaEnviados: {},
-    ultimaVersaoAlvoAtualizacao: null,
-    tentativasAtualizacaoFalhas: 0,
-  });
+  try {
+    if (fs.existsSync(PASTA_CONFIG)) {
+      for (const arquivo of fs.readdirSync(PASTA_CONFIG)) {
+        fs.rmSync(path.join(PASTA_CONFIG, arquivo), { force: true, recursive: true });
+      }
+    }
+  } catch (err) {
+    console.error(`[main] falha ao limpar a pasta de configuração: ${err}`);
+  }
   app.relaunch();
   app.exit(0);
 }
@@ -143,8 +149,9 @@ function montarMenuTray(): Menu {
         const resposta = dialog.showMessageBoxSync({
           type: "warning",
           title: "Agente Fiscal",
-          message: "Limpar a configuração atual?",
-          detail: "Apaga o código de instalação e a pasta monitorada deste PC — o agente volta pra tela inicial de configuração, como se fosse instalado agora.",
+          message: "Apagar tudo e reconfigurar do zero?",
+          detail:
+            "Apaga o código de instalação, a pasta monitorada, o log e os caches desse PC (tudo que está em %LOCALAPPDATA%\\AfeAgenteDesktop) — o agente volta pra tela inicial de configuração, como se fosse instalado agora.",
           buttons: ["Cancelar", "Limpar e reconfigurar"],
           defaultId: 0,
           cancelId: 0,
