@@ -143,12 +143,31 @@ export class AgentesService {
    * PRÓXIMO heartbeat dele (até 1 minuto, ver INTERVALO_HEARTBEAT_MS no
    * agente), que lê e já zera (entrega única, não repete).
    */
-  async enviarComando(id: string, organizacaoId: string, comando: "ATUALIZAR" | "REINICIAR") {
+  async enviarComando(id: string, organizacaoId: string, comando: "ATUALIZAR" | "REINICIAR" | "ENVIAR_LOG") {
     await this.buscarTokenDaOrganizacao(id, organizacaoId);
     return this.prisma.client.agenteInstalacaoToken.update({
       where: { id },
       data: { comandoPendente: comando, comandoSolicitadoEm: new Date() },
     });
+  }
+
+  // Tamanho máximo do log aceito — corta pro FINAL (parte mais recente,
+  // que é o que importa pra diagnosticar algo que acabou de acontecer),
+  // nunca o arquivo inteiro. Mesmo raciocínio do limite de telemetria
+  // logo acima: um agente com bug (ou alguém com o token) não pode
+  // encher o banco.
+  private readonly TAMANHO_MAXIMO_LOG = 200_000;
+
+  /** Grava o log que o agente mandou em resposta ao comando "ENVIAR_LOG" — ver registrarHeartbeat. */
+  async registrarLogRecebido(agenteToken: AgenteAutenticado, conteudo: string) {
+    await this.prisma.client.agenteInstalacaoToken.update({
+      where: { id: agenteToken.id },
+      data: {
+        ultimoLogRecebido: conteudo.slice(-this.TAMANHO_MAXIMO_LOG),
+        ultimoLogRecebidoEm: new Date(),
+      },
+    });
+    return { ok: true };
   }
 
   async restaurarToken(id: string, organizacaoId: string) {
@@ -199,6 +218,8 @@ export class AgentesService {
         nomeContato: true,
         telefoneContato: true,
         anydeskId: true,
+        ultimoLogRecebido: true,
+        ultimoLogRecebidoEm: true,
       },
     });
 

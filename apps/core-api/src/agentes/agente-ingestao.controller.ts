@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import { uploadDocumentoAgenteSchema } from "@afe/shared";
 import { Public } from "../auth/public.decorator";
@@ -35,6 +35,16 @@ export class AgenteIngestaoController {
       request.ip,
       body.telemetria
     );
+  }
+
+  /** Resposta ao comando remoto "ENVIAR_LOG" — manda o log do PC do cliente de volta, só quando pedido. */
+  @Post("log")
+  @UseGuards(AgenteTokenGuard)
+  log(@Body() body: { conteudo?: string }, @Req() request: AgenteAuthenticatedRequest) {
+    if (!body.conteudo || typeof body.conteudo !== "string") {
+      throw new BadRequestException('"conteudo" é obrigatório');
+    }
+    return this.service.registrarLogRecebido(request.agenteToken!, body.conteudo);
   }
 
   @Get("escopo")

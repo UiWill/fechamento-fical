@@ -304,6 +304,21 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
   const [dados, setDados] = useState<AtividadeAgente | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [, forcar] = useState(0);
+  const [buscandoLog, setBuscandoLog] = useState(false);
+  const [mensagemLog, setMensagemLog] = useState<string | null>(null);
+
+  async function handleBuscarLog() {
+    setBuscandoLog(true);
+    setMensagemLog(null);
+    try {
+      await enviarComandoAgente(agenteId, "ENVIAR_LOG", token);
+      setMensagemLog("Pedido enviado — aparece aqui embaixo assim que o agente responder (até 1 minuto, se estiver online).");
+    } catch {
+      setMensagemLog("Não foi possível pedir o log agora.");
+    } finally {
+      setBuscandoLog(false);
+    }
+  }
 
   useEffect(() => {
     let cancelado = false;
@@ -417,9 +432,8 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
                 ) : (
                   <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
                     Nenhum erro específico foi capturado ainda (o crash pode estar acontecendo antes da rede de
-                    segurança do agente entrar em ação — isso melhora nas próximas versões). Peça pro responsável
-                    mandar o arquivo <code>agente.log</code> da pasta <code>%LOCALAPPDATA%\AfeAgenteDesktop\</code> do
-                    PC.
+                    segurança do agente entrar em ação). Usa o botão "Buscar log" mais abaixo pra pedir o log
+                    completo do PC sem precisar que o cliente mande manualmente.
                   </p>
                 )}
               </div>
@@ -556,6 +570,43 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
                 </div>
               )}
             </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-4">
+                <h3 className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]" style={{ color: "var(--muted)" }}>
+                  Log do PC
+                </h3>
+                <button
+                  onClick={() => void handleBuscarLog()}
+                  disabled={buscandoLog}
+                  className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 disabled:opacity-40"
+                  style={{ color: "var(--paper)" }}
+                >
+                  {buscandoLog ? "Enviando…" : "Buscar log"}
+                </button>
+              </div>
+              {mensagemLog && (
+                <p className="text-xs" style={{ color: "var(--muted)" }}>{mensagemLog}</p>
+              )}
+              {dados.agente.ultimoLogRecebido ? (
+                <div className="space-y-1">
+                  <p className="text-[0.6875rem]" style={{ color: "var(--muted)" }}>
+                    Recebido {haTempo(dados.agente.ultimoLogRecebidoEm)} (só a parte mais recente, até ~200 KB).
+                  </p>
+                  <pre
+                    className="max-h-64 overflow-auto rounded-lg border p-3 text-[0.6875rem] whitespace-pre-wrap break-all"
+                    style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--paper)" }}
+                  >
+                    {dados.agente.ultimoLogRecebido}
+                  </pre>
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Nenhum log recebido ainda nessa sessão — clica em "Buscar log" pra pedir.
+                </p>
+              )}
+            </div>
+
             <p className="text-[0.6875rem]" style={{ color: "var(--muted)" }}>Atualiza sozinho a cada 15 segundos.</p>
           </>
         )}

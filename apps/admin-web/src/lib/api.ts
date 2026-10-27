@@ -974,7 +974,11 @@ export async function revogarTokenAgente(id: string, token: string): Promise<voi
  * nenhum comando remoto consegue religar — depende do vigia (tarefa
  * agendada local) ou de alguém mexer no PC.
  */
-export async function enviarComandoAgente(id: string, comando: "ATUALIZAR" | "REINICIAR", token: string): Promise<void> {
+export async function enviarComandoAgente(
+  id: string,
+  comando: "ATUALIZAR" | "REINICIAR" | "ENVIAR_LOG",
+  token: string
+): Promise<void> {
   const response = await apiFetch(`${API_URL}/agentes/tokens/${id}/comando`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -1050,6 +1054,9 @@ export interface AtividadeAgente {
     nomeContato: string | null;
     telefoneContato: string | null;
     anydeskId: string | null;
+    /** Log do PC do cliente, só preenchido depois que alguém pede (botão "Buscar log") — ver comando "ENVIAR_LOG". */
+    ultimoLogRecebido: string | null;
+    ultimoLogRecebidoEm: string | null;
   };
   online: boolean;
   servidor: {

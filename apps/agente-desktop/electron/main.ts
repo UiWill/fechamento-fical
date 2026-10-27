@@ -14,7 +14,7 @@ import { app, BrowserWindow, Tray, Menu, ipcMain, dialog, shell, nativeImage } f
 import fs from "node:fs";
 import path from "node:path";
 import { carregarConfig, salvarConfig, PASTA_CONFIG, type ConfigAgente } from "../src/config";
-import { buscarEscopo, enviarHeartbeat, buscarVersaoMaisRecente } from "../src/api-client";
+import { buscarEscopo, enviarHeartbeat, buscarVersaoMaisRecente, enviarLog } from "../src/api-client";
 import { observarPastas } from "../src/watcher";
 import { criarFilaDeEnvio } from "../src/upload";
 import { notificar } from "../src/notify";
@@ -370,6 +370,22 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
           void verificarAtualizacao(configInicial.token!).catch((err) =>
             console.error(`[main] falha ao verificar atualização (via comando remoto): ${err}`)
           );
+        } else if (comando === "ENVIAR_LOG") {
+          console.log("[main] comando remoto: enviar log — lendo e mandando agora.");
+          void (async () => {
+            try {
+              // Só o final (mais recente) — o log pode ter centenas de KB
+              // depois de dias rodando, e o que importa pra diagnosticar
+              // algo que acabou de acontecer é o final, não o início.
+              const conteudo = fs.existsSync(ARQUIVO_LOG)
+                ? fs.readFileSync(ARQUIVO_LOG, "utf8").slice(-200_000)
+                : "(sem log ainda nesse PC)";
+              await enviarLog(configInicial.token!, conteudo);
+              console.log("[main] log enviado com sucesso.");
+            } catch (err) {
+              console.error(`[main] falha ao enviar log (via comando remoto): ${err}`);
+            }
+          })();
         }
       })
       .catch((err) => console.error(`[main] falha no heartbeat: ${err}`));

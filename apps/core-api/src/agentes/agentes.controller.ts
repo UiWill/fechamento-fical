@@ -72,8 +72,8 @@ export class AgentesController {
     if (!request.usuario?.organizacaoId) {
       throw new ForbiddenException("Usuário sem organização não pode mandar comando pro agente");
     }
-    if (body.comando !== "ATUALIZAR" && body.comando !== "REINICIAR") {
-      throw new BadRequestException('comando deve ser "ATUALIZAR" ou "REINICIAR"');
+    if (body.comando !== "ATUALIZAR" && body.comando !== "REINICIAR" && body.comando !== "ENVIAR_LOG") {
+      throw new BadRequestException('comando deve ser "ATUALIZAR", "REINICIAR" ou "ENVIAR_LOG"');
     }
     return this.service.enviarComando(id, request.usuario.organizacaoId, body.comando);
   }

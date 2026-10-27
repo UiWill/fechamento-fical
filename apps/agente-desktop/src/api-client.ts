@@ -31,19 +31,31 @@ export async function buscarEscopo(token: string): Promise<{ cnpjs: string[]; em
   return resposta.json() as Promise<{ cnpjs: string[]; empresas: EmpresaEscopo[] }>;
 }
 
+export type ComandoRemoto = "ATUALIZAR" | "REINICIAR" | "ENVIAR_LOG";
+
 export async function enviarHeartbeat(
   token: string,
   versaoAgente: string,
   telemetria?: unknown
-): Promise<{ comando: "ATUALIZAR" | "REINICIAR" | null }> {
+): Promise<{ comando: ComandoRemoto | null }> {
   const resposta = await fetch(`${API_URL}/agente-ingestao/heartbeat`, {
     method: "POST",
     headers: cabecalhos(token),
     body: JSON.stringify({ versaoAgente, telemetria }),
   });
   if (!resposta.ok) throw new Error(`Falha ao enviar heartbeat (${resposta.status})`);
-  const corpo = (await resposta.json().catch(() => ({}))) as { comando?: "ATUALIZAR" | "REINICIAR" | null };
+  const corpo = (await resposta.json().catch(() => ({}))) as { comando?: ComandoRemoto | null };
   return { comando: corpo.comando ?? null };
+}
+
+/** Resposta ao comando remoto "ENVIAR_LOG" — manda o conteúdo do agente.log (ou a parte mais recente) pro servidor. */
+export async function enviarLog(token: string, conteudo: string): Promise<void> {
+  const resposta = await fetch(`${API_URL}/agente-ingestao/log`, {
+    method: "POST",
+    headers: cabecalhos(token),
+    body: JSON.stringify({ conteudo }),
+  });
+  if (!resposta.ok) throw new Error(`Falha ao enviar log (${resposta.status})`);
 }
 
 export async function enviarLoteDocumentos(

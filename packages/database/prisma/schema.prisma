@@ -346,6 +346,13 @@ model AgenteInstalacaoToken {
   // o executavel na mao).
   comandoPendente     String?
   comandoSolicitadoEm DateTime?
+  // Log bruto do PC do cliente, só enviado quando pedido (comando
+  // "ENVIAR_LOG") — cortado pro final (parte mais recente) antes de
+  // gravar, nunca o arquivo inteiro. Resolve ter que pedir pro cliente
+  // copiar e colar o conteúdo do agente.log manualmente toda vez que
+  // precisa diagnosticar algo (pedido do usuário em 2026-10-27).
+  ultimoLogRecebido   String?
+  ultimoLogRecebidoEm DateTime?
   criadoEm            DateTime               @default(now())
   atualizadoEm        DateTime               @updatedAt
 
