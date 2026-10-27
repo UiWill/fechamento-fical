@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
 import { exportarApuracaoIbsCbsExcel } from "@/lib/exportar-apuracao-excel";
+import { LegendaApuracao } from "./LegendaApuracao";
 import { SeletorMes } from "./SeletorMes";
 import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
 import { FiltroColuna, aplicarFiltrosColuna } from "./FiltroColuna";
@@ -328,15 +329,10 @@ export function SecaoApuracaoIbsCbs({
       <p className="text-xs" style={{ color: "var(--muted)" }}>
         Item a item das notas de {direcao === "SAIDA" ? "saída" : "entrada"} autorizadas no mês com a tributação da
         Reforma (IBS/CBS, LC 214/2025) — colunas ficam em branco em notas emitidas sem o grupo{" "}
-        <code>gIBSCBS</code> ainda (produção obrigatória a partir de 05/10/2026).{" "}
-        {direcao === "SAIDA" && (
-          <>
-            Linhas com <strong>CFOP divergente</strong> ficam destacadas em vermelho,{" "}
-          </>
-        )}
-        <strong>base × alíquota incorreta</strong> em laranja, e notas de 05/10/2026 em diante{" "}
-        <strong>sem o grupo IBS/CBS</strong> (deveriam ter) em amarelo.
+        <code>gIBSCBS</code> ainda (produção obrigatória a partir de 05/10/2026).
       </p>
+
+      <LegendaApuracao tipo="ibsCbs" direcao={direcao} />
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4" style={{ borderColor: "var(--border)" }}>
         <div className="flex flex-col gap-1.5">

@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { formatarDataHora, limitesDoMes, mesAtual, rotuloMes } from "@/lib/format";
 import { exportarApuracaoIcmsExcel, exportarRelatorioIcmsCst } from "@/lib/exportar-apuracao-excel";
+import { LegendaApuracao } from "./LegendaApuracao";
 import { SeletorMes } from "./SeletorMes";
 import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
 import { FiltroColuna, aplicarFiltrosColuna } from "./FiltroColuna";
@@ -400,18 +401,10 @@ export function SecaoApuracaoIcms({
     <div className="space-y-3">
       <p className="text-xs" style={{ color: "var(--muted)" }}>
         Item a item das notas de {direcao === "SAIDA" ? "saída" : "entrada"} autorizadas no mês — produto, NCM, CFOP
-        e a tributação de ICMS/IPI/PIS/COFINS de cada linha, direto do XML.{" "}
-        {direcao === "SAIDA" && (
-          <>
-            Linhas com <strong>CFOP divergente</strong> (fora do que as regras fiscais esperam na saída) ficam
-            destacadas em vermelho,{" "}
-          </>
-        )}
-        linhas onde <strong>base × alíquota não bate com o valor</strong> do XML ficam em laranja, notas com{" "}
-        <strong>item em CST normal e item em CSOSN ao mesmo tempo</strong> (regime misturado, não devia acontecer)
-        ficam em roxo, e itens com <strong>alíquota de ICMS diferente do que a empresa normalmente usa</strong>{" "}
-        nesse mesmo CFOP ficam em azul.
+        e a tributação de ICMS/IPI/PIS/COFINS de cada linha, direto do XML.
       </p>
+
+      <LegendaApuracao tipo="icms" direcao={direcao} />
 
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4" style={{ borderColor: "var(--border)" }}>
         <div className="flex flex-col gap-1.5">
