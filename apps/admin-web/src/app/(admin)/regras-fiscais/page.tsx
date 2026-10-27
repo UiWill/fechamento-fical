@@ -9,6 +9,7 @@ import {
   type RegraFiscal,
   type EmpresaResumo,
 } from "@/lib/api";
+import { SeletorAcumulador } from "@/components/SeletorAcumulador";
 
 export default function RegrasFiscaisPage() {
   const router = useRouter();
@@ -124,6 +125,11 @@ export default function RegrasFiscaisPage() {
           de Apuração do ICMS e Apuração do IBS/CBS (destaca quando o CFOP real de um item
           não é um dos esperados por nenhuma regra ativa).
         </p>
+        <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
+          O campo "Acumulador" busca no catálogo oficial do Domínio (código + nome) em vez de
+          digitar livre — evita salvar o mesmo acumulador escrito de dois jeitos diferentes em
+          regras distintas.
+        </p>
       </div>
 
       <form
@@ -184,11 +190,7 @@ export default function RegrasFiscaisPage() {
           <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
             Acumulador (opcional)
           </label>
-          <input
-            value={acumulador}
-            onChange={(e) => setAcumulador(e.target.value)}
-            className="campo"
-          />
+          <SeletorAcumulador value={acumulador} onChange={setAcumulador} />
         </div>
 
         <div className="space-y-1.5 sm:col-span-2">
