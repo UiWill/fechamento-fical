@@ -306,13 +306,22 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
   const [, forcar] = useState(0);
   const [buscandoLog, setBuscandoLog] = useState(false);
   const [mensagemLog, setMensagemLog] = useState<string | null>(null);
+  // Momento em que o pedido foi registrado — enquanto isso, a resposta
+  // (até o próximo heartbeat do agente, ~1min) ainda pode estar a
+  // caminho. "aguardandoLog" (calculado embaixo, comparando com
+  // ultimoLogRecebidoEm que já chega do polling de 15s desse modal) é o
+  // que liga a barrinha — sem um estado assim, o botão voltava ao normal
+  // na hora (a chamada que registra o pedido é rápida) e não dava pra
+  // saber que ainda tava esperando a resposta de verdade chegar.
+  const [pedidoLogEm, setPedidoLogEm] = useState<number | null>(null);
 
   async function handleBuscarLog() {
     setBuscandoLog(true);
     setMensagemLog(null);
     try {
       await enviarComandoAgente(agenteId, "ENVIAR_LOG", token);
-      setMensagemLog("Pedido enviado — aparece aqui embaixo assim que o agente responder (até 1 minuto, se estiver online).");
+      setPedidoLogEm(Date.now());
+      setMensagemLog(null);
     } catch {
       setMensagemLog("Não foi possível pedir o log agora.");
     } finally {
@@ -340,6 +349,20 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
       clearInterval(b);
     };
   }, [agenteId, token]);
+
+  // Recalculado a cada render — o tick de 5s (useEffect acima, só pra
+  // manter os "há X min" vivos) já faz esse componente re-renderizar
+  // sozinho, então dá pra basear tudo isso só em comparar timestamps, sem
+  // precisar de outro setTimeout (que corria risco de disparar com
+  // "dados" desatualizado e mostrar "não respondeu" mesmo depois de ter
+  // respondido de verdade).
+  const recebeuLogDepoisDoPedido = Boolean(
+    pedidoLogEm !== null &&
+      dados?.agente.ultimoLogRecebidoEm &&
+      new Date(dados.agente.ultimoLogRecebidoEm).getTime() >= pedidoLogEm
+  );
+  const aguardandoLog = pedidoLogEm !== null && !recebeuLogDepoisDoPedido && Date.now() - pedidoLogEm < 90_000;
+  const pedidoExpirou = pedidoLogEm !== null && !recebeuLogDepoisDoPedido && Date.now() - pedidoLogEm >= 90_000;
 
   const t = dados?.agente.telemetria ?? null;
   const recebendoAgora = dados?.servidor.ultimaNotaEm
@@ -578,13 +601,25 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
                 </h3>
                 <button
                   onClick={() => void handleBuscarLog()}
-                  disabled={buscandoLog}
-                  className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 disabled:opacity-40"
+                  disabled={buscandoLog || aguardandoLog}
+                  className="flex items-center gap-2 font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 disabled:opacity-40"
                   style={{ color: "var(--paper)" }}
                 >
-                  {buscandoLog ? "Enviando…" : "Buscar log"}
+                  {(buscandoLog || aguardandoLog) && <span className="spinner" />}
+                  {buscandoLog ? "Enviando…" : aguardandoLog ? "Aguardando resposta…" : "Buscar log"}
                 </button>
               </div>
+              <div className="barra-carregando" data-ativa={aguardandoLog} aria-hidden="true" />
+              {aguardandoLog && (
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Pedido enviado — chega assim que o agente responder (até 1 minuto, se estiver online).
+                </p>
+              )}
+              {pedidoExpirou && (
+                <p className="text-xs" style={{ color: "var(--amarelo, #e0c86a)" }}>
+                  O agente não respondeu em 90s — confira se ele está online e tenta de novo.
+                </p>
+              )}
               {mensagemLog && (
                 <p className="text-xs" style={{ color: "var(--muted)" }}>{mensagemLog}</p>
               )}
