@@ -1,6 +1,6 @@
 {
   "name": "@afe/agente-desktop",
-  "version": "2.0.26",
+  "version": "2.0.27",
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {

@@ -11,6 +11,7 @@
  * primeira configuração.
  */
 import { app, BrowserWindow, Tray, Menu, ipcMain, dialog, shell, nativeImage } from "electron";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { carregarConfig, salvarConfig, PASTA_CONFIG, type ConfigAgente } from "../src/config";
@@ -304,6 +305,7 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
   // início (não só garantir uma vez e esquecer).
   setInterval(() => {
     atualizarVigiaAtiva(habilitarVigiaPeriodica(app.getPath("exe")));
+    matarOutrasCopias();
   }, INTERVALO_REVERIFICAR_VIGIA_MS);
 
   // Espera o check de atualização terminar ANTES de começar a varrer a
@@ -396,6 +398,39 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
   if (!EH_VIGIA) notificar("Agente Fiscal", "Iniciado e monitorando notas de saída.");
 }
 
+/**
+ * requestSingleInstanceLock() do Electron cobre o caso normal (clicar no
+ * atalho duas vezes), mas não é à prova de corrida de verdade — já vimos
+ * no log de um cliente duas inicializações completas (dois "token
+ * autorizado", dois registros de vigia com intervalo diferente) a poucos
+ * segundos uma da outra, provavelmente o login do Windows e a tarefa de
+ * vigia tentando abrir quase ao mesmo tempo. Isso é exatamente o tipo de
+ * coisa que NÃO pode depender do usuário (leigo, não sabe o que é
+ * "Gerenciador de Tarefas") perceber e resolver na mão — então, além da
+ * trava do Electron, mata qualquer OUTRA cópia do próprio executável que
+ * ainda esteja viva (mesma lógica do taskkill já usado no instalador,
+ * só que em tempo de execução, não só na hora de instalar). Chamado no
+ * início E de novo periodicamente (ver INTERVALO_REVERIFICAR_VIGIA_MS)
+ * pra também curar o caso de uma segunda cópia aparecer depois, não só
+ * no instante de abrir.
+ */
+function matarOutrasCopias(): void {
+  // Só em produção empacotada — em dev, app.getPath("exe") é o
+  // "electron.exe" genérico, compartilhado com qualquer outro app
+  // Electron aberto na máquina do desenvolvedor; matar por esse nome aí
+  // derrubaria coisa de terceiro. Mesmo guard já usado em updater.ts.
+  if (process.platform !== "win32" || !app.isPackaged) return;
+  try {
+    const nomeExe = path.basename(app.getPath("exe"));
+    execFileSync("taskkill", ["/F", "/IM", nomeExe, "/FI", `PID ne ${process.pid}`], {
+      stdio: "ignore",
+    });
+  } catch {
+    // taskkill sai com erro quando não acha nenhum processo pra matar —
+    // não é falha de verdade, só "não tinha mais ninguém rodando".
+  }
+}
+
 async function main(): Promise<void> {
   // Single instance de verdade via API do Electron — mais confiável que o
   // esquema antigo baseado em PID num arquivo (ver histórico do projeto:
@@ -407,6 +442,7 @@ async function main(): Promise<void> {
     app.quit();
     return;
   }
+  matarOutrasCopias();
   // "argv" aqui é da SEGUNDA tentativa (a que acabou de tentar abrir e
   // perdeu a trava), não da nossa — checar EH_VIGIA (calculado uma vez do
   // NOSSO próprio process.argv, lá em cima) sempre dava "não é vigia" pra
