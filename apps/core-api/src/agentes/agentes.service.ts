@@ -68,12 +68,12 @@ export class AgentesService {
     return { id: criado.id, nome: criado.nome, tokenRaw: tokenBruto, criadoEm: criado.criadoEm };
   }
 
-  listarTokens(organizacaoId: string, incluirOcultos: boolean) {
+  async listarTokens(organizacaoId: string, incluirOcultos: boolean) {
     // Um token pode estar preso direto na organizacao (escopo "toda a
     // carteira") OU numa empresa especifica dela (escopo "um CNPJ") — sem
     // o segundo braço do OR, os tokens de empresa especifica nunca
     // apareciam aqui (bug anterior: so buscava por organizacaoId).
-    return this.prisma.client.agenteInstalacaoToken.findMany({
+    const tokens = await this.prisma.client.agenteInstalacaoToken.findMany({
       where: {
         OR: [{ organizacaoId }, { empresa: { organizacaoId } }],
         ...(incluirOcultos ? {} : { ocultoEm: null }),
@@ -95,9 +95,25 @@ export class AgentesService {
         // precisar abrir o detalhe de cada agente um por um (o objeto
         // telemetria inteiro é pequeno, já limitado a 30KB no heartbeat).
         telemetria: true,
+        // Última nota de SAÍDA que esse agente mandou — já está salva no
+        // banco desde que foi recebida, então não pede nada novo do
+        // agente nem pesa no PC do cliente (puro histórico do servidor,
+        // igual já fazíamos pra versão/último sinal). Só os 3 campos
+        // usados na listagem, não o documento inteiro.
+        documentosFiscais: {
+          where: { direcao: "SAIDA" },
+          orderBy: { recebidoEm: "desc" },
+          take: 1,
+          select: { chaveAcesso: true, recebidoEm: true, valorTotal: true },
+        },
       },
       orderBy: { criadoEm: "desc" },
     });
+
+    return tokens.map(({ documentosFiscais, ...resto }) => ({
+      ...resto,
+      ultimaNotaSaida: documentosFiscais[0] ?? null,
+    }));
   }
 
   /**

@@ -897,6 +897,7 @@ export interface AgenteInstalacao {
   criadoEm: string;
   ocultoEm: string | null;
   telemetria: TelemetriaAgente | null;
+  ultimaNotaSaida: { chaveAcesso: string; recebidoEm: string; valorTotal: string | null } | null;
 }
 
 export interface VersaoAgentePublicada {

@@ -801,6 +801,7 @@ export default function AgentesPage() {
                 <th className="px-4 py-3 font-medium">Contato</th>
                 <th className="px-4 py-3 font-medium">Versão</th>
                 <th className="px-4 py-3 font-medium">Último sinal</th>
+                <th className="px-4 py-3 font-medium">Última nota</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium"></th>
               </tr>
@@ -848,6 +849,15 @@ export default function AgentesPage() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>
                     {agente.ultimoHeartbeatEm ? formatarDataHora(agente.ultimoHeartbeatEm) : "nunca"}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>
+                    {agente.ultimaNotaSaida ? (
+                      <span title={`Chave de acesso: ${agente.ultimaNotaSaida.chaveAcesso}`}>
+                        Nº {numeroNotaDaChave(agente.ultimaNotaSaida.chaveAcesso)} · {haTempo(agente.ultimaNotaSaida.recebidoEm)}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
