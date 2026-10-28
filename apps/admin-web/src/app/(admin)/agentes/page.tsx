@@ -887,8 +887,13 @@ export default function AgentesPage() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>
                     {agente.ultimaNotaSaida ? (
-                      <span title={`Chave de acesso: ${agente.ultimaNotaSaida.chaveAcesso}`}>
-                        Nº {numeroNotaDaChave(agente.ultimaNotaSaida.chaveAcesso)} · {haTempo(agente.ultimaNotaSaida.recebidoEm)}
+                      <span
+                        title={`Chave de acesso: ${agente.ultimaNotaSaida.chaveAcesso} · recebida ${haTempo(agente.ultimaNotaSaida.recebidoEm)}`}
+                      >
+                        Nº {numeroNotaDaChave(agente.ultimaNotaSaida.chaveAcesso)} · emitida{" "}
+                        {agente.ultimaNotaSaida.emitidoEm
+                          ? formatarDataHora(agente.ultimaNotaSaida.emitidoEm).slice(0, 10)
+                          : "data desconhecida"}
                       </span>
                     ) : (
                       "—"

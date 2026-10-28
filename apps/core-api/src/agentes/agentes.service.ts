@@ -95,16 +95,22 @@ export class AgentesService {
         // precisar abrir o detalhe de cada agente um por um (o objeto
         // telemetria inteiro é pequeno, já limitado a 30KB no heartbeat).
         telemetria: true,
-        // Última nota de SAÍDA que esse agente mandou — já está salva no
-        // banco desde que foi recebida, então não pede nada novo do
-        // agente nem pesa no PC do cliente (puro histórico do servidor,
-        // igual já fazíamos pra versão/último sinal). Só os 3 campos
-        // usados na listagem, não o documento inteiro.
+        // Última VENDA de verdade desse agente — já está salva no banco
+        // desde que foi recebida, então não pede nada novo do agente nem
+        // pesa no PC do cliente (puro histórico do servidor, igual já
+        // fazíamos pra versão/último sinal; só mais um campo na mesma
+        // linha, custo zero). "cancelada: false" é de propósito: o último
+        // DOCUMENTO recebido às vezes é só um evento de cancelamento (sem
+        // data de emissão), o que fazia a data mostrada ficar em branco
+        // ou enganar sobre quando a loja vendeu pela última vez de
+        // verdade (achado em 2026-10-28, investigando a Santa Ana —
+        // parecia sem vender há dias, mas era só o cancelamento mais
+        // recente mascarando a venda real).
         documentosFiscais: {
-          where: { direcao: "SAIDA" },
+          where: { direcao: "SAIDA", cancelada: false },
           orderBy: { recebidoEm: "desc" },
           take: 1,
-          select: { chaveAcesso: true, recebidoEm: true, valorTotal: true },
+          select: { chaveAcesso: true, recebidoEm: true, emitidoEm: true, valorTotal: true },
         },
       },
       orderBy: { criadoEm: "desc" },
