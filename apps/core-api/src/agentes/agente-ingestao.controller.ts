@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Logger, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import { uploadDocumentoAgenteSchema } from "@afe/shared";
 import { Public } from "../auth/public.decorator";
@@ -21,26 +21,42 @@ import { AgentesService } from "./agentes.service";
 @Controller("agente-ingestao")
 @Public()
 export class AgenteIngestaoController {
+  private readonly logger = new Logger(AgenteIngestaoController.name);
+
   constructor(private readonly service: AgentesService) {}
 
   @Post("heartbeat")
   @UseGuards(AgenteTokenGuard)
-  heartbeat(
+  async heartbeat(
     @Body() body: { versaoAgente?: string; telemetria?: unknown },
     @Req() request: AgenteAuthenticatedRequest
   ) {
-    return this.service.registrarHeartbeat(
+    const resultado = await this.service.registrarHeartbeat(
       request.agenteToken!,
       body.versaoAgente ?? "desconhecida",
       request.ip,
       body.telemetria
     );
+    // DIAGNÓSTICO TEMPORÁRIO (2026-10-28) — ver comentário em log().
+    if (resultado.comando) {
+      this.logger.log(
+        `Heartbeat do token ${request.agenteToken?.id} entregando comando "${resultado.comando}"`
+      );
+    }
+    return resultado;
   }
 
   /** Resposta ao comando remoto "ENVIAR_LOG" — manda o log do PC do cliente de volta, só quando pedido. */
   @Post("log")
   @UseGuards(AgenteTokenGuard)
   log(@Body() body: { conteudo?: string }, @Req() request: AgenteAuthenticatedRequest) {
+    // DIAGNÓSTICO TEMPORÁRIO (2026-10-28) — tirar depois de achar por que
+    // o log do TESTEATT nunca chega: confirma se o agente sequer está
+    // batendo nessa rota depois de receber o comando ENVIAR_LOG no
+    // heartbeat.
+    this.logger.log(
+      `POST /agente-ingestao/log recebido — token ${request.agenteToken?.id}, tamanho do conteudo: ${body.conteudo?.length ?? "undefined"}`
+    );
     // Importante usar "typeof ... !== 'string'" e não "!body.conteudo" —
     // um agente recém-instalado, sem nada relevante logado ainda, manda
     // conteudo "" (string vazia), que é um log válido (só que vazio), não
