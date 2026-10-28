@@ -41,7 +41,15 @@ export class AgenteIngestaoController {
   @Post("log")
   @UseGuards(AgenteTokenGuard)
   log(@Body() body: { conteudo?: string }, @Req() request: AgenteAuthenticatedRequest) {
-    if (!body.conteudo || typeof body.conteudo !== "string") {
+    // Importante usar "typeof ... !== 'string'" e não "!body.conteudo" —
+    // um agente recém-instalado, sem nada relevante logado ainda, manda
+    // conteudo "" (string vazia), que é um log válido (só que vazio), não
+    // um corpo mal formado. "!body.conteudo" rejeitava esse caso com 400,
+    // e o admin ficava pra sempre vendo "nenhum log recebido" mesmo depois
+    // do agente já ter respondido de verdade (achado em 2026-10-28,
+    // testando com o TESTEATT: log pedido, aceito no heartbeat seguinte,
+    // mas nunca aparecia no painel).
+    if (typeof body.conteudo !== "string") {
       throw new BadRequestException('"conteudo" é obrigatório');
     }
     return this.service.registrarLogRecebido(request.agenteToken!, body.conteudo);

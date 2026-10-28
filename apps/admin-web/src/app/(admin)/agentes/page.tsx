@@ -588,7 +588,7 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
               {mensagemLog && (
                 <p className="text-xs" style={{ color: "var(--muted)" }}>{mensagemLog}</p>
               )}
-              {dados.agente.ultimoLogRecebido ? (
+              {dados.agente.ultimoLogRecebido !== null ? (
                 <div className="space-y-1">
                   <p className="text-[0.6875rem]" style={{ color: "var(--muted)" }}>
                     Recebido {haTempo(dados.agente.ultimoLogRecebidoEm)} (só a parte mais recente, até ~200 KB).
@@ -597,7 +597,7 @@ function ModalAtividade({ agenteId, nome, token, onFechar }: { agenteId: string;
                     className="max-h-64 overflow-auto rounded-lg border p-3 text-[0.6875rem] whitespace-pre-wrap break-all"
                     style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--paper)" }}
                   >
-                    {dados.agente.ultimoLogRecebido}
+                    {dados.agente.ultimoLogRecebido || "(log vazio nesse PC — agente ainda não registrou nada relevante.)"}
                   </pre>
                 </div>
               ) : (
