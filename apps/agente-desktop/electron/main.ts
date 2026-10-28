@@ -407,27 +407,40 @@ async function iniciarMotor(configInicial: ConfigAgente): Promise<void> {
  * vigia tentando abrir quase ao mesmo tempo. Isso é exatamente o tipo de
  * coisa que NÃO pode depender do usuário (leigo, não sabe o que é
  * "Gerenciador de Tarefas") perceber e resolver na mão — então, além da
- * trava do Electron, mata qualquer OUTRA cópia do próprio executável que
- * ainda esteja viva (mesma lógica do taskkill já usado no instalador,
- * só que em tempo de execução, não só na hora de instalar). Chamado no
- * início E de novo periodicamente (ver INTERVALO_REVERIFICAR_VIGIA_MS)
- * pra também curar o caso de uma segunda cópia aparecer depois, não só
- * no instante de abrir.
+ * trava do Electron, mata qualquer OUTRA instância PRINCIPAL do agente que
+ * ainda esteja viva. Chamado no início E de novo periodicamente (ver
+ * INTERVALO_REVERIFICAR_VIGIA_MS) pra também curar o caso de uma segunda
+ * cópia aparecer depois, não só no instante de abrir.
+ *
+ * CRÍTICO: não dá pra matar por nome puro (taskkill /IM) — o Electron roda
+ * vários processos AUXILIARES (GPU, renderer, utility) com o MESMO nome de
+ * .exe da instância principal, só que com "--type=..." na linha de comando.
+ * Matar por nome derrubaria os auxiliares DESTA mesma instância e quebraria
+ * o app (achado em 2026-10-28, vendo 3 "Agente Fiscal.exe" no PC de teste
+ * que eram 1 app + auxiliares). Por isso filtra por linha de comando (sem
+ * "--type=" = processo principal) e só mata cópias MAIS ANTIGAS que esta
+ * (CreationDate menor) — assim, se duas sobem quase juntas, convergem pra
+ * uma só sem guerra de kill: a mais nova sempre vence.
  */
 function matarOutrasCopias(): void {
   // Só em produção empacotada — em dev, app.getPath("exe") é o
   // "electron.exe" genérico, compartilhado com qualquer outro app
-  // Electron aberto na máquina do desenvolvedor; matar por esse nome aí
-  // derrubaria coisa de terceiro. Mesmo guard já usado em updater.ts.
+  // Electron aberto na máquina do desenvolvedor. Mesmo guard de updater.ts.
   if (process.platform !== "win32" || !app.isPackaged) return;
   try {
-    const nomeExe = path.basename(app.getPath("exe"));
-    execFileSync("taskkill", ["/F", "/IM", nomeExe, "/FI", `PID ne ${process.pid}`], {
+    const nomeExe = path.basename(app.getPath("exe")).replace(/'/g, "''");
+    const script =
+      `$eu = Get-CimInstance Win32_Process -Filter "ProcessId=${process.pid}"; ` +
+      `Get-CimInstance Win32_Process -Filter "Name='${nomeExe}'" ` +
+      `| Where-Object { $_.ProcessId -ne ${process.pid} -and ($_.CommandLine -notmatch '--type=') -and ($_.CreationDate -lt $eu.CreationDate) } ` +
+      `| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+    execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], {
       stdio: "ignore",
+      windowsHide: true,
     });
   } catch {
-    // taskkill sai com erro quando não acha nenhum processo pra matar —
-    // não é falha de verdade, só "não tinha mais ninguém rodando".
+    // nenhuma outra cópia pra matar, ou powershell indisponível — não é
+    // falha de verdade.
   }
 }
 
