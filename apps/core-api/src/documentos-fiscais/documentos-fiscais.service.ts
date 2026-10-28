@@ -850,7 +850,7 @@ export class DocumentosFiscaisService {
           { emitidoEm: null, recebidoEm: { gte: inicio, lt: fim } },
         ],
       },
-      select: { chaveAcesso: true, objetoStorageXml: true },
+      select: { chaveAcesso: true, objetoStorageXml: true, cancelada: true },
     });
 
     const zip = archiver("zip", { zlib: { level: 9 } });
@@ -864,7 +864,15 @@ export class DocumentosFiscaisService {
       for (const doc of documentos) {
         try {
           const buffer = await this.storage.getObject(BUCKET_DOCUMENTOS_FISCAIS, doc.objetoStorageXml);
-          zip.append(buffer, { name: `${doc.chaveAcesso}.xml` });
+          // Pasta separada por status dentro do zip (pedido do usuário em
+          // 2026-10-28: antes vinha tudo junto numa pasta só, difícil de
+          // separar o que foi cancelado do que foi autorizado de verdade).
+          // "Inutilizados" não entra aqui — o agente desktop já descarta
+          // esse tipo de arquivo (faixa de numeração não usada, sem
+          // conteúdo de nota) antes de mandar pro servidor, então não tem
+          // esse dado salvo pra incluir.
+          const pasta = doc.cancelada ? "Cancelados" : "Autorizados";
+          zip.append(buffer, { name: `${pasta}/${doc.chaveAcesso}.xml` });
         } catch (err) {
           this.logger.error(`Falha ao ler XML ${doc.chaveAcesso} pro zip: ${err}`);
         }
