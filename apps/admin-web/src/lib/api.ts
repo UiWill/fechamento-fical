@@ -598,6 +598,31 @@ export async function baixarExportacaoTxt(
   URL.revokeObjectURL(url);
 }
 
+// O zip é montado sob demanda no servidor (archiver gerando em stream,
+// sem saber o tamanho final de antemão) — nunca vem com Content-Length,
+// então não dá pra calcular uma porcentagem de verdade. Em vez disso lê
+// o corpo aos pedaços e vai somando os bytes já recebidos, pra dar pelo
+// menos um "X MB baixados" vivo em vez da tela travada sem feedback até
+// o fim (pedido do usuário em 2026-10-28, reclamando que o download
+// grande "trava" sem avisar nada).
+async function lerComProgresso(
+  response: Response,
+  onProgresso?: (bytesRecebidos: number) => void
+): Promise<Blob> {
+  if (!response.body || !onProgresso) return response.blob();
+  const reader = response.body.getReader();
+  const partes: BlobPart[] = [];
+  let recebidos = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    partes.push(value);
+    recebidos += value.byteLength;
+    onProgresso(recebidos);
+  }
+  return new Blob(partes);
+}
+
 /** Baixa um .zip com os XMLs do periodo/direcao/tipo filtrados na tela. */
 export async function baixarXmlsZip(
   empresaId: string,
@@ -605,7 +630,8 @@ export async function baixarXmlsZip(
   inicio: string,
   fim: string,
   token: string,
-  tipo?: "NFE" | "NFCE" | "CTE"
+  tipo?: "NFE" | "NFCE" | "CTE",
+  onProgresso?: (bytesRecebidos: number) => void
 ): Promise<void> {
   const params = new URLSearchParams({ direcao, inicio, fim });
   if (tipo) params.set("tipo", tipo);
@@ -618,7 +644,7 @@ export async function baixarXmlsZip(
   const disposicao = response.headers.get("content-disposition");
   const nomeArquivo = disposicao?.match(/filename="(.+)"/)?.[1] ?? `xmls-${direcao.toLowerCase()}.zip`;
 
-  const blob = await response.blob();
+  const blob = await lerComProgresso(response, onProgresso);
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

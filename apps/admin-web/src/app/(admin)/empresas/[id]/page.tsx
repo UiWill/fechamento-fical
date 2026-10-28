@@ -459,8 +459,10 @@ export default function EmpresaDetalhePage() {
   const [mesFiltroSaida, setMesFiltroSaida] = useState(mesAtual());
 
   const [baixandoXmlEntrada, setBaixandoXmlEntrada] = useState(false);
+  const [progressoXmlEntrada, setProgressoXmlEntrada] = useState(0);
   const [erroXmlEntrada, setErroXmlEntrada] = useState<string | null>(null);
   const [baixandoXmlSaida, setBaixandoXmlSaida] = useState(false);
+  const [progressoXmlSaida, setProgressoXmlSaida] = useState(0);
   const [erroXmlSaida, setErroXmlSaida] = useState<string | null>(null);
   const [zerandoNsu, setZerandoNsu] = useState(false);
   const [resultadoNsu, setResultadoNsu] = useState<string | null>(null);
@@ -847,6 +849,7 @@ export default function EmpresaDetalhePage() {
   async function handleBaixarXmlEntrada() {
     if (!token) return;
     setBaixandoXmlEntrada(true);
+    setProgressoXmlEntrada(0);
     try {
       const { inicio, fim } = limitesDoMes(mesFiltro);
       await baixarXmlsZip(
@@ -855,7 +858,8 @@ export default function EmpresaDetalhePage() {
         inicio,
         fim,
         token,
-        filtroTipoEntrada === "TODOS" ? undefined : filtroTipoEntrada
+        filtroTipoEntrada === "TODOS" ? undefined : filtroTipoEntrada,
+        setProgressoXmlEntrada
       );
     } catch {
       setErroXmlEntrada("Não foi possível baixar os XMLs agora.");
@@ -867,6 +871,7 @@ export default function EmpresaDetalhePage() {
   async function handleBaixarXmlSaida() {
     if (!token) return;
     setBaixandoXmlSaida(true);
+    setProgressoXmlSaida(0);
     try {
       const { inicio, fim } = limitesDoMes(mesFiltroSaida);
       await baixarXmlsZip(
@@ -875,7 +880,8 @@ export default function EmpresaDetalhePage() {
         inicio,
         fim,
         token,
-        filtroTipoSaida === "TODOS" ? undefined : filtroTipoSaida
+        filtroTipoSaida === "TODOS" ? undefined : filtroTipoSaida,
+        setProgressoXmlSaida
       );
     } catch {
       setErroXmlSaida("Não foi possível baixar os XMLs agora.");
@@ -1205,7 +1211,9 @@ export default function EmpresaDetalhePage() {
               style={{ color: "var(--paper)" }}
               title={notasEntradaDoMes.length === 0 ? "Não há notas de entrada nesse mês" : undefined}
             >
-              {baixandoXmlEntrada ? "Baixando…" : "Baixar XML"}
+              {baixandoXmlEntrada
+                ? `Baixando… ${(progressoXmlEntrada / 1_000_000).toFixed(1)} MB`
+                : "Baixar XML"}
             </button>
             <button
               onClick={() => void handleConsultarPendentes("ENTRADA")}
@@ -1402,7 +1410,9 @@ export default function EmpresaDetalhePage() {
               style={{ color: "var(--paper)" }}
               title={notasSaidaDoMes.length === 0 ? "Não há notas de saída nesse mês" : undefined}
             >
-              {baixandoXmlSaida ? "Baixando…" : "Baixar XML"}
+              {baixandoXmlSaida
+                ? `Baixando… ${(progressoXmlSaida / 1_000_000).toFixed(1)} MB`
+                : "Baixar XML"}
             </button>
             <button
               onClick={() => void handleConsultarPendentes("SAIDA")}

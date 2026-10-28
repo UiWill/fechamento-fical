@@ -838,7 +838,11 @@ export class DocumentosFiscaisService {
     organizacaoId: string,
     tipo?: "NFE" | "NFCE" | "CTE"
   ): Promise<Readable> {
-    await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
+    const empresa = await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
+    // Sanitiza pra tirar caracteres que o Windows não aceita em nome de
+    // arquivo (< > : " / \ | ? *) — razão social vem livre do cadastro,
+    // sem essa limpeza um nome com "/" ia quebrar o caminho dentro do zip.
+    const nomeEmpresaArquivo = empresa.razaoSocial.replace(/[<>:"/\\|?*]/g, "");
 
     const documentos = await this.prisma.client.documentoFiscal.findMany({
       where: {
@@ -850,7 +854,13 @@ export class DocumentosFiscaisService {
           { emitidoEm: null, recebidoEm: { gte: inicio, lt: fim } },
         ],
       },
-      select: { chaveAcesso: true, objetoStorageXml: true, cancelada: true },
+      select: {
+        chaveAcesso: true,
+        objetoStorageXml: true,
+        cancelada: true,
+        emitidoEm: true,
+        recebidoEm: true,
+      },
     });
 
     const zip = archiver("zip", { zlib: { level: 9 } });
@@ -872,7 +882,13 @@ export class DocumentosFiscaisService {
           // conteúdo de nota) antes de mandar pro servidor, então não tem
           // esse dado salvo pra incluir.
           const pasta = doc.cancelada ? "Cancelados" : "Autorizados";
-          zip.append(buffer, { name: `${pasta}/${doc.chaveAcesso}.xml` });
+          // Nome do arquivo com CNPJ + nome da empresa + data — antes era
+          // só a chave de acesso (44 dígitos ilegíveis), difícil de saber
+          // do que se tratava sem abrir o XML (pedido do usuário em
+          // 2026-10-28).
+          const data = (doc.emitidoEm ?? doc.recebidoEm).toISOString().slice(0, 10);
+          const nomeArquivo = `${empresa.cnpj}_${nomeEmpresaArquivo}_${data}_${doc.chaveAcesso}.xml`;
+          zip.append(buffer, { name: `${pasta}/${nomeArquivo}` });
         } catch (err) {
           this.logger.error(`Falha ao ler XML ${doc.chaveAcesso} pro zip: ${err}`);
         }
