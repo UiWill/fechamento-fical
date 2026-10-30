@@ -650,38 +650,105 @@ export class DocumentosFiscaisService {
           )
         : {};
 
+    // Cálculo do valor esperado (base × alíquota / 100) pra cada tributo
+    // com inconsistência — é esse número, junto do valor que realmente veio
+    // no XML, que aparece no "?" de cada linha na tela (pedido do usuário:
+    // "explicando que tal valor não bate com tal coisa", sem precisar ficar
+    // lendo a linha toda procurando qual célula está errada).
+    function valorEsperado(base: unknown, aliquota: unknown): string | null {
+      const b = Number(base);
+      const a = Number(aliquota);
+      if (!Number.isFinite(b) || !Number.isFinite(a)) return null;
+      return ((b * a) / 100).toFixed(2);
+    }
+
     return itens.map((item) => {
       const numeroNota = Number(item.documentoFiscal.chaveAcesso.slice(25, 34));
-      const tributosInconsistentes = [
-        conferirAritmetica(item.icmsBase, item.icmsAliquota, item.icmsValor) ? null : "ICMS",
-        conferirAritmetica(item.pisBase, item.pisAliquota, item.pisValor) ? null : "PIS",
-        conferirAritmetica(item.cofinsBase, item.cofinsAliquota, item.cofinsValor) ? null : "COFINS",
-        conferirAritmetica(item.ibsCbsBase, item.ibsUfAliquota, item.ibsUfValor) ? null : "IBS UF",
-        conferirAritmetica(item.ibsCbsBase, item.ibsMunAliquota, item.ibsMunValor) ? null : "IBS Municipal",
-        conferirAritmetica(item.ibsCbsBase, item.cbsAliquota, item.cbsValor) ? null : "CBS",
-      ].filter((t): t is string => t !== null);
+      const inconsistencias = [
+        { nome: "ICMS", base: item.icmsBase, aliquota: item.icmsAliquota, valor: item.icmsValor },
+        { nome: "PIS", base: item.pisBase, aliquota: item.pisAliquota, valor: item.pisValor },
+        { nome: "COFINS", base: item.cofinsBase, aliquota: item.cofinsAliquota, valor: item.cofinsValor },
+        { nome: "IBS UF", base: item.ibsCbsBase, aliquota: item.ibsUfAliquota, valor: item.ibsUfValor },
+        { nome: "IBS Municipal", base: item.ibsCbsBase, aliquota: item.ibsMunAliquota, valor: item.ibsMunValor },
+        { nome: "CBS", base: item.ibsCbsBase, aliquota: item.cbsAliquota, valor: item.cbsValor },
+      ].filter(({ base, aliquota, valor }) => !conferirAritmetica(base, aliquota, valor));
+      const tributosInconsistentes = inconsistencias.map(({ nome }) => nome);
+
+      const cfopDivergente = cfopsSaidaEsperados.size > 0 && !cfopsSaidaEsperados.has(item.cfop);
+      // Só sinaliza ausência em quem já deveria ter o grupo (reforma é
+      // obrigatória a partir de 05/10/2026) — nota mais antiga sem o
+      // grupo é normal, não é pendência.
+      const ibsCbsObrigatorioAusente =
+        !item.ibsCbsCst &&
+        item.documentoFiscal.emitidoEm !== null &&
+        item.documentoFiscal.emitidoEm >= DATA_OBRIGATORIEDADE_IBS_CBS;
+      const regimeIcmsMisturado = notasComRegimeMisturado.has(item.documentoFiscalId);
+      const moda = modaPorCfop.get(item.cfop);
+      const aliquotaIcmsDivergente =
+        item.icmsAliquota !== null &&
+        moda !== undefined &&
+        moda.total >= 3 &&
+        moda.contagem / moda.total > 0.5 &&
+        item.icmsAliquota.toString() !== moda.aliquota;
+
+      // Detalhe campo-a-campo exibido no "?" de cada linha pendente — cada
+      // entrada diz exatamente qual valor era esperado e qual veio no XML,
+      // em vez de só marcar a linha como "tem algo errado".
+      const detalheDivergencias: { campo: string; esperado: string; atual: string }[] = [
+        ...(cfopDivergente
+          ? [
+              {
+                campo: "CFOP",
+                esperado: [...cfopsSaidaEsperados].filter((c): c is string => c !== null).join(" ou "),
+                atual: item.cfop,
+              },
+            ]
+          : []),
+        ...inconsistencias.map(({ nome, base, aliquota, valor }) => ({
+          campo: `${nome} (base × alíquota)`,
+          esperado: valorEsperado(base, aliquota) ?? "—",
+          atual: valor === null ? "—" : String(valor),
+        })),
+        ...(regimeIcmsMisturado
+          ? [
+              {
+                campo: "Regime tributário do ICMS",
+                esperado: "Mesmo regime (CST normal ou CSOSN/Simples) em todos os itens da nota",
+                atual: "Nota com itens em CST normal e CSOSN misturados",
+              },
+            ]
+          : []),
+        ...(aliquotaIcmsDivergente && moda
+          ? [
+              {
+                campo: "Alíquota de ICMS",
+                esperado: `${moda.aliquota}% (a mais usada pela empresa nesse CFOP)`,
+                atual: `${item.icmsAliquota}%`,
+              },
+            ]
+          : []),
+        ...(ibsCbsObrigatorioAusente
+          ? [
+              {
+                campo: "Grupo IBS/CBS",
+                esperado: "Presente (obrigatório em notas emitidas a partir de 05/10/2026)",
+                atual: "Ausente no XML",
+              },
+            ]
+          : []),
+      ];
 
       return {
         ...item,
         nNF: numeroNota,
         dhEmi: item.documentoFiscal.emitidoEm,
         tipo: item.documentoFiscal.tipo,
-        cfopDivergente: cfopsSaidaEsperados.size > 0 && !cfopsSaidaEsperados.has(item.cfop),
+        cfopDivergente,
         tributosInconsistentes,
-        // Só sinaliza ausência em quem já deveria ter o grupo (reforma é
-        // obrigatória a partir de 05/10/2026) — nota mais antiga sem o
-        // grupo é normal, não é pendência.
-        ibsCbsObrigatorioAusente:
-          !item.ibsCbsCst &&
-          item.documentoFiscal.emitidoEm !== null &&
-          item.documentoFiscal.emitidoEm >= DATA_OBRIGATORIEDADE_IBS_CBS,
-        regimeIcmsMisturado: notasComRegimeMisturado.has(item.documentoFiscalId),
-        aliquotaIcmsDivergente: (() => {
-          if (item.icmsAliquota === null) return false;
-          const moda = modaPorCfop.get(item.cfop);
-          if (!moda || moda.total < 3 || moda.contagem / moda.total <= 0.5) return false;
-          return item.icmsAliquota.toString() !== moda.aliquota;
-        })(),
+        ibsCbsObrigatorioAusente,
+        regimeIcmsMisturado,
+        aliquotaIcmsDivergente,
+        detalheDivergencias,
         correcaoSugerida: sugestoes[item.id] ?? null,
       };
     });

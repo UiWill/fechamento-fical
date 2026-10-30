@@ -703,6 +703,8 @@ export interface ItemApuracao {
   regimeIcmsMisturado: boolean;
   /** true quando a alíquota de ICMS desse item destoa da alíquota majoritária usada pela própria empresa nesse mesmo CFOP no período. */
   aliquotaIcmsDivergente: boolean;
+  /** Explicação campo a campo de cada pendência da linha — o que era esperado vs. o que veio no XML (usado no "?" de cada linha). */
+  detalheDivergencias: { campo: string; esperado: string; atual: string }[];
   /** Preenchido quando uma Carta de Correção já aprendida (de qualquer empresa da organização) bate com o valor atual desse item. */
   correcaoSugerida: { regraId: string; campo: CampoCorrecao; valorCorreto: string } | null;
 }

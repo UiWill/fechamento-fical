@@ -16,6 +16,7 @@ import { CarregandoTabela, BotaoCarregarMais } from "./CarregandoTabela";
 import { FiltroColuna, aplicarFiltrosColuna } from "./FiltroColuna";
 import { ModalAplicarCorrecao } from "./ModalAplicarCorrecao";
 import { ModalConfirmarSugestoes, type LinhaConfirmacaoSugestao } from "./ModalConfirmarSugestoes";
+import { PendenciaInfo } from "./PendenciaInfo";
 
 const LOTE_EXIBICAO = 300;
 
@@ -547,7 +548,10 @@ export function SecaoApuracaoIbsCbs({
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>{i.tipo === "NFCE" ? "NFC-e" : "NF-e"}</td>
                     <td className="whitespace-nowrap px-3 py-3 font-mono text-xs" style={{ color: "var(--muted)" }}>{i.nNF}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{formatarDataHora(i.dhEmi ?? "")}</td>
-                    <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{i.nItem}</td>
+                    <td className="px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                      {i.nItem}
+                      <PendenciaInfo detalhes={i.detalheDivergencias} />
+                    </td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{i.cProd}</td>
                     <td className="px-3 py-3" style={{ color: "var(--paper)" }}>{i.xProd}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{i.ncm}</td>
