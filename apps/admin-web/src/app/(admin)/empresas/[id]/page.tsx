@@ -404,18 +404,24 @@ function ManifestacaoAcao({
     return <span style={{ color: "var(--muted-2)" }}>—</span>;
   }
 
-  if (documento.status === "MANIFESTADO") {
-    return <span style={{ color: "var(--muted)" }}>já manifestado</span>;
-  }
+  // Já manifestada (quase sempre pela rotina automática de Ciência às 7h —
+  // ver manifestarAutomaticamenteTodasAsEmpresas). Isso NÃO deve travar a
+  // nota pra sempre: a SEFAZ aceita um segundo evento de tipo diferente na
+  // mesma nota (ex: Ciência automática hoje de manhã, e à tarde descobre
+  // que a mercadoria não chegou e precisa registrar "Operação não
+  // realizada") — o backend já permite isso (manifestacao.service.ts não
+  // bloqueia por status), então o botão continua disponível, só com o
+  // rótulo deixando claro que já tem uma manifestação registrada.
+  const jaManifestada = documento.status === "MANIFESTADO";
 
   return (
     <>
       <button
         onClick={() => setAberto(true)}
         className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
-        style={{ color: "var(--paper)" }}
+        style={{ color: jaManifestada ? "var(--muted)" : "var(--paper)" }}
       >
-        Manifestar
+        {jaManifestada ? "já manifestado — enviar outro tipo" : "Manifestar"}
       </button>
       {aberto && (
         <ModalManifestacao
