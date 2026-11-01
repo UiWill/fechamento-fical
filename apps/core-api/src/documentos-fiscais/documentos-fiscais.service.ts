@@ -46,6 +46,35 @@ const TOLERANCIA_ARREDONDAMENTO = 0.02;
 // ressalva sobre o valor 4 (MEI) ainda não confirmado contra XML real.
 const CRT_SIMPLES_OU_MEI = new Set([1, 2, 4]);
 
+/**
+ * Filtro de período (mês selecionado na tela) pra qualquer busca de
+ * documentos — direção-dependente:
+ *
+ * - SAÍDA: `emitidoEm` é a própria nota da empresa, então é a data certa
+ *   (recebidoEm ≈ emitidoEm de qualquer jeito, já que o agente desktop
+ *   envia a nota no mesmo dia). Mantém o fallback pra recebidoEm só pros
+ *   raros documentos sem emitidoEm (ex: falha de extração do dhEmi).
+ * - ENTRADA: `emitidoEm` é a data que o FORNECEDOR colocou na nota —
+ *   pode ser de semanas ou meses antes de a SEFAZ liberar a Distribuição
+ *   DFe pra nós. Filtrar entrada por emitidoEm fazia uma nota recebida
+ *   em outubro (mas emitida em setembro) desaparecer ao selecionar
+ *   "outubro" na tela (achado em 2026-11-01, reportado pelo William: mês
+ *   anterior nunca mostrava nota nenhuma de entrada). `recebidoEm` é a
+ *   data que entra no sistema e nunca é nula (@default(now())), então é
+ *   o campo certo pra "o que apareceu nesse mês" pra entrada.
+ */
+export function filtroPeriodoPorDirecao(direcao: "ENTRADA" | "SAIDA", inicio: Date, fim: Date) {
+  if (direcao === "ENTRADA") {
+    return { recebidoEm: { gte: inicio, lte: fim } };
+  }
+  return {
+    OR: [
+      { emitidoEm: { gte: inicio, lte: fim } },
+      { emitidoEm: null, recebidoEm: { gte: inicio, lte: fim } },
+    ],
+  };
+}
+
 /** 8 dígitos numéricos — formato válido de NCM. "00000000" é claramente placeholder, não um NCM real. */
 function ncmMalformado(ncm: string): boolean {
   return !/^\d{8}$/.test(ncm) || ncm === "00000000";
@@ -195,13 +224,7 @@ export class DocumentosFiscaisService {
       where: {
         empresaId,
         direcao,
-        // Mesmo fallback que o admin-web já fazia no filtro client-side
-        // (chaveMes(doc.emitidoEm ?? doc.recebidoEm)) — documento sem
-        // emitidoEm cai no mês em que foi recebido.
-        OR: [
-          { emitidoEm: { gte: inicio, lte: fim } },
-          { emitidoEm: null, recebidoEm: { gte: inicio, lte: fim } },
-        ],
+        ...filtroPeriodoPorDirecao(direcao, inicio, fim),
       },
       // nome do agente desktop que enviou (só existe pra SAIDA) — o
       // admin-web usa isso pra mostrar de qual instalação veio cada nota.
@@ -546,7 +569,10 @@ export class DocumentosFiscaisService {
         // 2026-10-21 rodando um backfill manual, que encontrou só 2
         // pendentes nesse filtro quando o banco tinha dezenas de milhares).
         OR: [{ cStatConsulta: null }, { cStatConsulta: { not: "100" } }],
-        ...(periodo ? { emitidoEm: { gte: periodo.inicio, lte: periodo.fim } } : {}),
+        // AND (não espalhado direto no objeto) porque filtroPeriodoPorDirecao
+        // pode devolver seu próprio "OR" (caso SAÍDA) — num objeto só, uma
+        // segunda chave "OR" sobrescreveria a de cima em vez de somar.
+        ...(periodo ? { AND: [filtroPeriodoPorDirecao(direcao, periodo.inicio, periodo.fim)] } : {}),
       },
       select: { id: true },
       orderBy: { emitidoEm: "asc" },
@@ -600,7 +626,7 @@ export class DocumentosFiscaisService {
           direcao,
           tipo: { in: ["NFE", "NFCE"] },
           cStatConsulta: "100",
-          emitidoEm: { gte: inicio, lte: fim },
+          ...filtroPeriodoPorDirecao(direcao, inicio, fim),
         },
       },
       include: {
@@ -1019,10 +1045,20 @@ export class DocumentosFiscaisService {
         empresaId,
         direcao,
         ...(tipo ? { tipo } : {}),
-        OR: [
-          { emitidoEm: { gte: inicio, lt: fim } },
-          { emitidoEm: null, recebidoEm: { gte: inicio, lt: fim } },
-        ],
+        // ENTRADA/CTE_DISTRIBUICAO: documento recebido via Distribuição DFe
+        // — emitidoEm é a data do EMISSOR (fornecedor/transportador), que
+        // pode ser de muito antes de a SEFAZ nos liberar o documento.
+        // Filtrar pelo mês de emissão escondia nota recebida no mês certo
+        // mas emitida antes (achado em 2026-11-01). recebidoEm nunca é
+        // nulo (@default(now())), então não precisa de fallback.
+        ...(direcao === "SAIDA"
+          ? {
+              OR: [
+                { emitidoEm: { gte: inicio, lt: fim } },
+                { emitidoEm: null, recebidoEm: { gte: inicio, lt: fim } },
+              ],
+            }
+          : { recebidoEm: { gte: inicio, lt: fim } }),
       },
       select: {
         chaveAcesso: true,

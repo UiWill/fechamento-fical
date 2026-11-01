@@ -57,12 +57,14 @@ export class CteDistribuicaoService {
         where: {
           empresaId,
           direcao: "CTE_DISTRIBUICAO",
-          // Mesmo fallback usado em documentos-fiscais.service.ts: CT-e sem
-          // emitidoEm cai no mês em que foi recebido.
-          OR: [
-            { emitidoEm: { gte: inicio, lte: fim } },
-            { emitidoEm: null, recebidoEm: { gte: inicio, lte: fim } },
-          ],
+          // CT-e vem via Distribuição DFe (emitido pelo transportador) —
+          // emitidoEm é a data DELE, que pode ser bem antes de a SEFAZ nos
+          // liberar o documento. Filtrar pelo mês de emissão escondia CT-e
+          // recebido no mês certo mas emitido antes (mesmo bug corrigido em
+          // 2026-11-01 na listagem de NF-e de entrada — ver
+          // filtroPeriodoPorDirecao em documentos-fiscais.service.ts).
+          // recebidoEm nunca é nulo (@default(now())), não precisa de fallback.
+          recebidoEm: { gte: inicio, lte: fim },
         },
         select: {
           id: true,

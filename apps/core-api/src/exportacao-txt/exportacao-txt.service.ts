@@ -6,6 +6,7 @@ import {
   ObjectStorageService,
 } from "../common/storage/object-storage.service";
 import { extrairEnderecoEmitente } from "../documentos-fiscais/xml-utils";
+import { filtroPeriodoPorDirecao } from "../documentos-fiscais/documentos-fiscais.service";
 import {
   linha0000,
   linha0010,
@@ -140,15 +141,18 @@ export class ExportacaoTxtService {
     });
 
     try {
-      const periodo = {
-        OR: [
-          { emitidoEm: { gte: periodoInicio, lte: periodoFim } },
-          { emitidoEm: null, recebidoEm: { gte: periodoInicio, lte: periodoFim } },
-        ],
+      const filtroEntrada = {
+        empresaId,
+        direcao: "ENTRADA" as const,
+        ...filtroPeriodoPorDirecao("ENTRADA", periodoInicio, periodoFim),
       };
-      const filtroEntrada = { empresaId, direcao: "ENTRADA" as const, ...periodo };
       // Saída: só NF-e (modelo 55) por enquanto — NFC-e/cupom (2081/2082) e CT-e ficam de fora.
-      const filtroSaida = { empresaId, direcao: "SAIDA" as const, tipo: "NFE" as const, ...periodo };
+      const filtroSaida = {
+        empresaId,
+        direcao: "SAIDA" as const,
+        tipo: "NFE" as const,
+        ...filtroPeriodoPorDirecao("SAIDA", periodoInicio, periodoFim),
+      };
 
       const [candidatosEntrada, totalEntrada, candidatosSaida, totalSaida] = await Promise.all([
         this.prisma.client.documentoFiscal.findMany({
