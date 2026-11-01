@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { listarEmpresas, type EmpresaResumo } from "@/lib/api";
 import { mascararCnpj } from "@/lib/format";
+import { PainelSaude } from "@/components/PainelSaude";
 
 function LinhasEsqueleto() {
   return (
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [empresas, setEmpresas] = useState<EmpresaResumo[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [sessao, setSessao] = useState<{ token: string; organizacaoId: string } | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("afe_token");
@@ -43,6 +45,7 @@ export default function DashboardPage() {
       router.push("/login");
       return;
     }
+    setSessao({ token, organizacaoId });
 
     listarEmpresas(organizacaoId, token)
       .then(setEmpresas)
@@ -52,6 +55,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {sessao && <PainelSaude organizacaoId={sessao.organizacaoId} token={sessao.token} />}
+
       <div className="entra flex items-end justify-between">
         <div>
           <p

@@ -140,6 +140,44 @@ export async function listarEmpresas(
   return response.json();
 }
 
+// ── Painel de saúde do sistema ──────────────────────────────────────────────
+
+export interface CertificadoVencendo {
+  empresaId: string;
+  empresa: string;
+  validoAte: string;
+}
+
+export interface AgenteOffline {
+  id: string;
+  nome: string;
+  empresa: string | null;
+  ultimoHeartbeatEm: string | null;
+}
+
+export interface RotinaSaude {
+  nome: string;
+  rotulo: string;
+  status: "ok" | "falhou" | "atrasada" | "sem-registro";
+  executadoEm: string | null;
+  detalhe: string | null;
+}
+
+export interface SaudeSistema {
+  certificadosVencendo: CertificadoVencendo[];
+  agentesOffline: AgenteOffline[];
+  rotinas: RotinaSaude[];
+}
+
+export async function obterSaudeSistema(organizacaoId: string, token: string): Promise<SaudeSistema> {
+  const response = await apiFetch(`${API_URL}/sistema/saude?organizacaoId=${organizacaoId}`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Não foi possível carregar a saúde do sistema agora.");
+  return response.json();
+}
+
 export interface CriarEmpresaInput {
   organizacaoId: string;
   cnpj: string;

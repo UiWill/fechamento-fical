@@ -20,6 +20,7 @@ import { FaturamentoModule } from "./faturamento/faturamento.module";
 import { SincronizacaoAgendadaModule } from "./sincronizacao-agendada/sincronizacao-agendada.module";
 import { AgentesModule } from "./agentes/agentes.module";
 import { CorrecoesModule } from "./correcoes/correcoes.module";
+import { SistemaModule } from "./sistema/sistema.module";
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { CorrecoesModule } from "./correcoes/correcoes.module";
     SincronizacaoAgendadaModule,
     AgentesModule,
     CorrecoesModule,
+    SistemaModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

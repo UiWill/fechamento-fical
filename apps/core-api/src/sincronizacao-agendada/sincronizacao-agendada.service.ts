@@ -4,6 +4,7 @@ import { PrismaService } from "../common/prisma/prisma.service";
 import { CteDistribuicaoService } from "../cte-distribuicao/cte-distribuicao.service";
 import { DocumentosFiscaisService } from "../documentos-fiscais/documentos-fiscais.service";
 import { ManifestacaoService } from "../manifestacao/manifestacao.service";
+import { SistemaService } from "../sistema/sistema.service";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -33,7 +34,8 @@ export class SincronizacaoAgendadaService {
     private readonly prisma: PrismaService,
     private readonly documentosFiscais: DocumentosFiscaisService,
     private readonly cteDistribuicao: CteDistribuicaoService,
-    private readonly manifestacao: ManifestacaoService
+    private readonly manifestacao: ManifestacaoService,
+    private readonly sistema: SistemaService
   ) {}
 
   /**
@@ -51,47 +53,64 @@ export class SincronizacaoAgendadaService {
    */
   @Cron("0 0,1,2,3,4,5 * * *")
   async sincronizarTodasAsEmpresas() {
-    const empresas = await this.prisma.client.empresa.findMany({
-      where: { status: "ATIVA", certificado: { isNot: null } },
-      select: { id: true, razaoSocial: true, organizacaoId: true },
-    });
+    try {
+      const empresas = await this.prisma.client.empresa.findMany({
+        where: { status: "ATIVA", certificado: { isNot: null } },
+        select: { id: true, razaoSocial: true, organizacaoId: true },
+      });
 
-    this.logger.log(
-      `Sincronização noturna iniciada: ${empresas.length} empresa(s) ativa(s) com certificado.`
-    );
+      this.logger.log(
+        `Sincronização noturna iniciada: ${empresas.length} empresa(s) ativa(s) com certificado.`
+      );
 
-    for (const empresa of empresas) {
-      try {
-        const resultado = await this.documentosFiscais.sincronizarComSefaz(empresa.id, empresa.organizacaoId);
-        const sufixo = resultado.bloqueadoPelaSefaz
-          ? " — BLOQUEADO pela SEFAZ (consumo indevido, possivelmente outro sistema consultando o mesmo CNPJ)"
-          : resultado.limiteSefazAtingido
-            ? " — limite da SEFAZ atingido nesta janela"
-            : "";
-        this.logger.log(`[${empresa.razaoSocial}] ${resultado.documentosNovos} documento(s) novo(s)${sufixo}`);
-      } catch (err) {
-        this.logger.error(
-          `[${empresa.razaoSocial}] falha na sincronização noturna: ${
-            err instanceof Error ? err.message : err
-          }`
-        );
+      let empresasComFalha = 0;
+      for (const empresa of empresas) {
+        try {
+          const resultado = await this.documentosFiscais.sincronizarComSefaz(empresa.id, empresa.organizacaoId);
+          const sufixo = resultado.bloqueadoPelaSefaz
+            ? " — BLOQUEADO pela SEFAZ (consumo indevido, possivelmente outro sistema consultando o mesmo CNPJ)"
+            : resultado.limiteSefazAtingido
+              ? " — limite da SEFAZ atingido nesta janela"
+              : "";
+          this.logger.log(`[${empresa.razaoSocial}] ${resultado.documentosNovos} documento(s) novo(s)${sufixo}`);
+        } catch (err) {
+          empresasComFalha++;
+          this.logger.error(
+            `[${empresa.razaoSocial}] falha na sincronização noturna: ${
+              err instanceof Error ? err.message : err
+            }`
+          );
+        }
+
+        // CT-e é outro serviço da SEFAZ, com cota própria: uma falha aqui não
+        // pode atrapalhar a NF-e (nem o contrário).
+        try {
+          const cte = await this.cteDistribuicao.sincronizar(empresa.id);
+          this.logger.log(
+            `[${empresa.razaoSocial}] CT-e: ${cte.documentosNovos} novo(s)${cte.bloqueadoPelaSefaz ? " — BLOQUEADO pela SEFAZ" : ""}`
+          );
+        } catch (err) {
+          empresasComFalha++;
+          this.logger.error(
+            `[${empresa.razaoSocial}] falha na sincronização noturna de CT-e: ${err instanceof Error ? err.message : err}`
+          );
+        }
       }
 
-      // CT-e é outro serviço da SEFAZ, com cota própria: uma falha aqui não
-      // pode atrapalhar a NF-e (nem o contrário).
-      try {
-        const cte = await this.cteDistribuicao.sincronizar(empresa.id);
-        this.logger.log(
-          `[${empresa.razaoSocial}] CT-e: ${cte.documentosNovos} novo(s)${cte.bloqueadoPelaSefaz ? " — BLOQUEADO pela SEFAZ" : ""}`
-        );
-      } catch (err) {
-        this.logger.error(
-          `[${empresa.razaoSocial}] falha na sincronização noturna de CT-e: ${err instanceof Error ? err.message : err}`
-        );
-      }
+      this.logger.log("Sincronização noturna concluída.");
+      await this.sistema.registrarRotina(
+        "sincronizacao-noturna",
+        true,
+        `${empresas.length} empresa(s)${empresasComFalha > 0 ? `, ${empresasComFalha} falha(s)` : ""}`
+      );
+    } catch (err) {
+      this.logger.error(`Sincronização noturna falhou por completo: ${err instanceof Error ? err.message : err}`);
+      await this.sistema.registrarRotina(
+        "sincronizacao-noturna",
+        false,
+        err instanceof Error ? err.message : String(err)
+      );
     }
-
-    this.logger.log("Sincronização noturna concluída.");
   }
 
   /**
@@ -110,40 +129,56 @@ export class SincronizacaoAgendadaService {
    */
   @Cron("0 6 * * *")
   async consultarSituacaoPendenteDeTodasAsEmpresas() {
-    const empresas = await this.prisma.client.empresa.findMany({
-      where: { status: "ATIVA", certificado: { isNot: null } },
-      select: { id: true, razaoSocial: true, organizacaoId: true },
-    });
+    try {
+      const empresas = await this.prisma.client.empresa.findMany({
+        where: { status: "ATIVA", certificado: { isNot: null } },
+        select: { id: true, razaoSocial: true, organizacaoId: true },
+      });
 
-    this.logger.log(`Consulta diária de situação iniciada: ${empresas.length} empresa(s).`);
+      this.logger.log(`Consulta diária de situação iniciada: ${empresas.length} empresa(s).`);
 
-    for (const empresa of empresas) {
-      for (const direcao of ["ENTRADA", "SAIDA"] as const) {
-        try {
-          const resultado = await this.documentosFiscais.consultarPendentesAguardando(
-            empresa.id,
-            empresa.organizacaoId,
-            direcao,
-            MAX_CONSULTAS_POR_EMPRESA_POR_DIA
-          );
-          if (resultado.total > 0) {
-            this.logger.log(
-              `[${empresa.razaoSocial}] ${direcao}: ${resultado.consultados}/${resultado.total} consultada(s)${
-                resultado.falhas > 0 ? `, ${resultado.falhas} falha(s)` : ""
+      let empresasComFalha = 0;
+      for (const empresa of empresas) {
+        for (const direcao of ["ENTRADA", "SAIDA"] as const) {
+          try {
+            const resultado = await this.documentosFiscais.consultarPendentesAguardando(
+              empresa.id,
+              empresa.organizacaoId,
+              direcao,
+              MAX_CONSULTAS_POR_EMPRESA_POR_DIA
+            );
+            if (resultado.total > 0) {
+              this.logger.log(
+                `[${empresa.razaoSocial}] ${direcao}: ${resultado.consultados}/${resultado.total} consultada(s)${
+                  resultado.falhas > 0 ? `, ${resultado.falhas} falha(s)` : ""
+                }`
+              );
+            }
+          } catch (err) {
+            empresasComFalha++;
+            this.logger.error(
+              `[${empresa.razaoSocial}] falha na consulta diária de situação (${direcao}): ${
+                err instanceof Error ? err.message : err
               }`
             );
           }
-        } catch (err) {
-          this.logger.error(
-            `[${empresa.razaoSocial}] falha na consulta diária de situação (${direcao}): ${
-              err instanceof Error ? err.message : err
-            }`
-          );
         }
       }
-    }
 
-    this.logger.log("Consulta diária de situação concluída.");
+      this.logger.log("Consulta diária de situação concluída.");
+      await this.sistema.registrarRotina(
+        "consulta-situacao-diaria",
+        true,
+        `${empresas.length} empresa(s)${empresasComFalha > 0 ? `, ${empresasComFalha} falha(s)` : ""}`
+      );
+    } catch (err) {
+      this.logger.error(`Consulta diária de situação falhou por completo: ${err instanceof Error ? err.message : err}`);
+      await this.sistema.registrarRotina(
+        "consulta-situacao-diaria",
+        false,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
   }
 
   /**
@@ -163,6 +198,19 @@ export class SincronizacaoAgendadaService {
    */
   @Cron("0 7 * * *")
   async manifestarAutomaticamenteTodasAsEmpresas() {
+    try {
+      await this.rodarManifestacaoAutomatica();
+    } catch (err) {
+      this.logger.error(`Manifestação automática falhou por completo: ${err instanceof Error ? err.message : err}`);
+      await this.sistema.registrarRotina(
+        "manifestacao-automatica",
+        false,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  }
+
+  private async rodarManifestacaoAutomatica() {
     const empresas = await this.prisma.client.empresa.findMany({
       where: { status: "ATIVA", certificado: { isNot: null } },
       select: { id: true, razaoSocial: true },
@@ -170,6 +218,7 @@ export class SincronizacaoAgendadaService {
 
     this.logger.log(`Manifestação automática iniciada: ${empresas.length} empresa(s).`);
 
+    let empresasComFalha = 0;
     for (const empresa of empresas) {
       try {
         const pendentes = await this.prisma.client.documentoFiscal.findMany({
@@ -223,6 +272,7 @@ export class SincronizacaoAgendadaService {
           }`
         );
       } catch (err) {
+        empresasComFalha++;
         // Isola cada empresa (mesmo padrão de sincronizarTodasAsEmpresas) —
         // uma falha ao buscar pendentes de uma empresa não pode travar a
         // manifestação automática das empresas seguintes nesta execução.
@@ -235,5 +285,10 @@ export class SincronizacaoAgendadaService {
     }
 
     this.logger.log("Manifestação automática concluída.");
+    await this.sistema.registrarRotina(
+      "manifestacao-automatica",
+      true,
+      `${empresas.length} empresa(s)${empresasComFalha > 0 ? `, ${empresasComFalha} falha(s)` : ""}`
+    );
   }
 }

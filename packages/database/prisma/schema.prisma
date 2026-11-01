@@ -637,6 +637,24 @@ model ItemFatura {
   @@map("itens_fatura")
 }
 
+// ── Painel de saúde do sistema ──────────────────────────────────────────────
+
+// Registro de "última execução" das rotinas agendadas (crons do core-api +
+// o backup diário do servidor, que não é Node e manda um POST no final) —
+// sem isso, não tinha como a tela de saúde saber se uma rotina parou de
+// rodar sem ninguém notar (achado faltando em 2026-11-01). Uma linha por
+// rotina (upsert por nome), não histórico — só o estado mais recente importa
+// pra esse painel.
+model RotinaSistema {
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  executadoEm DateTime
+  sucesso     Boolean
+  detalhe     String?
+
+  @@map("rotinas_sistema")
+}
+
 // ── Auditoria (obrigatório dado o caráter fiscal do sistema) ───────────────
 
 model AuditLog {
