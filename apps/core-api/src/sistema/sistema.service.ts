@@ -14,7 +14,7 @@ const DIAS_PARA_ALERTAR_CERTIFICADO = 30;
 // cada uma roda 1x/dia numa janela própria; a tolerância é generosa (30h,
 // não 24h) pra não dar falso positivo só por checar a tela um pouco antes
 // do horário de hoje ainda ter chegado.
-const ROTINAS_ESPERADAS: { nome: string; rotulo: string; toleranciaHoras: number }[] = [
+export const ROTINAS_ESPERADAS: { nome: string; rotulo: string; toleranciaHoras: number }[] = [
   { nome: "sincronizacao-noturna", rotulo: "Sincronização com a SEFAZ (0h–5h)", toleranciaHoras: 30 },
   { nome: "consulta-situacao-diaria", rotulo: "Consulta de situação pendente (6h)", toleranciaHoras: 30 },
   { nome: "manifestacao-automatica", rotulo: "Manifestação automática (Ciência, 7h)", toleranciaHoras: 30 },

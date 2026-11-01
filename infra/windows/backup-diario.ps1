@@ -130,12 +130,16 @@ Escrever-Log "Envio ao Google Drive concluido."
 
 # Avisa o core-api que o backup rodou - alimenta o Painel de Saude do
 # sistema no admin-web (sem isso, ninguem saberia se o backup parou de
-# rodar sem olhar o log manualmente). So aceita chamada do proprio
-# servidor (ver SistemaController.registrarRotina) - roda no mesmo PC,
-# entao e sempre localhost.
+# rodar sem olhar o log manualmente). O endpoint exige a chave interna
+# (SISTEMA_INTERNO_KEY) no header - o core-api fica atras do Caddy, entao
+# nao da pra confiar so em "veio do localhost" pra provar que a chamada e
+# legitima (achado em revisao de seguranca, 2026-11-01).
 try {
+    $linhaChave = (Get-Content (Join-Path $raizApp '.env') | Select-String '^SISTEMA_INTERNO_KEY=').ToString()
+    $chaveInterna = ($linhaChave -replace '^SISTEMA_INTERNO_KEY=', '').Trim('"')
+    if (-not $chaveInterna) { throw "SISTEMA_INTERNO_KEY nao configurada no .env" }
     $corpo = @{ sucesso = $true; detalhe = "pg_dump + object-storage + Google Drive" } | ConvertTo-Json
-    Invoke-RestMethod -Uri 'http://localhost:3000/sistema/rotinas/backup-diario' -Method Post -Body $corpo -ContentType 'application/json' -TimeoutSec 10 | Out-Null
+    Invoke-RestMethod -Uri 'http://localhost:3000/sistema/rotinas/backup-diario' -Method Post -Body $corpo -ContentType 'application/json' -Headers @{ 'x-internal-key' = $chaveInterna } -TimeoutSec 10 | Out-Null
     Escrever-Log "Rotina registrada no Painel de Saude."
 } catch {
     Escrever-Log "AVISO: nao foi possivel registrar a rotina no Painel de Saude: $_"
