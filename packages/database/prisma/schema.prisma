@@ -70,6 +70,21 @@ enum AmbienteFiscal {
   HOMOLOGACAO
 }
 
+enum RegimeTributario {
+  SIMPLES_NACIONAL
+  SIMPLES_SUBLIMITE_EXCEDIDO
+  MEI
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+  REGIME_NORMAL
+}
+
+enum OrigemRegimeTributario {
+  NOTA_FISCAL
+  BRASIL_API
+  MANUAL
+}
+
 model Empresa {
   id                      String         @id @default(cuid())
   organizacaoId           String
@@ -87,6 +102,18 @@ model Empresa {
   // nesse sistema. Nulo = sem corte (compatibilidade com empresas
   // cadastradas antes desse campo existir).
   dataInicioMonitoramento DateTime?
+  // Lido automaticamente do CRT das próprias notas da empresa (mais
+  // confiável que cadastro manual — a SEFAZ já rejeita nota com CRT
+  // divergente do cadastro real dela, rejeição 481) sempre que chega um
+  // documento novo; cai pra consulta da BrasilAPI quando a empresa ainda
+  // não tem nenhuma nota. Nulo até a primeira nota/consulta. Nunca é
+  // sobrescrito automaticamente depois de setado manualmente (ver
+  // origemRegimeTributario). Alimenta as checagens de Apuração ICMS/
+  // IBS-CBS que dependem do regime (achado em 2026-11-01: regra de
+  // CFOP/regime misturado e a de IBS/CBS obrigatório geravam falso
+  // positivo/negativo por não saber o regime real da empresa).
+  regimeTributario       RegimeTributario?
+  origemRegimeTributario OrigemRegimeTributario?
   criadoEm                DateTime       @default(now())
   atualizadoEm            DateTime       @updatedAt
 
@@ -215,6 +242,17 @@ model DocumentoFiscal {
   cancelada        Boolean               @default(false)
   objetoStorageXml String // chave do objeto no armazenamento (bucket afe-documentos-fiscais)
   emitidoEm        DateTime?
+  // CRT (Código de Regime Tributário) do emitente, lido de <emit><CRT> —
+  // 1=Simples Nacional, 2=Simples c/ sublimite excedido, 3=Regime Normal,
+  // 4=MEI (ver RegimeTributario) — só NFE/NFCE trazem; nulo pra CT-e e
+  // pra documentos de antes desse campo existir (até reprocessar).
+  crt              Int?
+  // UF do destinatário, lido de <dest><enderDest><UF> — só NFE/NFCE de
+  // SAÍDA costumam ter (NFCe de consumidor não identificado pode não
+  // trazer). Alimenta a checagem de CFOP incompatível com a UF real do
+  // destinatário (ex: CFOP de venda dentro do estado numa nota pra outro
+  // estado).
+  ufDestinatario   String?
   // Dados extras (hoje so CT-e: papel da empresa, tomador, origem/destino...).
   detalhe          Json?
   recebidoEm       DateTime              @default(now())
@@ -445,6 +483,14 @@ model RegraFiscal {
   id                String   @id @default(cuid())
   organizacaoId     String
   empresaId         String? // null = regra padrão da organização; preenchido = override por CNPJ
+  // Alternativa a empresaId pra aplicar a regra a um grupo de empresas
+  // específico (não todas, não uma só) — ex: escritório de contabilidade
+  // com várias empresas do mesmo ramo/cliente que usam o mesmo CFOP de
+  // saída esperado. Vazio = não usa esse modo (comportamento de antes
+  // desse campo existir). Prioridade de resolução: empresaId exato >
+  // empresaIds (grupo) > padrão da organização (empresaId null E
+  // empresaIds vazio) — ver RegrasFiscaisService.resolver().
+  empresaIds        String[] @default([])
   cfopEntrada       String
   // CFOP que o item correspondente deveria ter na SAÍDA, quando essa
   // entrada vira revenda/transferência etc. — nulo = regra só classifica

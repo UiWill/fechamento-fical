@@ -79,4 +79,29 @@ export type CampoCorrecao = (typeof CAMPO_CORRECAO)[number];
 export const STATUS_CORRECAO = ["PENDENTE", "ENVIADA", "AUTORIZADA", "REJEITADA"] as const;
 export type StatusCorrecao = (typeof STATUS_CORRECAO)[number];
 
+// Regime tributário da empresa — usado pra calibrar as checagens de
+// Apuração ICMS/IBS-CBS por regime (ex: empresa do Simples não é
+// obrigada a destacar IBS/CBS, item com CSOSN só é esperado pra quem
+// está aqui como SIMPLES_NACIONAL/MEI). LUCRO_PRESUMIDO/LUCRO_REAL só
+// dá pra distinguir via BrasilAPI (não vem no CRT da nota, que só diz
+// "Regime Normal") — REGIME_NORMAL é o valor usado enquanto isso não
+// foi resolvido ainda.
+export const REGIME_TRIBUTARIO = [
+  "SIMPLES_NACIONAL",
+  "SIMPLES_SUBLIMITE_EXCEDIDO",
+  "MEI",
+  "LUCRO_PRESUMIDO",
+  "LUCRO_REAL",
+  "REGIME_NORMAL",
+] as const;
+export type RegimeTributario = (typeof REGIME_TRIBUTARIO)[number];
+
+// De onde veio o valor de Empresa.regimeTributario — importa pra UI saber
+// se pode confiar/sobrescrever automaticamente. NOTA_FISCAL (lido do CRT
+// das próprias notas da empresa) é a fonte mais confiável, porque a SEFAZ
+// já valida contra o cadastro real dela (rejeição 481 se divergir).
+// MANUAL nunca é sobrescrito automaticamente.
+export const ORIGEM_REGIME_TRIBUTARIO = ["NOTA_FISCAL", "BRASIL_API", "MANUAL"] as const;
+export type OrigemRegimeTributario = (typeof ORIGEM_REGIME_TRIBUTARIO)[number];
+
 export const VALOR_MENSALIDADE_POR_CNPJ = 49.9;

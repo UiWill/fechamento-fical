@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Req } from "@nestjs/common";
-import { criarEmpresaSchema } from "@afe/shared";
+import { criarEmpresaSchema, REGIME_TRIBUTARIO } from "@afe/shared";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { EmpresasService } from "./empresas.service";
 
@@ -65,5 +65,23 @@ export class EmpresasController {
       throw new BadRequestException("dataInicioMonitoramento deve ser uma data válida");
     }
     return this.service.alterarDataInicioMonitoramento(id, this.organizacaoIdDoUsuario(request), new Date(data));
+  }
+
+  @Post(":id/atualizar-regime-via-receita")
+  atualizarRegimeViaReceita(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.service.atualizarRegimeViaReceita(id, this.organizacaoIdDoUsuario(request));
+  }
+
+  @Patch(":id/regime-tributario")
+  definirRegimeTributario(@Param("id") id: string, @Body() body: unknown, @Req() request: AuthenticatedRequest) {
+    const regime = (body as { regimeTributario?: unknown })?.regimeTributario;
+    if (typeof regime !== "string" || !REGIME_TRIBUTARIO.includes(regime as (typeof REGIME_TRIBUTARIO)[number])) {
+      throw new BadRequestException(`regimeTributario deve ser um de: ${REGIME_TRIBUTARIO.join(", ")}`);
+    }
+    return this.service.definirRegimeTributarioManual(
+      id,
+      this.organizacaoIdDoUsuario(request),
+      regime as (typeof REGIME_TRIBUTARIO)[number]
+    );
   }
 }

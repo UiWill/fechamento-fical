@@ -20,15 +20,19 @@ export class RegrasFiscaisService {
   /**
    * Resolve a regra aplicável a um CFOP (de entrada ou de saída — o mesmo
    * mecanismo serve pros dois lados, é só o CFOP do documento que muda):
-   * prioriza override específico da empresa; cai para a regra padrão da
-   * organização se não houver override. Dentro de cada escopo, prioriza
-   * regra com a condição de pagamento batendo exatamente com a do
-   * documento; regra sem condição cadastrada (condicaoPagamento null)
-   * vale pra qualquer condição — é o comportamento de antes dessa coluna
-   * existir, continua valendo pras regras já cadastradas. Alguns CFOPs têm
-   * acumulador diferente pra à vista x a prazo no Domínio (ex: venda CFOP
-   * 5102 à vista x a mesma venda a prazo) — foi pra isso que esse segundo
-   * critério foi adicionado.
+   * prioriza override específico da empresa (empresaId exato); cai pra
+   * uma regra de grupo (empresaIds contendo essa empresa — pedido do
+   * usuário em 2026-11-01, pra quando o mesmo CFOP precisa do mesmo
+   * tratamento em várias empresas, mas não em TODAS); cai pra regra
+   * padrão da organização se não houver nenhum dos dois. Dentro de cada
+   * escopo, prioriza regra com a condição de pagamento batendo
+   * exatamente com a do documento; regra sem condição cadastrada
+   * (condicaoPagamento null) vale pra qualquer condição — é o
+   * comportamento de antes dessa coluna existir, continua valendo pras
+   * regras já cadastradas. Alguns CFOPs têm acumulador diferente pra à
+   * vista x a prazo no Domínio (ex: venda CFOP 5102 à vista x a mesma
+   * venda a prazo) — foi pra isso que esse segundo critério foi
+   * adicionado.
    */
   async resolver(
     organizacaoId: string,
@@ -39,13 +43,26 @@ export class RegrasFiscaisService {
     const override = await this.melhorRegra(cfop, condicaoPagamento, { empresaId });
     if (override) return override;
 
-    return this.melhorRegra(cfop, condicaoPagamento, { organizacaoId, empresaId: null });
+    const doGrupo = await this.melhorRegra(cfop, condicaoPagamento, {
+      organizacaoId,
+      empresaIds: { has: empresaId },
+    });
+    if (doGrupo) return doGrupo;
+
+    return this.melhorRegra(cfop, condicaoPagamento, {
+      organizacaoId,
+      empresaId: null,
+      empresaIds: { isEmpty: true },
+    });
   }
 
   private async melhorRegra(
     cfop: string,
     condicaoPagamento: CondicaoPagamento | null,
-    escopo: { empresaId: string } | { organizacaoId: string; empresaId: null }
+    escopo:
+      | { empresaId: string }
+      | { organizacaoId: string; empresaIds: { has: string } }
+      | { organizacaoId: string; empresaId: null; empresaIds: { isEmpty: true } }
   ) {
     if (condicaoPagamento) {
       const exata = await this.prisma.client.regraFiscal.findFirst({

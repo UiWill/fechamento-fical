@@ -9,6 +9,9 @@ import {
   uploadCertificado,
   alterarAmbienteEmpresa,
   alterarDataInicioMonitoramentoEmpresa,
+  atualizarRegimeViaReceita,
+  definirRegimeTributarioEmpresa,
+  ROTULO_REGIME_TRIBUTARIO,
   listarDocumentosFiscais,
   sincronizarDocumentos,
   classificarPendentes,
@@ -22,6 +25,7 @@ import {
   type EmpresaDetalhe,
   type CertificadoResumo,
   type DocumentoFiscal,
+  type RegimeTributario,
 } from "@/lib/api";
 import {
   mascararCnpj,
@@ -495,6 +499,8 @@ export default function EmpresaDetalhePage() {
 
   const [alterandoAmbiente, setAlterandoAmbiente] = useState(false);
   const [alterandoDataInicio, setAlterandoDataInicio] = useState(false);
+  const [consultandoRegime, setConsultandoRegime] = useState(false);
+  const [editandoRegime, setEditandoRegime] = useState(false);
   const [manifestarTodasAberto, setManifestarTodasAberto] = useState(false);
 
   const [ordenacaoEntrada, setOrdenacaoEntrada] = useState<Ordenacao>(ORDENACAO_PADRAO);
@@ -664,6 +670,32 @@ export default function EmpresaDetalhePage() {
       window.alert("Não foi possível alterar a data de início de captura agora.");
     } finally {
       setAlterandoDataInicio(false);
+    }
+  }
+
+  async function handleAtualizarRegimeViaReceita() {
+    if (!token) return;
+    setConsultandoRegime(true);
+    try {
+      const atualizada = await atualizarRegimeViaReceita(params.id, token);
+      setEmpresa(atualizada);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "Não foi possível consultar o regime tributário na Receita agora."
+      );
+    } finally {
+      setConsultandoRegime(false);
+    }
+  }
+
+  async function handleDefinirRegime(regime: RegimeTributario) {
+    if (!token) return;
+    try {
+      const atualizada = await definirRegimeTributarioEmpresa(params.id, regime, token);
+      setEmpresa(atualizada);
+      setEditandoRegime(false);
+    } catch {
+      window.alert("Não foi possível salvar o regime tributário agora.");
     }
   }
 
@@ -982,6 +1014,64 @@ export default function EmpresaDetalhePage() {
           >
             {alterandoDataInicio ? "salvando…" : "editar"}
           </button>
+        </p>
+        <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
+          Regime tributário:{" "}
+          {empresa.regimeTributario ? ROTULO_REGIME_TRIBUTARIO[empresa.regimeTributario] : "ainda não identificado"}
+          {empresa.origemRegimeTributario && (
+            <span className="font-mono text-[0.625rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+              {" "}
+              (
+              {empresa.origemRegimeTributario === "NOTA_FISCAL"
+                ? "lido das notas"
+                : empresa.origemRegimeTributario === "BRASIL_API"
+                  ? "Receita Federal"
+                  : "definido manualmente"}
+              )
+            </span>
+          )}{" "}
+          {editandoRegime ? (
+            <select
+              autoFocus
+              defaultValue={empresa.regimeTributario ?? ""}
+              onChange={(e) => e.target.value && void handleDefinirRegime(e.target.value as RegimeTributario)}
+              onBlur={() => setEditandoRegime(false)}
+              className="campo inline-block w-auto"
+            >
+              <option value="" disabled>
+                Selecione
+              </option>
+              {Object.entries(ROTULO_REGIME_TRIBUTARIO).map(([valor, rotulo]) => (
+                <option key={valor} value={valor}>
+                  {rotulo}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setEditandoRegime(true)}
+                className="font-mono text-[0.625rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+                style={{ color: "var(--paper)" }}
+                title="Corrigir manualmente — passa a ignorar atualização automática"
+              >
+                editar
+              </button>{" "}
+              {empresa.origemRegimeTributario !== "NOTA_FISCAL" && empresa.origemRegimeTributario !== "MANUAL" && (
+                <button
+                  type="button"
+                  onClick={() => void handleAtualizarRegimeViaReceita()}
+                  disabled={consultandoRegime}
+                  className="font-mono text-[0.625rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-30"
+                  style={{ color: "var(--paper)" }}
+                  title="Consulta o regime tributário na Receita Federal (BrasilAPI) — só usado enquanto a empresa não tem nota de saída pra aprender sozinha"
+                >
+                  {consultandoRegime ? "consultando…" : "consultar na Receita"}
+                </button>
+              )}
+            </>
+          )}
         </p>
       </div>
 

@@ -87,6 +87,11 @@ export interface NotaSaidaLida {
   numero: string;
   serie: string;
   dataEmissao: Date | null;
+  // CRT (Código de Regime Tributário) do emitente, de <emit><CRT> —
+  // 1=Simples Nacional, 2=Simples c/ sublimite excedido, 3=Regime Normal,
+  // 4=MEI. Vazio quando o XML não traz (ex: CT-e, que não tem essa
+  // estrutura, ou leiaute muito antigo).
+  crt: string;
   valorNota: number;
   valorIpi: number;
   /** Código NFe de <modFrete> (0..9) — convertido pro código de letra da Domínio na hora de montar a linha 2000. */
@@ -101,6 +106,7 @@ export interface NotaSaidaLida {
 
 export function lerNotaSaida(xml: string): NotaSaidaLida {
   const ide = bloco(xml, "ide");
+  const emit = bloco(xml, "emit");
   const dest = bloco(xml, "dest");
   const ender = bloco(dest, "enderDest");
   const transp = bloco(xml, "transp");
@@ -227,6 +233,7 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
     numero: texto(ide, "nNF"),
     serie: texto(ide, "serie"),
     dataEmissao: dhEmi ? new Date(dhEmi) : null,
+    crt: texto(emit, "CRT"),
     valorNota: numero(totais, "vNF"),
     valorIpi: numero(totais, "vIPI"),
     modalidadeFrete: texto(transp, "modFrete"),

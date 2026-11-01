@@ -27,7 +27,9 @@ export default function RegrasFiscaisPage() {
   const [descricao, setDescricao] = useState("");
   const [observacao, setObservacao] = useState("");
   const [acumulador, setAcumulador] = useState("");
+  const [aplicacao, setAplicacao] = useState<"TODAS" | "UMA" | "SELECIONADAS">("TODAS");
   const [empresaId, setEmpresaId] = useState("");
+  const [empresaIdsSelecionadas, setEmpresaIdsSelecionadas] = useState<string[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
 
@@ -46,9 +48,19 @@ export default function RegrasFiscaisPage() {
     }
   }, []);
 
-  function nomeEmpresa(id: string | null): string {
-    if (!id) return "Toda a organização";
-    return empresas.find((e) => e.id === id)?.razaoSocial ?? "Empresa removida";
+  function aplicacaoDaRegra(regra: RegraFiscal): string {
+    if (regra.empresaId) {
+      return empresas.find((e) => e.id === regra.empresaId)?.razaoSocial ?? "Empresa removida";
+    }
+    if (regra.empresaIds.length > 0) {
+      const nomes = regra.empresaIds.map((id) => empresas.find((e) => e.id === id)?.razaoSocial ?? "Empresa removida");
+      return `${regra.empresaIds.length} empresas selecionadas: ${nomes.join(", ")}`;
+    }
+    return "Toda a organização";
+  }
+
+  function alternarEmpresaSelecionada(id: string) {
+    setEmpresaIdsSelecionadas((atual) => (atual.includes(id) ? atual.filter((e) => e !== id) : [...atual, id]));
   }
 
   useEffect(() => {
@@ -80,13 +92,18 @@ export default function RegrasFiscaisPage() {
       setErroForm("Descrição é obrigatória.");
       return;
     }
+    if (aplicacao === "SELECIONADAS" && empresaIdsSelecionadas.length === 0) {
+      setErroForm("Selecione ao menos uma empresa.");
+      return;
+    }
 
     setSalvando(true);
     try {
       await criarRegraFiscal(
         {
           organizacaoId,
-          empresaId: empresaId || null,
+          empresaId: aplicacao === "UMA" ? empresaId : null,
+          empresaIds: aplicacao === "SELECIONADAS" ? empresaIdsSelecionadas : undefined,
           cfopEntrada,
           cfopSaidaEsperado: cfopSaidaEsperado || undefined,
           condicaoPagamento: condicaoPagamento || undefined,
@@ -102,7 +119,9 @@ export default function RegrasFiscaisPage() {
       setDescricao("");
       setObservacao("");
       setAcumulador("");
+      setAplicacao("TODAS");
       setEmpresaId("");
+      setEmpresaIdsSelecionadas([]);
       await carregar(organizacaoId, token);
     } catch (err) {
       setErroForm(err instanceof Error ? err.message : "Não foi possível salvar a regra.");
@@ -122,12 +141,14 @@ export default function RegrasFiscaisPage() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
           Cada CFOP (de um documento de entrada ou de saída) mapeia pra uma observação e/ou
-          acumulador. Deixe "empresa" em branco pra criar a regra padrão da organização (vale
-          pra todo CNPJ que não tiver uma regra própria); escolha uma empresa quando o mesmo
-          CFOP precisar de tratamento diferente só pra ela — a regra da empresa sempre tem
-          prioridade sobre a padrão. O "CFOP de saída esperado" é opcional e alimenta a
-          checagem de divergência nas telas de Apuração do ICMS e Apuração do IBS/CBS (destaca
-          quando o CFOP real de um item não é um dos esperados por nenhuma regra ativa).
+          acumulador. Escolha "Toda a organização" pra criar a regra padrão (vale pra todo CNPJ
+          que não tiver uma regra própria), "Uma empresa" quando o mesmo CFOP precisar de
+          tratamento diferente só pra ela, ou "Empresas selecionadas" quando um grupo de
+          empresas (não todas) precisa do mesmo tratamento — prioridade: empresa específica &gt;
+          grupo selecionado &gt; padrão da organização. O "CFOP de saída esperado" é opcional e
+          alimenta a checagem de divergência nas telas de Apuração do ICMS e Apuração do
+          IBS/CBS (destaca quando o CFOP real de um item não é um dos esperados por nenhuma
+          regra ativa).
         </p>
         <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
           A "Condição de pagamento" é opcional e serve pro mesmo CFOP precisar de acumuladores
@@ -221,16 +242,64 @@ export default function RegrasFiscaisPage() {
 
         <div className="space-y-1.5 sm:col-span-2">
           <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
-            Empresa (opcional — em branco vale pra toda a organização)
+            Aplicação
           </label>
-          <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="campo">
-            <option value="">Toda a organização (padrão)</option>
-            {empresas.map((empresa) => (
-              <option key={empresa.id} value={empresa.id}>
-                {empresa.razaoSocial}
-              </option>
+          <div className="flex overflow-hidden rounded-md border" style={{ borderColor: "var(--border)", width: "fit-content" }}>
+            {(
+              [
+                ["TODAS", "Toda a organização"],
+                ["UMA", "Uma empresa"],
+                ["SELECIONADAS", "Empresas selecionadas"],
+              ] as const
+            ).map(([valor, rotulo]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setAplicacao(valor)}
+                className="px-3 py-1.5 font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-colors"
+                style={{
+                  background: aplicacao === valor ? "var(--paper)" : "transparent",
+                  color: aplicacao === valor ? "var(--void, #0a0a0a)" : "var(--muted)",
+                }}
+              >
+                {rotulo}
+              </button>
             ))}
-          </select>
+          </div>
+
+          {aplicacao === "UMA" && (
+            <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="campo mt-2">
+              <option value="">Selecione a empresa</option>
+              {empresas.map((empresa) => (
+                <option key={empresa.id} value={empresa.id}>
+                  {empresa.razaoSocial}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {aplicacao === "SELECIONADAS" && (
+            <div
+              className="mt-2 max-h-40 space-y-1 overflow-auto rounded-md border p-2"
+              style={{ borderColor: "var(--border)" }}
+            >
+              {empresas.length === 0 && (
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Nenhuma empresa cadastrada ainda.
+                </p>
+              )}
+              {empresas.map((empresa) => (
+                <label key={empresa.id} className="flex items-center gap-2 text-sm" style={{ color: "var(--paper)" }}>
+                  <input
+                    type="checkbox"
+                    checked={empresaIdsSelecionadas.includes(empresa.id)}
+                    onChange={() => alternarEmpresaSelecionada(empresa.id)}
+                  />
+                  {empresa.razaoSocial}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         {erroForm && (
@@ -313,7 +382,7 @@ export default function RegrasFiscaisPage() {
                     {regra.acumulador ?? "—"}
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
-                    {nomeEmpresa(regra.empresaId)}
+                    {aplicacaoDaRegra(regra)}
                   </td>
                 </tr>
               ))}

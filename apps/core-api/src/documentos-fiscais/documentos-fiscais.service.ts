@@ -15,11 +15,52 @@ import { decodificarChaveAcesso } from "@afe/shared";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Data a partir da qual o grupo gIBSCBS passa a ser obrigatório em toda
-// NF-e/NFC-e (LC 214/2025, Reforma Tributária) — usado só pra sinalizar
-// "deveria ter vindo e não veio" na apuração, não bloqueia nada.
+// Data a partir da qual o grupo gIBSCBS passa a ser obrigatório em NF-e/
+// NFC-e de Regime Normal (CRT=3) — LC 214/2025, Reforma Tributária.
+// Empresa do Simples Nacional/MEI (CRT 1/2/4) tem prazo PRÓPRIO, mais
+// tarde (ela pode continuar recolhendo embutido no DAS até lá, sem
+// destacar por nota) — ver DATA_OBRIGATORIEDADE_IBS_CBS_SIMPLES.
+// ACHADO EM PESQUISA (2026-11-01): as fontes encontradas (blogs de
+// contabilidade/ERP, nenhuma fonte primária oficial — SEFAZ/Receita/
+// Comitê Gestor do IBS — apareceu direto) DIVERGEM na data exata pro
+// Regime Normal (05/01/2026 vs 03/08/2026) — como as duas já passaram
+// na data de hoje, não muda o comportamento prático de usar 05/10/2026
+// aqui. CONFIRMAR contra a Nota Técnica oficial da NF-e antes de
+// qualquer auditoria fiscal formal em cima disso.
 const DATA_OBRIGATORIEDADE_IBS_CBS = new Date("2026-10-05T00:00:00Z");
+// ACHADO EM PESQUISA (2026-11-01, mesma ressalva de confiança média-baixa
+// nas datas exatas — fontes: contmatic, jettax, qive, contabeis.com.br,
+// escolasuperioresn, gomidecontabilidade): Simples Nacional/MEI só fica
+// obrigado a partir de 01/01/2027 (uma fonte cita 04/01/2027) — quem não
+// optou pelo "regime regular" (janela de opção 01-30/09/2026) continua
+// recolhendo tudo embutido no DAS até lá, sem destacar valor por nota.
+// CONFIRMAR data exata com contador/Nota Técnica oficial antes de
+// qualquer autuação ser decidida em cima disso — fica deliberadamente
+// conservador (data mais tarde das encontradas) pra não gerar falso
+// positivo pros clientes do Simples enquanto isso não for confirmado.
+const DATA_OBRIGATORIEDADE_IBS_CBS_SIMPLES = new Date("2027-01-04T00:00:00Z");
 const TOLERANCIA_ARREDONDAMENTO = 0.02;
+
+// CRT que indica Simples Nacional/MEI — ver regimeDoCrt() em
+// itens-documento-fiscal.service.ts pro mapeamento completo (1/2/4) e a
+// ressalva sobre o valor 4 (MEI) ainda não confirmado contra XML real.
+const CRT_SIMPLES_OU_MEI = new Set([1, 2, 4]);
+
+/** 8 dígitos numéricos — formato válido de NCM. "00000000" é claramente placeholder, não um NCM real. */
+function ncmMalformado(ncm: string): boolean {
+  return !/^\d{8}$/.test(ncm) || ncm === "00000000";
+}
+
+// Primeiro dígito do CFOP: 5=dentro do estado, 6=fora do estado (mesmo
+// país), 7=exterior — não tem como validar o dígito 7 contra UF (destino
+// não é uma UF brasileira), só 5 e 6.
+function cfopIncompativelComUf(cfop: string, ufEmpresa: string, ufDestinatario: string | null): boolean {
+  if (!ufDestinatario) return false;
+  const primeiroDigito = cfop.charAt(0);
+  if (primeiroDigito === "5") return ufDestinatario !== ufEmpresa;
+  if (primeiroDigito === "6") return ufDestinatario === ufEmpresa;
+  return false;
+}
 
 /**
  * Confere base × alíquota ≈ valor pra cada tributo do item (tolerância de
@@ -562,7 +603,9 @@ export class DocumentosFiscaisService {
           emitidoEm: { gte: inicio, lte: fim },
         },
       },
-      include: { documentoFiscal: { select: { chaveAcesso: true, emitidoEm: true, tipo: true } } },
+      include: {
+        documentoFiscal: { select: { chaveAcesso: true, emitidoEm: true, tipo: true, crt: true, ufDestinatario: true } },
+      },
       orderBy: [{ documentoFiscal: { emitidoEm: "asc" } }, { nItem: "asc" }],
     });
 
@@ -582,7 +625,7 @@ export class DocumentosFiscaisService {
                   organizacaoId: empresa.organizacaoId,
                   ativa: true,
                   cfopSaidaEsperado: { not: null },
-                  OR: [{ empresaId }, { empresaId: null }],
+                  OR: [{ empresaId }, { empresaId: null }, { empresaIds: { has: empresaId } }],
                 },
                 select: { cfopSaidaEsperado: true },
               })
@@ -675,13 +718,19 @@ export class DocumentosFiscaisService {
       const tributosInconsistentes = inconsistencias.map(({ nome }) => nome);
 
       const cfopDivergente = cfopsSaidaEsperados.size > 0 && !cfopsSaidaEsperados.has(item.cfop);
-      // Só sinaliza ausência em quem já deveria ter o grupo (reforma é
-      // obrigatória a partir de 05/10/2026) — nota mais antiga sem o
-      // grupo é normal, não é pendência.
+      // Data de obrigatoriedade do grupo IBS/CBS depende do regime — ver
+      // comentário em DATA_OBRIGATORIEDADE_IBS_CBS_SIMPLES. CRT nulo
+      // (documento de antes desse campo existir, ainda não reprocessado)
+      // usa a data do Regime Normal por segurança — comportamento igual
+      // ao de antes dessa checagem existir.
+      const dataObrigatoriedade =
+        item.documentoFiscal.crt !== null && CRT_SIMPLES_OU_MEI.has(item.documentoFiscal.crt)
+          ? DATA_OBRIGATORIEDADE_IBS_CBS_SIMPLES
+          : DATA_OBRIGATORIEDADE_IBS_CBS;
       const ibsCbsObrigatorioAusente =
         !item.ibsCbsCst &&
         item.documentoFiscal.emitidoEm !== null &&
-        item.documentoFiscal.emitidoEm >= DATA_OBRIGATORIEDADE_IBS_CBS;
+        item.documentoFiscal.emitidoEm >= dataObrigatoriedade;
       const regimeIcmsMisturado = notasComRegimeMisturado.has(item.documentoFiscalId);
       const moda = modaPorCfop.get(item.cfop);
       const aliquotaIcmsDivergente =
@@ -690,6 +739,25 @@ export class DocumentosFiscaisService {
         moda.total >= 3 &&
         moda.contagem / moda.total > 0.5 &&
         item.icmsAliquota.toString() !== moda.aliquota;
+
+      // CST/CSOSN do item não bate com o CRT que a própria nota declara
+      // no emitente — pega o erro sistemático que "regime misturado"
+      // (que só compara itens dentro da mesma nota) não vê: uma empresa
+      // emitindo 100% das notas com o regime errado nunca teria mistura
+      // nenhuma pra detectar. CRT 1/2/4 (Simples/sublimite/MEI) espera
+      // CSOSN (icmsComCst=false); CRT 3 (Normal) espera CST
+      // (icmsComCst=true). Só compara quando o item tem bloco de ICMS
+      // (icmsComCst !== null) e o CRT é conhecido.
+      const regimeDivergenteDoCrt =
+        item.icmsComCst !== null &&
+        item.documentoFiscal.crt !== null &&
+        item.icmsComCst === CRT_SIMPLES_OU_MEI.has(item.documentoFiscal.crt);
+
+      const cfopUfDivergente =
+        direcao === "SAIDA" &&
+        cfopIncompativelComUf(item.cfop, empresa.uf, item.documentoFiscal.ufDestinatario);
+
+      const ncmInvalido = ncmMalformado(item.ncm);
 
       // Detalhe campo-a-campo exibido no "?" de cada linha pendente — cada
       // entrada diz exatamente qual valor era esperado e qual veio no XML,
@@ -731,8 +799,38 @@ export class DocumentosFiscaisService {
           ? [
               {
                 campo: "Grupo IBS/CBS",
-                esperado: "Presente (obrigatório em notas emitidas a partir de 05/10/2026)",
+                esperado: `Presente (obrigatório a partir de ${dataObrigatoriedade.toISOString().slice(0, 10)} pro regime dessa empresa)`,
                 atual: "Ausente no XML",
+              },
+            ]
+          : []),
+        ...(regimeDivergenteDoCrt
+          ? [
+              {
+                campo: "Regime do item (CST/CSOSN)",
+                esperado: CRT_SIMPLES_OU_MEI.has(item.documentoFiscal.crt ?? -1) ? "CSOSN (Simples/MEI)" : "CST (Regime Normal)",
+                atual: item.icmsComCst ? "CST (Regime Normal)" : "CSOSN (Simples/MEI)",
+              },
+            ]
+          : []),
+        ...(cfopUfDivergente
+          ? [
+              {
+                campo: "CFOP × UF do destinatário",
+                esperado:
+                  item.cfop.charAt(0) === "5"
+                    ? `Venda dentro do estado (destinatário em ${empresa.uf})`
+                    : `Venda interestadual (destinatário fora de ${empresa.uf})`,
+                atual: `Destinatário em ${item.documentoFiscal.ufDestinatario}`,
+              },
+            ]
+          : []),
+        ...(ncmInvalido
+          ? [
+              {
+                campo: "NCM",
+                esperado: "8 dígitos numéricos válidos",
+                atual: item.ncm || "—",
               },
             ]
           : []),
@@ -748,6 +846,9 @@ export class DocumentosFiscaisService {
         ibsCbsObrigatorioAusente,
         regimeIcmsMisturado,
         aliquotaIcmsDivergente,
+        regimeDivergenteDoCrt,
+        cfopUfDivergente,
+        ncmInvalido,
         detalheDivergencias,
         correcaoSugerida: sugestoes[item.id] ?? null,
       };
@@ -850,11 +951,13 @@ export class DocumentosFiscaisService {
   /**
    * Reprocessa (extrai e persiste) os itens de documentos (NF-e/NFC-e, de
    * ENTRADA ou SAÍDA) que ainda não têm nenhuma linha em
-   * ItemDocumentoFiscal — cobre tanto histórico anterior à feature de
-   * Apuração quanto qualquer nota que falhou na extração automática da
-   * ingestão. Mesmo padrão "conta e dispara em segundo plano" de
-   * consultarPendentes — milhares de documentos não cabem numa chamada
-   * HTTP síncrona.
+   * ItemDocumentoFiscal, OU que ainda não têm o CRT/UF do destinatário
+   * gravados (campos novos, 2026-11-01 — histórico de antes deles
+   * existirem tem itens mas não tem esses dois) — cobre tanto histórico
+   * anterior à feature de Apuração quanto qualquer nota que falhou na
+   * extração automática da ingestão. Mesmo padrão "conta e dispara em
+   * segundo plano" de consultarPendentes — milhares de documentos não
+   * cabem numa chamada HTTP síncrona.
    */
   async reprocessarItens(empresaId: string, organizacaoId: string, direcao: "ENTRADA" | "SAIDA") {
     await this.verificarEmpresaDaOrganizacao(empresaId, organizacaoId);
@@ -864,7 +967,7 @@ export class DocumentosFiscaisService {
         empresaId,
         direcao,
         tipo: { in: ["NFE", "NFCE"] },
-        itens: { none: {} },
+        OR: [{ itens: { none: {} } }, { crt: null }],
       },
       select: { id: true, objetoStorageXml: true },
     });

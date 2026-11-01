@@ -26,6 +26,9 @@ export class RegrasFiscaisController {
     if (input.empresaId) {
       await this.acesso.garantirEmpresaDaOrganizacao(input.empresaId, organizacaoId);
     }
+    for (const id of input.empresaIds ?? []) {
+      await this.acesso.garantirEmpresaDaOrganizacao(id, organizacaoId);
+    }
     return this.service.criar(input);
   }
 

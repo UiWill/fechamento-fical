@@ -68,9 +68,12 @@ const COLUNAS_CSV: { rotulo: string; campo: keyof ItemApuracao }[] = [
   { rotulo: "pCOFINS", campo: "cofinsAliquota" },
   { rotulo: "vCOFINS", campo: "cofinsValor" },
   { rotulo: "CFOP divergente", campo: "cfopDivergente" },
+  { rotulo: "CFOP × UF destinatário", campo: "cfopUfDivergente" },
   { rotulo: "Inconsistências", campo: "tributosInconsistentes" },
+  { rotulo: "Regime do item ≠ CRT da nota", campo: "regimeDivergenteDoCrt" },
   { rotulo: "Regime ICMS misturado", campo: "regimeIcmsMisturado" },
   { rotulo: "Alíquota ICMS divergente", campo: "aliquotaIcmsDivergente" },
+  { rotulo: "NCM inválido", campo: "ncmInvalido" },
 ];
 
 interface LinhaResumoCfop {
@@ -395,7 +398,13 @@ export function SecaoApuracaoIcms({
 
   const pendencias = itens.filter(
     (i) =>
-      i.cfopDivergente || i.tributosInconsistentes.length > 0 || i.regimeIcmsMisturado || i.aliquotaIcmsDivergente
+      i.cfopDivergente ||
+      i.cfopUfDivergente ||
+      i.tributosInconsistentes.length > 0 ||
+      i.regimeDivergenteDoCrt ||
+      i.regimeIcmsMisturado ||
+      i.aliquotaIcmsDivergente ||
+      i.ncmInvalido
   ).length;
 
   return (
@@ -622,11 +631,14 @@ export function SecaoApuracaoIcms({
                   const inconsistente = i.tributosInconsistentes.length > 0;
                   const titulo = [
                     i.cfopDivergente ? "CFOP de saída fora do esperado pelas regras fiscais ativas" : null,
+                    i.cfopUfDivergente ? "CFOP incompatível com a UF real do destinatário" : null,
                     inconsistente ? `Base × alíquota não bate com o valor: ${i.tributosInconsistentes.join(", ")}` : null,
+                    i.regimeDivergenteDoCrt ? "CST/CSOSN do item não bate com o regime (CRT) declarado na nota" : null,
                     i.regimeIcmsMisturado ? "Nota com item em CST normal e item em CSOSN ao mesmo tempo" : null,
                     i.aliquotaIcmsDivergente
                       ? "Alíquota de ICMS diferente da que a empresa normalmente usa nesse CFOP"
                       : null,
+                    i.ncmInvalido ? "NCM não tem 8 dígitos válidos, ou é só zeros" : null,
                   ]
                     .filter(Boolean)
                     .join(" — ");
@@ -638,13 +650,19 @@ export function SecaoApuracaoIcms({
                       borderColor: "var(--border)",
                       background: i.cfopDivergente
                         ? "rgba(224, 90, 90, 0.32)"
-                        : inconsistente
-                          ? "rgba(224, 150, 60, 0.32)"
-                          : i.regimeIcmsMisturado
-                            ? "rgba(160, 80, 224, 0.32)"
-                            : i.aliquotaIcmsDivergente
-                              ? "rgba(70, 150, 224, 0.32)"
-                              : undefined,
+                        : i.cfopUfDivergente
+                          ? "rgba(224, 112, 160, 0.32)"
+                          : inconsistente
+                            ? "rgba(224, 150, 60, 0.32)"
+                            : i.regimeDivergenteDoCrt
+                              ? "rgba(160, 112, 74, 0.32)"
+                              : i.regimeIcmsMisturado
+                                ? "rgba(160, 80, 224, 0.32)"
+                                : i.aliquotaIcmsDivergente
+                                  ? "rgba(70, 150, 224, 0.32)"
+                                  : i.ncmInvalido
+                                    ? "rgba(106, 200, 122, 0.32)"
+                                    : undefined,
                     }}
                     title={titulo || undefined}
                   >
@@ -657,9 +675,20 @@ export function SecaoApuracaoIcms({
                     </td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{i.cProd}</td>
                     <td className="px-3 py-3" style={{ color: "var(--paper)" }}>{i.xProd}</td>
-                    <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{i.ncm}</td>
-                    <td className="px-3 py-3 text-xs" style={{ color: i.cfopDivergente ? "var(--vermelho, #e08a8a)" : "var(--paper)" }}>{i.cfop}</td>
-                    <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{val(i.icmsCst)}</td>
+                    <td className="px-3 py-3 text-xs" style={{ color: i.ncmInvalido ? "var(--verde, #6ac87a)" : "var(--muted)" }}>{i.ncm}</td>
+                    <td
+                      className="px-3 py-3 text-xs"
+                      style={{
+                        color: i.cfopDivergente
+                          ? "var(--vermelho, #e08a8a)"
+                          : i.cfopUfDivergente
+                            ? "var(--rosa, #e070a0)"
+                            : "var(--paper)",
+                      }}
+                    >
+                      {i.cfop}
+                    </td>
+                    <td className="px-3 py-3 text-xs" style={{ color: i.regimeDivergenteDoCrt ? "var(--marrom, #a0704a)" : "var(--muted)" }}>{val(i.icmsCst)}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{val(i.icmsBase)}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{pct(i.icmsAliquota)}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--paper)" }}>{val(i.icmsValor)}</td>

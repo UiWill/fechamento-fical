@@ -3,6 +3,8 @@ import {
   AMBIENTE_FISCAL,
   CONDICAO_PAGAMENTO,
   DIRECAO_DOCUMENTO,
+  ORIGEM_REGIME_TRIBUTARIO,
+  REGIME_TRIBUTARIO,
   STATUS_DOCUMENTO_FISCAL,
   STATUS_EMPRESA,
   TIPO_DOCUMENTO_FISCAL,
@@ -40,6 +42,10 @@ export const empresaSchema = criarEmpresaSchema.extend({
   ativadaEm: z.coerce.date(),
   desativadaEm: z.coerce.date().nullable(),
   dataInicioMonitoramento: z.coerce.date().nullable(),
+  // Auto (lido do CRT das próprias notas, ou da BrasilAPI enquanto não
+  // tem nota nenhuma) — nulo até a primeira nota de saída ou consulta.
+  regimeTributario: z.enum(REGIME_TRIBUTARIO).nullable(),
+  origemRegimeTributario: z.enum(ORIGEM_REGIME_TRIBUTARIO).nullable(),
 });
 export type Empresa = z.infer<typeof empresaSchema>;
 
@@ -60,6 +66,9 @@ export type DocumentoFiscal = z.infer<typeof documentoFiscalSchema>;
 export const criarRegraFiscalSchema = z.object({
   organizacaoId: z.string().cuid(),
   empresaId: z.string().cuid().nullable().optional(),
+  // Alternativa a empresaId pra aplicar a um grupo de empresas
+  // selecionadas (não uma só, não todas) — ver comentário no schema.prisma.
+  empresaIds: z.array(z.string().cuid()).optional(),
   cfopEntrada: z.string().min(1),
   // CFOP esperado na saída quando essa entrada é revendida/transferida —
   // alimenta a checagem de divergência nas telas de Apuração do ICMS/IBS-CBS.

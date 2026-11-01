@@ -1,6 +1,6 @@
 import { BadGatewayException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
-import { validarDigitosCnpj, type CriarEmpresaInput } from "@afe/shared";
+import { validarDigitosCnpj, type CriarEmpresaInput, type RegimeTributario } from "@afe/shared";
 import { CODIGO_IBGE_POR_UF } from "./uf";
 
 export interface DadosCnpjConsultado {
@@ -10,6 +10,39 @@ export interface DadosCnpjConsultado {
   uf: string;
   codigoUf: number;
   situacaoCadastral: string | null;
+}
+
+/** Campos da BrasilAPI usados nos dois pontos de consulta (cadastro e regime). */
+interface DadosBrutosCnpj {
+  razao_social: string;
+  nome_fantasia: string | null;
+  uf: string;
+  descricao_situacao_cadastral: string | null;
+  opcao_pelo_mei: boolean | null;
+  opcao_pelo_simples: boolean | null;
+  regime_tributario: { ano: number; forma_de_tributacao: string }[] | null;
+}
+
+/**
+ * opcao_pelo_mei/opcao_pelo_simples vêm direto do cadastro da Receita
+ * (confiável); "Lucro Presumido"/"Lucro Real" só aparecem dentro de
+ * regime_tributario[], um registro por ano de escrituração (ECF) — pega
+ * o ano mais recente disponível (achado em pesquisa, 2026-11-01, via
+ * teste real contra a BrasilAPI: CNPJ do Banco do Brasil trouxe
+ * forma_de_tributacao="LUCRO REAL" todo ano desde 2016).
+ */
+function regimeDaBrasilApi(dados: DadosBrutosCnpj): RegimeTributario | null {
+  // MEI é tecnicamente um sub-regime do Simples (LC 123 Art. 18-A) — checa
+  // primeiro, prevalece independente do valor de opcao_pelo_simples.
+  if (dados.opcao_pelo_mei) return "MEI";
+  if (dados.opcao_pelo_simples) return "SIMPLES_NACIONAL";
+  if (dados.opcao_pelo_simples === false) {
+    const maisRecente = [...(dados.regime_tributario ?? [])].sort((a, b) => b.ano - a.ano)[0];
+    if (maisRecente?.forma_de_tributacao === "LUCRO REAL") return "LUCRO_REAL";
+    if (maisRecente?.forma_de_tributacao === "LUCRO PRESUMIDO") return "LUCRO_PRESUMIDO";
+    return "REGIME_NORMAL";
+  }
+  return null;
 }
 
 @Injectable()
@@ -97,6 +130,62 @@ export class EmpresasService {
    * e corrigir antes de salvar.
    */
   async consultarCnpj(cnpjBruto: string): Promise<DadosCnpjConsultado> {
+    const { cnpj, dados } = await this.buscarDadosBrutosCnpj(cnpjBruto);
+
+    const codigoUf = CODIGO_IBGE_POR_UF[dados.uf];
+    if (!codigoUf) {
+      throw new BadGatewayException(`UF "${dados.uf}" retornada pela Receita não reconhecida.`);
+    }
+
+    return {
+      cnpj,
+      razaoSocial: dados.razao_social,
+      nomeFantasia: dados.nome_fantasia,
+      uf: dados.uf,
+      codigoUf,
+      situacaoCadastral: dados.descricao_situacao_cadastral,
+    };
+  }
+
+  /**
+   * Consulta a BrasilAPI só pelo regime tributário e grava em Empresa —
+   * pra empresa que já tinha cadastro (pedido do usuário em 2026-11-01)
+   * ou que ainda não emitiu nenhuma nota (sem CRT pra aprender sozinha
+   * ainda, ver itens-documento-fiscal.service.ts). Nunca sobrescreve um
+   * regime já aprendido de nota fiscal real (NOTA_FISCAL é mais
+   * confiável que a BrasilAPI) nem um setado manualmente.
+   */
+  async atualizarRegimeViaReceita(id: string, organizacaoId: string) {
+    const empresa = await this.prisma.client.empresa.findUnique({ where: { id } });
+    if (!empresa || empresa.organizacaoId !== organizacaoId) {
+      throw new NotFoundException(`Empresa ${id} não encontrada`);
+    }
+    if (empresa.origemRegimeTributario === "NOTA_FISCAL" || empresa.origemRegimeTributario === "MANUAL") {
+      return empresa;
+    }
+
+    const { dados } = await this.buscarDadosBrutosCnpj(empresa.cnpj);
+    const regime = regimeDaBrasilApi(dados);
+    if (!regime) {
+      throw new BadGatewayException("A Receita não informou o regime tributário desse CNPJ.");
+    }
+
+    return this.prisma.client.empresa.update({
+      where: { id },
+      data: { regimeTributario: regime, origemRegimeTributario: "BRASIL_API" },
+    });
+  }
+
+  /** Correção manual — passa a ignorar atualização automática (ver atualizarCrtEDestinatario / atualizarRegimeViaReceita). */
+  async definirRegimeTributarioManual(id: string, organizacaoId: string, regime: RegimeTributario) {
+    await this.empresaDaOrganizacao(id, organizacaoId);
+    return this.prisma.client.empresa.update({
+      where: { id },
+      data: { regimeTributario: regime, origemRegimeTributario: "MANUAL" },
+    });
+  }
+
+  private async buscarDadosBrutosCnpj(cnpjBruto: string): Promise<{ cnpj: string; dados: DadosBrutosCnpj }> {
     const cnpj = cnpjBruto.replace(/\D/g, "");
 
     if (!validarDigitosCnpj(cnpj)) {
@@ -132,25 +221,7 @@ export class EmpresasService {
       );
     }
 
-    const dados = (await response.json()) as {
-      razao_social: string;
-      nome_fantasia: string | null;
-      uf: string;
-      descricao_situacao_cadastral: string | null;
-    };
-
-    const codigoUf = CODIGO_IBGE_POR_UF[dados.uf];
-    if (!codigoUf) {
-      throw new BadGatewayException(`UF "${dados.uf}" retornada pela Receita não reconhecida.`);
-    }
-
-    return {
-      cnpj,
-      razaoSocial: dados.razao_social,
-      nomeFantasia: dados.nome_fantasia,
-      uf: dados.uf,
-      codigoUf,
-      situacaoCadastral: dados.descricao_situacao_cadastral,
-    };
+    const dados = (await response.json()) as DadosBrutosCnpj;
+    return { cnpj, dados };
   }
 }

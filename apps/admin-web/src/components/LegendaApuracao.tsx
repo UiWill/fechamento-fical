@@ -23,9 +23,20 @@ const LEGENDA_ICMS: ItemLegenda[] = [
     soSaida: true,
   },
   {
+    cor: "var(--rosa, #e070a0)",
+    rotulo: "CFOP × UF do destinatário",
+    explicacao: "O CFOP indica venda dentro do estado mas o destinatário é de outra UF (ou vice-versa) — muda a alíquota de ICMS devida.",
+    soSaida: true,
+  },
+  {
     cor: "var(--laranja, #e0963c)",
     rotulo: "Base × alíquota não bate",
     explicacao: "O valor do imposto no XML não corresponde à conta (base × alíquota) do próprio XML — sinal de imposto calculado errado na emissão.",
+  },
+  {
+    cor: "var(--marrom, #a0704a)",
+    rotulo: "Regime do item ≠ CRT da nota",
+    explicacao: "O item usa CST/CSOSN incompatível com o regime tributário (CRT) que a própria nota declara no emitente — ex: CST normal numa nota de empresa do Simples.",
   },
   {
     cor: "var(--roxo, #a050e0)",
@@ -36,6 +47,11 @@ const LEGENDA_ICMS: ItemLegenda[] = [
     cor: "var(--azul, #4696e0)",
     rotulo: "Alíquota ICMS divergente",
     explicacao: "A alíquota de ICMS desse item é diferente da que a empresa normalmente usa nesse mesmo CFOP.",
+  },
+  {
+    cor: "var(--verde, #6ac87a)",
+    rotulo: "NCM inválido",
+    explicacao: "O NCM não tem 8 dígitos válidos, ou é só zeros — sinal de cadastro de produto malfeito no PDV do cliente.",
   },
 ];
 

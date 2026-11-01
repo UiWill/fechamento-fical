@@ -238,12 +238,33 @@ export async function consultarCnpj(
   return response.json();
 }
 
+export type RegimeTributario =
+  | "SIMPLES_NACIONAL"
+  | "SIMPLES_SUBLIMITE_EXCEDIDO"
+  | "MEI"
+  | "LUCRO_PRESUMIDO"
+  | "LUCRO_REAL"
+  | "REGIME_NORMAL";
+
+export const ROTULO_REGIME_TRIBUTARIO: Record<RegimeTributario, string> = {
+  SIMPLES_NACIONAL: "Simples Nacional",
+  SIMPLES_SUBLIMITE_EXCEDIDO: "Simples (sublimite excedido)",
+  MEI: "MEI",
+  LUCRO_PRESUMIDO: "Lucro Presumido",
+  LUCRO_REAL: "Lucro Real",
+  REGIME_NORMAL: "Regime Normal (Presumido ou Real)",
+};
+
+export type OrigemRegimeTributario = "NOTA_FISCAL" | "BRASIL_API" | "MANUAL";
+
 export interface EmpresaDetalhe extends EmpresaResumo {
   organizacaoId: string;
   codigoUf: number;
   ambiente: "PRODUCAO" | "HOMOLOGACAO";
   ativadaEm: string;
   dataInicioMonitoramento: string | null;
+  regimeTributario: RegimeTributario | null;
+  origemRegimeTributario: OrigemRegimeTributario | null;
   ultimaSincronizacaoEm: string | null;
   ultimoCStatSefaz: string | null;
   ultimoXMotivoSefaz: string | null;
@@ -288,6 +309,34 @@ export async function alterarDataInicioMonitoramentoEmpresa(
   });
   if (!response.ok) {
     throw new Error("Não foi possível alterar a data de início de captura dessa empresa.");
+  }
+  return response.json();
+}
+
+export async function atualizarRegimeViaReceita(id: string, token: string): Promise<EmpresaDetalhe> {
+  const response = await apiFetch(`${API_URL}/empresas/${id}/atualizar-regime-via-receita`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || "Não foi possível consultar o regime na Receita agora.");
+  }
+  return response.json();
+}
+
+export async function definirRegimeTributarioEmpresa(
+  id: string,
+  regimeTributario: RegimeTributario,
+  token: string
+): Promise<EmpresaDetalhe> {
+  const response = await apiFetch(`${API_URL}/empresas/${id}/regime-tributario`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ regimeTributario }),
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível salvar o regime tributário dessa empresa.");
   }
   return response.json();
 }
@@ -465,6 +514,7 @@ export interface RegraFiscal {
   id: string;
   organizacaoId: string;
   empresaId: string | null;
+  empresaIds: string[];
   cfopEntrada: string;
   cfopSaidaEsperado: string | null;
   condicaoPagamento: CondicaoPagamento | null;
@@ -491,6 +541,7 @@ export async function listarRegrasFiscais(
 export interface CriarRegraFiscalInput {
   organizacaoId: string;
   empresaId?: string | null;
+  empresaIds?: string[];
   cfopEntrada: string;
   cfopSaidaEsperado?: string;
   condicaoPagamento?: CondicaoPagamento;
@@ -741,6 +792,12 @@ export interface ItemApuracao {
   regimeIcmsMisturado: boolean;
   /** true quando a alíquota de ICMS desse item destoa da alíquota majoritária usada pela própria empresa nesse mesmo CFOP no período. */
   aliquotaIcmsDivergente: boolean;
+  /** true quando o item usa CST e a nota é de empresa do Simples/MEI (ou usa CSOSN e a empresa é Regime Normal) — lido do CRT que a própria nota declara. */
+  regimeDivergenteDoCrt: boolean;
+  /** true quando o CFOP (dentro/fora do estado) não bate com a UF real do destinatário da nota. */
+  cfopUfDivergente: boolean;
+  /** true quando o NCM não tem 8 dígitos válidos ou é só zeros. */
+  ncmInvalido: boolean;
   /** Explicação campo a campo de cada pendência da linha — o que era esperado vs. o que veio no XML (usado no "?" de cada linha). */
   detalheDivergencias: { campo: string; esperado: string; atual: string }[];
   /** Preenchido quando uma Carta de Correção já aprendida (de qualquer empresa da organização) bate com o valor atual desse item. */
