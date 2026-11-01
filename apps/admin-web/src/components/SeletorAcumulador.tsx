@@ -14,11 +14,13 @@ export function SeletorAcumulador({
   value,
   onChange,
   idLista,
+  required,
 }: {
   value: string;
   onChange: (valor: string) => void;
   /** Precisa ser único na página quando o componente aparece mais de uma vez. */
   idLista?: string;
+  required?: boolean;
 }) {
   const id = idLista ?? "acumuladores-dominio";
   return (
@@ -29,6 +31,7 @@ export function SeletorAcumulador({
         onChange={(event) => onChange(event.target.value)}
         placeholder="Busque por código ou nome (ex: 100, revenda)…"
         className="campo"
+        required={required}
       />
       <datalist id={id}>
         {ACUMULADORES_DOMINIO.map((acumulador) => (

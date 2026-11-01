@@ -84,12 +84,20 @@ export default function RegrasFiscaisPage() {
       setErroForm("CFOP de entrada deve ter 4 dígitos.");
       return;
     }
-    if (cfopSaidaEsperado && !/^\d{4}$/.test(cfopSaidaEsperado)) {
+    if (!/^\d{4}$/.test(cfopSaidaEsperado)) {
       setErroForm("CFOP de saída esperado deve ter 4 dígitos.");
       return;
     }
     if (!descricao.trim()) {
       setErroForm("Descrição é obrigatória.");
+      return;
+    }
+    if (!acumulador.trim()) {
+      setErroForm("Acumulador é obrigatório.");
+      return;
+    }
+    if (aplicacao === "UMA" && !empresaId) {
+      setErroForm("Selecione a empresa.");
       return;
     }
     if (aplicacao === "SELECIONADAS" && empresaIdsSelecionadas.length === 0) {
@@ -105,11 +113,11 @@ export default function RegrasFiscaisPage() {
           empresaId: aplicacao === "UMA" ? empresaId : null,
           empresaIds: aplicacao === "SELECIONADAS" ? empresaIdsSelecionadas : undefined,
           cfopEntrada,
-          cfopSaidaEsperado: cfopSaidaEsperado || undefined,
+          cfopSaidaEsperado,
           condicaoPagamento: condicaoPagamento || undefined,
           descricao: descricao.trim(),
           observacao: observacao.trim() || undefined,
-          acumulador: acumulador.trim() || undefined,
+          acumulador: acumulador.trim(),
         },
         token
       );
@@ -145,10 +153,9 @@ export default function RegrasFiscaisPage() {
           que não tiver uma regra própria), "Uma empresa" quando o mesmo CFOP precisar de
           tratamento diferente só pra ela, ou "Empresas selecionadas" quando um grupo de
           empresas (não todas) precisa do mesmo tratamento — prioridade: empresa específica &gt;
-          grupo selecionado &gt; padrão da organização. O "CFOP de saída esperado" é opcional e
-          alimenta a checagem de divergência nas telas de Apuração do ICMS e Apuração do
-          IBS/CBS (destaca quando o CFOP real de um item não é um dos esperados por nenhuma
-          regra ativa).
+          grupo selecionado &gt; padrão da organização. O "CFOP de saída esperado" alimenta a
+          checagem de divergência nas telas de Apuração do ICMS e Apuração do IBS/CBS (destaca
+          quando o CFOP real de um item não é um dos esperados por nenhuma regra ativa).
         </p>
         <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
           A "Condição de pagamento" é opcional e serve pro mesmo CFOP precisar de acumuladores
@@ -184,13 +191,14 @@ export default function RegrasFiscaisPage() {
 
         <div className="space-y-1.5">
           <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
-            CFOP de saída esperado (opcional)
+            CFOP de saída esperado
           </label>
           <input
             value={cfopSaidaEsperado}
             onChange={(e) => setCfopSaidaEsperado(e.target.value.replace(/\D/g, "").slice(0, 4))}
             placeholder="5102"
             className="campo"
+            required
           />
         </div>
 
@@ -235,9 +243,9 @@ export default function RegrasFiscaisPage() {
 
         <div className="space-y-1.5">
           <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
-            Acumulador (opcional)
+            Acumulador
           </label>
-          <SeletorAcumulador value={acumulador} onChange={setAcumulador} />
+          <SeletorAcumulador value={acumulador} onChange={setAcumulador} required />
         </div>
 
         <div className="space-y-1.5 sm:col-span-2">
@@ -268,7 +276,7 @@ export default function RegrasFiscaisPage() {
           </div>
 
           {aplicacao === "UMA" && (
-            <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="campo mt-2">
+            <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} className="campo mt-2" required>
               <option value="">Selecione a empresa</option>
               {empresas.map((empresa) => (
                 <option key={empresa.id} value={empresa.id}>
