@@ -48,25 +48,21 @@ const CRT_SIMPLES_OU_MEI = new Set([1, 2, 4]);
 
 /**
  * Filtro de período (mês selecionado na tela) pra qualquer busca de
- * documentos — direção-dependente:
+ * documentos. Sempre por `emitidoEm` (data que a nota/CT-e declara), com
+ * fallback pra `recebidoEm` só quando emitidoEm é nulo (raro — falha de
+ * extração do dhEmi) — é o campo que a tela mostra/ordena em toda tabela
+ * (coluna "Data"/"DHEMI"), então o filtro tem que bater com ele, senão
+ * uma nota mostrada na tela some ao filtrar pelo mês que ela mesma exibe.
  *
- * - SAÍDA: `emitidoEm` é a própria nota da empresa, então é a data certa
- *   (recebidoEm ≈ emitidoEm de qualquer jeito, já que o agente desktop
- *   envia a nota no mesmo dia). Mantém o fallback pra recebidoEm só pros
- *   raros documentos sem emitidoEm (ex: falha de extração do dhEmi).
- * - ENTRADA: `emitidoEm` é a data que o FORNECEDOR colocou na nota —
- *   pode ser de semanas ou meses antes de a SEFAZ liberar a Distribuição
- *   DFe pra nós. Filtrar entrada por emitidoEm fazia uma nota recebida
- *   em outubro (mas emitida em setembro) desaparecer ao selecionar
- *   "outubro" na tela (achado em 2026-11-01, reportado pelo William: mês
- *   anterior nunca mostrava nota nenhuma de entrada). `recebidoEm` é a
- *   data que entra no sistema e nunca é nula (@default(now())), então é
- *   o campo certo pra "o que apareceu nesse mês" pra entrada.
+ * ACHADO 2026-11-01: cheguei a trocar entrada pra filtrar por
+ * `recebidoEm` (teoria: nota do fornecedor chega atrasada pela
+ * Distribuição DFe), mas o William reportou de volta que isso fazia
+ * nota com "Data" de outubro aparecer no filtro de novembro — pior que o
+ * problema original. O bug de verdade por trás do "outubro não mostra
+ * nada" era o calendário cortado visualmente (ver SeletorMes.tsx,
+ * createPortal) — nada a ver com qual campo de data filtrar. Revertido.
  */
-export function filtroPeriodoPorDirecao(direcao: "ENTRADA" | "SAIDA", inicio: Date, fim: Date) {
-  if (direcao === "ENTRADA") {
-    return { recebidoEm: { gte: inicio, lte: fim } };
-  }
+export function filtroPeriodoPorDirecao(_direcao: "ENTRADA" | "SAIDA", inicio: Date, fim: Date) {
   return {
     OR: [
       { emitidoEm: { gte: inicio, lte: fim } },
@@ -626,18 +622,7 @@ export class DocumentosFiscaisService {
           direcao,
           tipo: { in: ["NFE", "NFCE"] },
           cStatConsulta: "100",
-          // Diferente da listagem/TXT/zip (que usam recebidoEm pra entrada
-          // — ver filtroPeriodoPorDirecao): aqui o mês filtrado tem que
-          // bater com a coluna DHEMI exibida/ordenada na tela (emitidoEm),
-          // senão o filtro "novembro" mostra item com DHEMI de outubro —
-          // visualmente errado mesmo sendo "correto" por recebimento
-          // (achado em 2026-11-01, reportado pelo William com print da
-          // Apuração ICMS). Apuração é sobre o que a nota declarou na data
-          // dela, não sobre quando o documento chegou aqui.
-          OR: [
-            { emitidoEm: { gte: inicio, lte: fim } },
-            { emitidoEm: null, recebidoEm: { gte: inicio, lte: fim } },
-          ],
+          ...filtroPeriodoPorDirecao(direcao, inicio, fim),
         },
       },
       include: {
@@ -1056,20 +1041,10 @@ export class DocumentosFiscaisService {
         empresaId,
         direcao,
         ...(tipo ? { tipo } : {}),
-        // ENTRADA/CTE_DISTRIBUICAO: documento recebido via Distribuição DFe
-        // — emitidoEm é a data do EMISSOR (fornecedor/transportador), que
-        // pode ser de muito antes de a SEFAZ nos liberar o documento.
-        // Filtrar pelo mês de emissão escondia nota recebida no mês certo
-        // mas emitida antes (achado em 2026-11-01). recebidoEm nunca é
-        // nulo (@default(now())), então não precisa de fallback.
-        ...(direcao === "SAIDA"
-          ? {
-              OR: [
-                { emitidoEm: { gte: inicio, lt: fim } },
-                { emitidoEm: null, recebidoEm: { gte: inicio, lt: fim } },
-              ],
-            }
-          : { recebidoEm: { gte: inicio, lt: fim } }),
+        OR: [
+          { emitidoEm: { gte: inicio, lt: fim } },
+          { emitidoEm: null, recebidoEm: { gte: inicio, lt: fim } },
+        ],
       },
       select: {
         chaveAcesso: true,
