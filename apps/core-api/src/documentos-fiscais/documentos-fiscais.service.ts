@@ -626,7 +626,18 @@ export class DocumentosFiscaisService {
           direcao,
           tipo: { in: ["NFE", "NFCE"] },
           cStatConsulta: "100",
-          ...filtroPeriodoPorDirecao(direcao, inicio, fim),
+          // Diferente da listagem/TXT/zip (que usam recebidoEm pra entrada
+          // — ver filtroPeriodoPorDirecao): aqui o mês filtrado tem que
+          // bater com a coluna DHEMI exibida/ordenada na tela (emitidoEm),
+          // senão o filtro "novembro" mostra item com DHEMI de outubro —
+          // visualmente errado mesmo sendo "correto" por recebimento
+          // (achado em 2026-11-01, reportado pelo William com print da
+          // Apuração ICMS). Apuração é sobre o que a nota declarou na data
+          // dela, não sobre quando o documento chegou aqui.
+          OR: [
+            { emitidoEm: { gte: inicio, lte: fim } },
+            { emitidoEm: null, recebidoEm: { gte: inicio, lte: fim } },
+          ],
         },
       },
       include: {
