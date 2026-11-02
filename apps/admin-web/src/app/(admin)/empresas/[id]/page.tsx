@@ -15,7 +15,9 @@ import {
   listarDocumentosFiscais,
   sincronizarDocumentos,
   classificarPendentes,
+  previewClassificacao,
   reverterClassificacao,
+  type PreviewClassificacaoItem,
   gerarExportacaoTxt,
   baixarExportacaoTxt,
   baixarXmlsZip,
@@ -43,6 +45,7 @@ import {
   diasAte,
 } from "@/lib/format";
 import { ModalManifestacao } from "@/components/ModalManifestacao";
+import { ModalConfirmarClassificacao } from "@/components/ModalConfirmarClassificacao";
 import { SecaoCteDistribuicao } from "@/components/SecaoCteDistribuicao";
 import { SecaoApuracaoIcms } from "@/components/SecaoApuracaoIcms";
 import { SecaoApuracaoIbsCbs } from "@/components/SecaoApuracaoIbsCbs";
@@ -465,6 +468,8 @@ export default function EmpresaDetalhePage() {
   const [classificando, setClassificando] = useState(false);
   const [resultadoClassificacao, setResultadoClassificacao] = useState<string | null>(null);
   const [erroClassificacao, setErroClassificacao] = useState<string | null>(null);
+  const [previewItens, setPreviewItens] = useState<PreviewClassificacaoItem[] | null>(null);
+  const [carregandoPreview, setCarregandoPreview] = useState(false);
 
   const [mesFiltro, setMesFiltro] = useState(mesAtual());
   const [mesFiltroSaida, setMesFiltroSaida] = useState(mesAtual());
@@ -701,17 +706,43 @@ export default function EmpresaDetalhePage() {
     }
   }
 
-  async function handleClassificar() {
+  /**
+   * "Classificar pendentes" agora é em duas etapas (pedido do cliente em
+   * 2026-11-02): primeiro só MOSTRA o que vai acontecer (preview, sem
+   * gravar nada), escopado ao mês que a tela de Entrada está mostrando —
+   * antes rodava o histórico inteiro pendente numa chamada só, travava a
+   * tela sem feedback nenhum pra empresa com muita nota acumulada.
+   */
+  async function handleAbrirPreviewClassificacao() {
+    if (!token) return;
+    setErroClassificacao(null);
+    setCarregandoPreview(true);
+    try {
+      const { inicio, fim } = limitesDoMes(mesFiltro);
+      const itens = await previewClassificacao(params.id, inicio, fim, token);
+      setPreviewItens(itens);
+    } catch (err) {
+      setErroClassificacao(
+        err instanceof Error ? err.message : "Não foi possível carregar a prévia agora."
+      );
+    } finally {
+      setCarregandoPreview(false);
+    }
+  }
+
+  async function handleConfirmarClassificacao() {
     if (!token) return;
     setClassificando(true);
     setResultadoClassificacao(null);
     setErroClassificacao(null);
     try {
-      const resultado = await classificarPendentes(params.id, token);
+      const { inicio, fim } = limitesDoMes(mesFiltro);
+      const resultado = await classificarPendentes(params.id, token, inicio, fim);
       const partes = [`${resultado.classificados} classificado(s)`];
       if (resultado.semRegra > 0) partes.push(`${resultado.semRegra} sem regra cadastrada`);
       if (resultado.semCfop > 0) partes.push(`${resultado.semCfop} ainda sem CFOP (SEFAZ mandou só o resumo)`);
       setResultadoClassificacao(partes.join(" · "));
+      setPreviewItens(null);
       // O motor classifica entrada e saída juntos (mesmo CFOP, regras
       // compartilhadas) — recarrega as duas listas pra refletir na hora.
       await Promise.all([
@@ -1205,13 +1236,14 @@ export default function EmpresaDetalhePage() {
               Manifestar todas{pendentesManifestacao.length > 0 ? ` (${pendentesManifestacao.length})` : ""}
             </button>
             <button
-              onClick={handleClassificar}
-              disabled={classificando}
+              onClick={() => void handleAbrirPreviewClassificacao()}
+              disabled={carregandoPreview}
               className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
               style={{ color: "var(--paper)" }}
+              title={`Mostra o que vai ser classificado em ${rotuloMes(mesFiltro)} antes de aplicar`}
             >
-              {classificando && <span className="spinner" />}
-              {classificando ? "Classificando" : "Classificar pendentes"}
+              {carregandoPreview && <span className="spinner" />}
+              {carregandoPreview ? "Carregando…" : "Classificar pendentes"}
             </button>
             <button
               onClick={handleSincronizar}
@@ -1694,6 +1726,16 @@ export default function EmpresaDetalhePage() {
           alvos={pendentesManifestacao}
           onFechar={() => setManifestarTodasAberto(false)}
           onConcluido={() => void carregarDocumentosEntrada(token, mesFiltro)}
+        />
+      )}
+
+      {previewItens !== null && (
+        <ModalConfirmarClassificacao
+          itens={previewItens}
+          mesRotulo={rotuloMes(mesFiltro)}
+          aplicando={classificando}
+          onCancelar={() => setPreviewItens(null)}
+          onConfirmar={() => void handleConfirmarClassificacao()}
         />
       )}
 

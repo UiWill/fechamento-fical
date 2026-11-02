@@ -577,11 +577,40 @@ export interface ClassificacaoResultado {
   semCfop: number;
 }
 
+export interface PreviewClassificacaoItem {
+  documentoId: string;
+  chaveAcesso: string;
+  direcao: "ENTRADA" | "SAIDA";
+  cfop: string;
+  nomeEmitente: string | null;
+  regra: { descricao: string; acumulador: string | null; observacao: string | null } | null;
+}
+
+export async function previewClassificacao(
+  empresaId: string,
+  inicio: string,
+  fim: string,
+  token: string
+): Promise<PreviewClassificacaoItem[]> {
+  const response = await apiFetch(
+    `${API_URL}/regras-fiscais/classificar/${empresaId}/preview?inicio=${inicio}&fim=${fim}`,
+    { headers: { authorization: `Bearer ${token}` }, cache: "no-store" }
+  );
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function classificarPendentes(
   empresaId: string,
-  token: string
+  token: string,
+  inicio?: string,
+  fim?: string
 ): Promise<ClassificacaoResultado> {
-  const response = await apiFetch(`${API_URL}/regras-fiscais/classificar/${empresaId}`, {
+  const query = inicio && fim ? `?inicio=${inicio}&fim=${fim}` : "";
+  const response = await apiFetch(`${API_URL}/regras-fiscais/classificar/${empresaId}${query}`, {
     method: "POST",
     headers: { authorization: `Bearer ${token}` },
   });

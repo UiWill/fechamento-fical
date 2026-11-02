@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Req } from "@nestjs/common";
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Req } from "@nestjs/common";
 import { criarRegraFiscalSchema } from "@afe/shared";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { AcessoService } from "../common/acesso/acesso.service";
@@ -32,10 +32,33 @@ export class RegrasFiscaisController {
     return this.service.criar(input);
   }
 
-  @Post("classificar/:empresaId")
-  async classificar(@Param("empresaId") empresaId: string, @Req() request: AuthenticatedRequest) {
+  /**
+   * Só lê — devolve o que "Classificar pendentes" vai aplicar antes de a
+   * pessoa confirmar. "inicio"/"fim" opcionais escopam ao mês que a tela
+   * está mostrando; sem eles, olha o histórico inteiro pendente.
+   */
+  @Get("classificar/:empresaId/preview")
+  async preview(
+    @Param("empresaId") empresaId: string,
+    @Query("inicio") inicio: string | undefined,
+    @Query("fim") fim: string | undefined,
+    @Req() request: AuthenticatedRequest
+  ) {
     await this.acesso.empresaDoUsuario(request, empresaId);
-    return this.service.classificarPendentes(empresaId);
+    const periodo = inicio && fim ? { inicio: new Date(inicio), fim: new Date(fim) } : undefined;
+    return this.service.previewClassificacao(empresaId, periodo);
+  }
+
+  @Post("classificar/:empresaId")
+  async classificar(
+    @Param("empresaId") empresaId: string,
+    @Query("inicio") inicio: string | undefined,
+    @Query("fim") fim: string | undefined,
+    @Req() request: AuthenticatedRequest
+  ) {
+    await this.acesso.empresaDoUsuario(request, empresaId);
+    const periodo = inicio && fim ? { inicio: new Date(inicio), fim: new Date(fim) } : undefined;
+    return this.service.classificarPendentes(empresaId, periodo);
   }
 
   /** Desfaz a classificação automática de um documento — volta pro estado "pendente". */
