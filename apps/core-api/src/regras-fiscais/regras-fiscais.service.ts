@@ -108,10 +108,21 @@ export class RegrasFiscaisService {
       orderBy: { recebidoEm: "desc" },
     });
 
+    // resolver() faz até 3 consultas (override > grupo > organização) —
+    // chamar uma vez por DOCUMENTO deixava o preview/classificar
+    // extremamente lento em empresa com centenas de pendentes no mês,
+    // mesmo poucos sendo CFOPs diferentes de verdade (achado em 2026-11-02:
+    // o botão ficava preso em "Carregando…" sem nunca abrir a telinha).
+    // Resolve uma vez por combinação (CFOP, condição de pagamento) e
+    // reaproveita o resultado pra todo documento que bate com ela.
+    const regraPorChave = new Map<string, Awaited<ReturnType<typeof this.resolver>>>();
     const resolvidos = [];
     for (const doc of pendentes) {
-      const regra = await this.resolver(organizacaoId, empresaId, doc.cfop!, doc.condicaoPagamento);
-      resolvidos.push({ documento: doc, regra });
+      const chave = `${doc.cfop}|${doc.condicaoPagamento ?? ""}`;
+      if (!regraPorChave.has(chave)) {
+        regraPorChave.set(chave, await this.resolver(organizacaoId, empresaId, doc.cfop!, doc.condicaoPagamento));
+      }
+      resolvidos.push({ documento: doc, regra: regraPorChave.get(chave)! });
     }
     return resolvidos;
   }
