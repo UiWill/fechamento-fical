@@ -1049,6 +1049,7 @@ export default function EmpresaDetalhePage() {
             style={{ color: "var(--paper)" }}
             title="Trocar entre produção e homologação da SEFAZ"
           >
+            {alterandoAmbiente && <span className="spinner" />}
             {alterandoAmbiente
               ? "trocando…"
               : `trocar para ${empresa.ambiente === "PRODUCAO" ? "homologação" : "produção"}`}
@@ -1065,6 +1066,7 @@ export default function EmpresaDetalhePage() {
             style={{ color: "var(--paper)" }}
             title="XML emitido antes dessa data é ignorado pelo agente desktop"
           >
+            {alterandoDataInicio && <span className="spinner" />}
             {alterandoDataInicio ? "salvando…" : "editar"}
           </button>
         </p>
@@ -1120,6 +1122,7 @@ export default function EmpresaDetalhePage() {
                   style={{ color: "var(--paper)" }}
                   title="Consulta o regime tributário na Receita Federal (BrasilAPI) — só usado enquanto a empresa não tem nota de saída pra aprender sozinha"
                 >
+                  {consultandoRegime && <span className="spinner" />}
                   {consultandoRegime ? "consultando…" : "consultar na Receita"}
                 </button>
               )}
@@ -1270,6 +1273,7 @@ export default function EmpresaDetalhePage() {
             style={{ color: "var(--muted)" }}
             title="Use só se os dados de entrada foram perdidos (ex: reconstrução do servidor) e a SEFAZ precisa reenviar tudo de novo"
           >
+            {zerandoNsu && <span className="spinner" />}
             {zerandoNsu ? "Zerando…" : "Zerar NSU"}
           </button>
         </div>
@@ -1361,6 +1365,7 @@ export default function EmpresaDetalhePage() {
               style={{ color: "var(--paper)" }}
               title={notasEntradaDoMes.length === 0 ? "Não há notas de entrada nesse mês" : undefined}
             >
+              {baixandoXmlEntrada && <span className="spinner" />}
               {baixandoXmlEntrada
                 ? `Baixando… ${(progressoXmlEntrada / 1_000_000).toFixed(1)} MB`
                 : "Baixar XML"}
@@ -1372,6 +1377,7 @@ export default function EmpresaDetalhePage() {
               style={{ color: "var(--paper)" }}
               title="Consulta na SEFAZ a situação (autorizada/cancelada/denegada) de toda nota ainda sem cStat=100"
             >
+              {consultandoPendentesEntrada && <span className="spinner" />}
               {consultandoPendentesEntrada ? "Consultando…" : "Consultar pendentes"}
             </button>
             <button
@@ -1473,6 +1479,7 @@ export default function EmpresaDetalhePage() {
                               style={{ color: "var(--muted)" }}
                               title="Desfaz a marcação e volta o documento pra pendente"
                             >
+                              {revertendoDocId === doc.id && <span className="spinner" />}
                               {revertendoDocId === doc.id ? "revertendo…" : "voltar ao original"}
                             </button>
                           </div>
@@ -1571,6 +1578,7 @@ export default function EmpresaDetalhePage() {
               style={{ color: "var(--paper)" }}
               title={notasSaidaDoMes.length === 0 ? "Não há notas de saída nesse mês" : undefined}
             >
+              {baixandoXmlSaida && <span className="spinner" />}
               {baixandoXmlSaida
                 ? `Baixando… ${(progressoXmlSaida / 1_000_000).toFixed(1)} MB`
                 : "Baixar XML"}
@@ -1582,6 +1590,7 @@ export default function EmpresaDetalhePage() {
               style={{ color: "var(--paper)" }}
               title="Consulta na SEFAZ a situação (autorizada/cancelada/denegada) de toda nota ainda sem cStat=100"
             >
+              {consultandoPendentesSaida && <span className="spinner" />}
               {consultandoPendentesSaida ? "Consultando…" : "Consultar pendentes"}
             </button>
             <button

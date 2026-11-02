@@ -942,6 +942,7 @@ export default function AgentesPage() {
                           style={{ color: "var(--muted)" }}
                           title="Pede pro agente checar atualização agora, sem esperar o ciclo automático (só funciona se ele estiver online)"
                         >
+                          {comandoEnviando === `${agente.id}-ATUALIZAR` && <span className="spinner" />}
                           {comandoEnviando === `${agente.id}-ATUALIZAR` ? "Enviando…" : "Atualizar"}
                         </button>
                       )}
@@ -953,6 +954,7 @@ export default function AgentesPage() {
                           style={{ color: "var(--muted)" }}
                           title="Pede pro agente reiniciar (só funciona se ele estiver online — se o processo já morreu, nenhum comando remoto religa)"
                         >
+                          {comandoEnviando === `${agente.id}-REINICIAR` && <span className="spinner" />}
                           {comandoEnviando === `${agente.id}-REINICIAR` ? "Enviando…" : "Reiniciar"}
                         </button>
                       )}

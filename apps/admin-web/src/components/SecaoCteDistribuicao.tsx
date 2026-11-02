@@ -210,6 +210,7 @@ export function SecaoCteDistribuicao({
           className={CLASSE_BOTAO_LINK}
           style={{ color: "var(--paper)" }}
         >
+          {baixando && <span className="spinner" />}
           {baixando ? "Baixando…" : "Baixar XML"}
         </button>
       </div>

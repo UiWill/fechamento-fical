@@ -475,6 +475,7 @@ export function SecaoApuracaoIcms({
             className={CLASSE_BOTAO_LINK}
             style={{ color: "var(--paper)" }}
           >
+            {gerandoExcel && <span className="spinner" />}
             {gerandoExcel ? "Gerando…" : "Baixar Excel"}
           </button>
           <button
@@ -484,9 +485,11 @@ export function SecaoApuracaoIcms({
             style={{ color: "var(--paper)" }}
             title="Mapa de apuração do ICMS por CFOP x situação tributária (CST) — B.Reduzido, Isentos, Não Trib., Diferido, ST, Suspensão, Outras"
           >
+            {gerandoRelatorioCst && <span className="spinner" />}
             {gerandoRelatorioCst ? "Gerando…" : "Relatório ICMS (CST)"}
           </button>
           <button onClick={() => void handleReprocessar()} disabled={reprocessando} className={CLASSE_BOTAO_LINK} style={{ color: "var(--paper)" }}>
+            {reprocessando && <span className="spinner" />}
             {reprocessando ? "Reprocessando…" : "Reprocessar itens"}
           </button>
           {direcao === "SAIDA" && sugestoesPendentes.length > 0 && (
@@ -497,6 +500,7 @@ export function SecaoApuracaoIcms({
               style={{ color: "var(--vermelho, #e08a8a)" }}
               title="Mostra a lista do que vai ser corrigido antes de enviar, agrupado por regra"
             >
+              {aplicandoTodasSugestoes && <span className="spinner" />}
               {aplicandoTodasSugestoes ? "Aplicando…" : `Aplicar sugestões (${sugestoesPendentes.length})`}
             </button>
           )}
@@ -736,6 +740,7 @@ export function SecaoApuracaoIcms({
                             style={{ color: "var(--vermelho, #e08a8a)" }}
                             title={`Regra aprendida: trocar ${i.correcaoSugerida.campo} para "${i.correcaoSugerida.valorCorreto}"`}
                           >
+                            {aplicandoSugestao === i.id && <span className="spinner" />}
                             {aplicandoSugestao === i.id ? "Aplicando…" : "Aplicar sugestão"}
                           </button>
                         ) : (

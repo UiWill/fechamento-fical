@@ -194,8 +194,11 @@ code,
 }
 
 .spinner {
+  display: inline-block;
   width: 1rem;
   height: 1rem;
+  vertical-align: -0.2em;
+  margin-right: 0.4em;
   border-radius: 999px;
   border: 1.5px solid color-mix(in srgb, currentColor 25%, transparent);
   border-top-color: currentColor;
