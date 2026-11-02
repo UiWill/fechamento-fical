@@ -24,6 +24,7 @@ const COR_REGIME_MISTURADO = "FFE6CCF4"; // roxo claro
 const COR_ALIQUOTA_DIVERGENTE = "FFCFE2F3"; // azul claro
 const COR_NCM_INVALIDO = "FFD9EAD3"; // verde claro
 const COR_IBS_CBS_AUSENTE = "FFFFF2CC"; // amarelo claro
+const COR_CST_CREDITO_DIVERGENTE = "FFD0F0ED"; // ciano claro
 
 function corDaLinha(item: ItemApuracao): string | null {
   if (item.cfopDivergente) return COR_CFOP_DIVERGENTE;
@@ -34,6 +35,7 @@ function corDaLinha(item: ItemApuracao): string | null {
   if (item.aliquotaIcmsDivergente) return COR_ALIQUOTA_DIVERGENTE;
   if (item.ncmInvalido) return COR_NCM_INVALIDO;
   if (item.ibsCbsObrigatorioAusente) return COR_IBS_CBS_AUSENTE;
+  if (item.cstCreditoDivergente) return COR_CST_CREDITO_DIVERGENTE;
   return null;
 }
 
@@ -49,6 +51,7 @@ function motivoDaLinha(item: ItemApuracao): string {
     item.aliquotaIcmsDivergente ? "Alíquota ICMS fora do padrão da empresa" : null,
     item.ncmInvalido ? "NCM inválido" : null,
     item.ibsCbsObrigatorioAusente ? "Falta o grupo IBS/CBS obrigatório" : null,
+    item.cstCreditoDivergente ? "CST ou crédito de ICMS fora da regra fiscal do CFOP" : null,
   ].filter((m): m is string => m !== null);
   return motivos.join(" / ");
 }

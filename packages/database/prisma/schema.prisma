@@ -505,6 +505,16 @@ model RegraFiscal {
   descricao         String
   observacao        String?
   acumulador        String?
+  // CST que o item de ENTRADA desse CFOP deveria ter (ex: "60" — ICMS já
+  // cobrado por substituição tributária) e se o ICMS desse item pode virar
+  // crédito pra empresa — nulo nos dois = regra não checa isso (comportamento
+  // de antes desses campos existirem). Pedido do cliente em 2026-11-01
+  // (vídeo explicando o caso de ST: compra com CFOP de ST não gera crédito
+  // de ICMS, então o item deveria vir com CST 60 e sem crédito apropriável).
+  // Só entra na Apuração ICMS de ENTRADA — saída não tem o conceito de
+  // "crédito" (é débito).
+  cstEsperado        String?
+  permiteCreditoIcms Boolean?
   ativa             Boolean  @default(true)
   criadoEm          DateTime @default(now())
   atualizadoEm      DateTime @updatedAt

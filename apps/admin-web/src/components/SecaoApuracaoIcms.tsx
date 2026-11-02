@@ -74,6 +74,7 @@ const COLUNAS_CSV: { rotulo: string; campo: keyof ItemApuracao }[] = [
   { rotulo: "Regime ICMS misturado", campo: "regimeIcmsMisturado" },
   { rotulo: "Alíquota ICMS divergente", campo: "aliquotaIcmsDivergente" },
   { rotulo: "NCM inválido", campo: "ncmInvalido" },
+  { rotulo: "CST/crédito fora da regra", campo: "cstCreditoDivergente" },
 ];
 
 interface LinhaResumoCfop {
@@ -404,7 +405,8 @@ export function SecaoApuracaoIcms({
       i.regimeDivergenteDoCrt ||
       i.regimeIcmsMisturado ||
       i.aliquotaIcmsDivergente ||
-      i.ncmInvalido
+      i.ncmInvalido ||
+      i.cstCreditoDivergente
   ).length;
 
   return (
@@ -639,6 +641,9 @@ export function SecaoApuracaoIcms({
                       ? "Alíquota de ICMS diferente da que a empresa normalmente usa nesse CFOP"
                       : null,
                     i.ncmInvalido ? "NCM não tem 8 dígitos válidos, ou é só zeros" : null,
+                    i.cstCreditoDivergente
+                      ? "CST ou crédito de ICMS fora do que a Regra Fiscal do CFOP espera"
+                      : null,
                   ]
                     .filter(Boolean)
                     .join(" — ");
@@ -662,7 +667,9 @@ export function SecaoApuracaoIcms({
                                   ? "rgba(70, 150, 224, 0.32)"
                                   : i.ncmInvalido
                                     ? "rgba(106, 200, 122, 0.32)"
-                                    : undefined,
+                                    : i.cstCreditoDivergente
+                                      ? "rgba(74, 214, 200, 0.32)"
+                                      : undefined,
                     }}
                     title={titulo || undefined}
                   >
@@ -688,7 +695,18 @@ export function SecaoApuracaoIcms({
                     >
                       {i.cfop}
                     </td>
-                    <td className="px-3 py-3 text-xs" style={{ color: i.regimeDivergenteDoCrt ? "var(--marrom, #a0704a)" : "var(--muted)" }}>{val(i.icmsCst)}</td>
+                    <td
+                      className="px-3 py-3 text-xs"
+                      style={{
+                        color: i.regimeDivergenteDoCrt
+                          ? "var(--marrom, #a0704a)"
+                          : i.cstCreditoDivergente
+                            ? "var(--ciano, #4ad6c8)"
+                            : "var(--muted)",
+                      }}
+                    >
+                      {val(i.icmsCst)}
+                    </td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{val(i.icmsBase)}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>{pct(i.icmsAliquota)}</td>
                     <td className="px-3 py-3 text-xs" style={{ color: "var(--paper)" }}>{val(i.icmsValor)}</td>

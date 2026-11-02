@@ -139,4 +139,28 @@ export class RegrasFiscaisService {
       }),
     };
   }
+
+  /**
+   * Desfaz a classificação automática (acumulador/observação) de UM
+   * documento, voltando pro estado "pendente" — pedido do cliente (vídeo +
+   * mensagem em 2026-11-01): "Classificar pendentes" só roda em documento
+   * ainda não classificado (classificadoEm null), então se a regra
+   * aplicada estava errada não tinha como corrigir sem isso. Depois de
+   * reverter, a pessoa ajusta a regra (ou classifica à mão) e roda
+   * "Classificar pendentes" de novo, que agora enxerga esse documento como
+   * pendente outra vez.
+   */
+  async reverterClassificacao(empresaId: string, documentoId: string) {
+    const documento = await this.prisma.client.documentoFiscal.findUnique({
+      where: { id: documentoId },
+    });
+    if (!documento || documento.empresaId !== empresaId) {
+      throw new NotFoundException(`Documento ${documentoId} não encontrado`);
+    }
+
+    return this.prisma.client.documentoFiscal.update({
+      where: { id: documentoId },
+      data: { acumulador: null, observacao: null, classificadoEm: null },
+    });
+  }
 }

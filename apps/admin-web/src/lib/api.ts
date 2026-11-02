@@ -521,6 +521,8 @@ export interface RegraFiscal {
   descricao: string;
   observacao: string | null;
   acumulador: string | null;
+  cstEsperado: string | null;
+  permiteCreditoIcms: boolean | null;
   ativa: boolean;
 }
 
@@ -548,6 +550,8 @@ export interface CriarRegraFiscalInput {
   descricao: string;
   observacao?: string;
   acumulador?: string;
+  cstEsperado?: string;
+  permiteCreditoIcms?: boolean;
 }
 
 export async function criarRegraFiscal(
@@ -586,6 +590,21 @@ export async function classificarPendentes(
     throw new Error(corpo || `API respondeu ${response.status}`);
   }
   return response.json();
+}
+
+export async function reverterClassificacao(
+  empresaId: string,
+  documentoId: string,
+  token: string
+): Promise<void> {
+  const response = await apiFetch(`${API_URL}/regras-fiscais/reverter/${empresaId}/${documentoId}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
 }
 
 export type TipoEventoManifestacao =
@@ -798,6 +817,8 @@ export interface ItemApuracao {
   cfopUfDivergente: boolean;
   /** true quando o NCM não tem 8 dígitos válidos ou é só zeros. */
   ncmInvalido: boolean;
+  /** true quando o CST do item (entrada) não bate com o CST esperado da Regra Fiscal do CFOP, ou quando o item tem crédito de ICMS num CFOP que a regra diz não gerar crédito (ex: substituição tributária). Só ENTRADA. */
+  cstCreditoDivergente: boolean;
   /** Explicação campo a campo de cada pendência da linha — o que era esperado vs. o que veio no XML (usado no "?" de cada linha). */
   detalheDivergencias: { campo: string; esperado: string; atual: string }[];
   /** Preenchido quando uma Carta de Correção já aprendida (de qualquer empresa da organização) bate com o valor atual desse item. */

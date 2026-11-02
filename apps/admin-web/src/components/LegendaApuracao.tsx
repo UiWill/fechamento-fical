@@ -13,6 +13,7 @@ interface ItemLegenda {
   rotulo: string;
   explicacao: string;
   soSaida?: boolean;
+  soEntrada?: boolean;
 }
 
 const LEGENDA_ICMS: ItemLegenda[] = [
@@ -53,6 +54,12 @@ const LEGENDA_ICMS: ItemLegenda[] = [
     rotulo: "NCM inválido",
     explicacao: "O NCM não tem 8 dígitos válidos, ou é só zeros — sinal de cadastro de produto malfeito no PDV do cliente.",
   },
+  {
+    cor: "var(--ciano, #4ad6c8)",
+    rotulo: "CST/crédito fora da regra",
+    explicacao: "O CST do item não bate com o CST esperado pela Regra Fiscal do CFOP, ou o item tem crédito de ICMS num CFOP que a regra diz não gerar crédito (ex: substituição tributária).",
+    soEntrada: true,
+  },
 ];
 
 const LEGENDA_IBS_CBS: ItemLegenda[] = [
@@ -87,7 +94,7 @@ export function LegendaApuracao({
   direcao: "ENTRADA" | "SAIDA";
 }) {
   const itens = (tipo === "icms" ? LEGENDA_ICMS : LEGENDA_IBS_CBS).filter(
-    (item) => !item.soSaida || direcao === "SAIDA"
+    (item) => (!item.soSaida || direcao === "SAIDA") && (!item.soEntrada || direcao === "ENTRADA")
   );
 
   return (

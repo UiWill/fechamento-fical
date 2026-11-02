@@ -27,6 +27,8 @@ export default function RegrasFiscaisPage() {
   const [descricao, setDescricao] = useState("");
   const [observacao, setObservacao] = useState("");
   const [acumulador, setAcumulador] = useState("");
+  const [cstEsperado, setCstEsperado] = useState("");
+  const [permiteCreditoIcms, setPermiteCreditoIcms] = useState<"" | "SIM" | "NAO">("");
   const [aplicacao, setAplicacao] = useState<"TODAS" | "UMA" | "SELECIONADAS">("TODAS");
   const [empresaId, setEmpresaId] = useState("");
   const [empresaIdsSelecionadas, setEmpresaIdsSelecionadas] = useState<string[]>([]);
@@ -118,6 +120,8 @@ export default function RegrasFiscaisPage() {
           descricao: descricao.trim(),
           observacao: observacao.trim() || undefined,
           acumulador: acumulador.trim(),
+          cstEsperado: cstEsperado.trim() || undefined,
+          permiteCreditoIcms: permiteCreditoIcms ? permiteCreditoIcms === "SIM" : undefined,
         },
         token
       );
@@ -127,6 +131,8 @@ export default function RegrasFiscaisPage() {
       setDescricao("");
       setObservacao("");
       setAcumulador("");
+      setCstEsperado("");
+      setPermiteCreditoIcms("");
       setAplicacao("TODAS");
       setEmpresaId("");
       setEmpresaIdsSelecionadas([]);
@@ -168,6 +174,13 @@ export default function RegrasFiscaisPage() {
           O campo "Acumulador" busca no catálogo oficial do Domínio (código + nome) em vez de
           digitar livre — evita salvar o mesmo acumulador escrito de dois jeitos diferentes em
           regras distintas.
+        </p>
+        <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
+          "CST esperado" e "Permite crédito de ICMS" são opcionais e só valem pra itens de
+          <strong> entrada</strong> — alimentam a checagem "CST/crédito fora da regra" na
+          Apuração do ICMS (ex: CFOP de substituição tributária não deveria gerar crédito de
+          ICMS, e o item deveria vir com CST 60). Deixe "Não verificar" quando esse CFOP não
+          precisa dessa checagem.
         </p>
       </div>
 
@@ -246,6 +259,33 @@ export default function RegrasFiscaisPage() {
             Acumulador
           </label>
           <SeletorAcumulador value={acumulador} onChange={setAcumulador} required />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+            CST esperado na entrada (opcional)
+          </label>
+          <input
+            value={cstEsperado}
+            onChange={(e) => setCstEsperado(e.target.value.replace(/\D/g, "").slice(0, 3))}
+            placeholder="60"
+            className="campo"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+            Permite crédito de ICMS (opcional)
+          </label>
+          <select
+            value={permiteCreditoIcms}
+            onChange={(e) => setPermiteCreditoIcms(e.target.value as "" | "SIM" | "NAO")}
+            className="campo"
+          >
+            <option value="">Não verificar</option>
+            <option value="SIM">Sim</option>
+            <option value="NAO">Não (ex: substituição tributária)</option>
+          </select>
         </div>
 
         <div className="space-y-1.5 sm:col-span-2">
@@ -357,6 +397,8 @@ export default function RegrasFiscaisPage() {
                 <th className="px-4 py-3 font-medium">Descrição</th>
                 <th className="px-4 py-3 font-medium">Observação</th>
                 <th className="px-4 py-3 font-medium">Acumulador</th>
+                <th className="px-4 py-3 font-medium">CST esperado</th>
+                <th className="px-4 py-3 font-medium">Crédito ICMS</th>
                 <th className="px-4 py-3 font-medium">Aplicação</th>
               </tr>
             </thead>
@@ -388,6 +430,12 @@ export default function RegrasFiscaisPage() {
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
                     {regra.acumulador ?? "—"}
+                  </td>
+                  <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
+                    {regra.cstEsperado ?? "—"}
+                  </td>
+                  <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
+                    {regra.permiteCreditoIcms === null ? "—" : regra.permiteCreditoIcms ? "Sim" : "Não"}
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
                     {aplicacaoDaRegra(regra)}

@@ -37,4 +37,15 @@ export class RegrasFiscaisController {
     await this.acesso.empresaDoUsuario(request, empresaId);
     return this.service.classificarPendentes(empresaId);
   }
+
+  /** Desfaz a classificação automática de um documento — volta pro estado "pendente". */
+  @Post("reverter/:empresaId/:documentoId")
+  async reverter(
+    @Param("empresaId") empresaId: string,
+    @Param("documentoId") documentoId: string,
+    @Req() request: AuthenticatedRequest
+  ) {
+    await this.acesso.empresaDoUsuario(request, empresaId);
+    return this.service.reverterClassificacao(empresaId, documentoId);
+  }
 }

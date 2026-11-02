@@ -11,6 +11,7 @@ import { FiscalEngineClient } from "../common/fiscal-engine/fiscal-engine.client
 import { extrairDadosBasicos } from "./xml-utils";
 import { ItensDocumentoFiscalService } from "./itens-documento-fiscal.service";
 import { CorrecoesService } from "../correcoes/correcoes.service";
+import { RegrasFiscaisService } from "../regras-fiscais/regras-fiscais.service";
 import { decodificarChaveAcesso } from "@afe/shared";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -189,7 +190,8 @@ export class DocumentosFiscaisService {
     private readonly certificados: CertificadosService,
     private readonly fiscalEngine: FiscalEngineClient,
     private readonly itensDocumentoFiscal: ItensDocumentoFiscalService,
-    private readonly correcoes: CorrecoesService
+    private readonly correcoes: CorrecoesService,
+    private readonly regrasFiscais: RegrasFiscaisService
   ) {}
 
   /**
@@ -626,7 +628,16 @@ export class DocumentosFiscaisService {
         },
       },
       include: {
-        documentoFiscal: { select: { chaveAcesso: true, emitidoEm: true, tipo: true, crt: true, ufDestinatario: true } },
+        documentoFiscal: {
+          select: {
+            chaveAcesso: true,
+            emitidoEm: true,
+            tipo: true,
+            crt: true,
+            ufDestinatario: true,
+            condicaoPagamento: true,
+          },
+        },
       },
       orderBy: [{ documentoFiscal: { emitidoEm: "asc" } }, { nItem: "asc" }],
     });
@@ -654,6 +665,36 @@ export class DocumentosFiscaisService {
             ).map((r) => r.cfopSaidaEsperado)
           )
         : new Set<string | null>();
+
+    // CST esperado + se o ICMS do item pode virar crédito, por CFOP de
+    // ENTRADA — pedido do cliente em 2026-11-01 (caso de ST: compra com
+    // CFOP de substituição tributária não gera crédito de ICMS pra quem
+    // comprou, então o item deveria vir com CST 60 e sem crédito
+    // apropriável). Só ENTRADA — saída não tem o conceito de "crédito"
+    // (é débito). Resolve uma vez por combinação (CFOP, condição de
+    // pagamento) em vez de uma vez por item, já que o motor de regras
+    // (resolver()) faz até 3 consultas — uma nota com centenas de itens do
+    // mesmo CFOP reaproveita o mesmo resultado.
+    const regraCstCreditoPorChave = new Map<
+      string,
+      { cstEsperado: string | null; permiteCreditoIcms: boolean | null } | null
+    >();
+    if (direcao === "ENTRADA") {
+      const combinacoes = new Map<string, { cfop: string; condicaoPagamento: "AVISTA" | "APRAZO" | null }>();
+      for (const item of itens) {
+        const chave = `${item.cfop}|${item.documentoFiscal.condicaoPagamento ?? ""}`;
+        if (!combinacoes.has(chave)) {
+          combinacoes.set(chave, { cfop: item.cfop, condicaoPagamento: item.documentoFiscal.condicaoPagamento });
+        }
+      }
+      for (const [chave, { cfop, condicaoPagamento }] of combinacoes) {
+        const regra = await this.regrasFiscais.resolver(empresa.organizacaoId, empresaId, cfop, condicaoPagamento);
+        regraCstCreditoPorChave.set(
+          chave,
+          regra ? { cstEsperado: regra.cstEsperado, permiteCreditoIcms: regra.permiteCreditoIcms } : null
+        );
+      }
+    }
 
     // Regime misturado: uma nota com item em CST "normal" e item em CSOSN
     // (Simples Nacional) ao mesmo tempo — uma empresa não tem os dois
@@ -781,6 +822,25 @@ export class DocumentosFiscaisService {
 
       const ncmInvalido = ncmMalformado(item.ncm);
 
+      // CST esperado e crédito de ICMS indevido, conforme a Regra Fiscal
+      // do CFOP desse item (só ENTRADA — ver bloco regraCstCreditoPorChave
+      // acima). cstDivergente: regra define um CST esperado e o item veio
+      // com outro. creditoIndevido: regra diz que esse CFOP não deveria
+      // gerar crédito de ICMS (ex: ST) mas o item tem valor de ICMS > 0.
+      const regraCstCredito =
+        direcao === "ENTRADA"
+          ? (regraCstCreditoPorChave.get(`${item.cfop}|${item.documentoFiscal.condicaoPagamento ?? ""}`) ?? null)
+          : null;
+      const cstDivergenteDaRegra =
+        regraCstCredito?.cstEsperado !== null &&
+        regraCstCredito?.cstEsperado !== undefined &&
+        item.icmsCst !== regraCstCredito.cstEsperado;
+      const creditoIcmsIndevido =
+        regraCstCredito?.permiteCreditoIcms === false &&
+        item.icmsValor !== null &&
+        Number(item.icmsValor) > 0;
+      const regraCstCreditoDivergente = cstDivergenteDaRegra || creditoIcmsIndevido;
+
       // Detalhe campo-a-campo exibido no "?" de cada linha pendente — cada
       // entrada diz exatamente qual valor era esperado e qual veio no XML,
       // em vez de só marcar a linha como "tem algo errado".
@@ -856,6 +916,24 @@ export class DocumentosFiscaisService {
               },
             ]
           : []),
+        ...(cstDivergenteDaRegra
+          ? [
+              {
+                campo: "CST do item (regra fiscal)",
+                esperado: regraCstCredito!.cstEsperado!,
+                atual: item.icmsCst || "—",
+              },
+            ]
+          : []),
+        ...(creditoIcmsIndevido
+          ? [
+              {
+                campo: "Crédito de ICMS (regra fiscal)",
+                esperado: "Sem crédito apropriável nesse CFOP",
+                atual: `Item com ICMS de ${item.icmsValor}`,
+              },
+            ]
+          : []),
       ];
 
       return {
@@ -871,6 +949,7 @@ export class DocumentosFiscaisService {
         regimeDivergenteDoCrt,
         cfopUfDivergente,
         ncmInvalido,
+        cstCreditoDivergente: regraCstCreditoDivergente,
         detalheDivergencias,
         correcaoSugerida: sugestoes[item.id] ?? null,
       };

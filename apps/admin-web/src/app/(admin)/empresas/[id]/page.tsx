@@ -15,6 +15,7 @@ import {
   listarDocumentosFiscais,
   sincronizarDocumentos,
   classificarPendentes,
+  reverterClassificacao,
   gerarExportacaoTxt,
   baixarExportacaoTxt,
   baixarXmlsZip,
@@ -478,6 +479,7 @@ export default function EmpresaDetalhePage() {
   const [resultadoNsu, setResultadoNsu] = useState<string | null>(null);
 
   const [consultandoDocId, setConsultandoDocId] = useState<string | null>(null);
+  const [revertendoDocId, setRevertendoDocId] = useState<string | null>(null);
   const [consultandoPendentesEntrada, setConsultandoPendentesEntrada] = useState(false);
   const [consultandoPendentesSaida, setConsultandoPendentesSaida] = useState(false);
   const [resultadoConsultaEntrada, setResultadoConsultaEntrada] = useState<string | null>(null);
@@ -722,6 +724,26 @@ export default function EmpresaDetalhePage() {
       );
     } finally {
       setClassificando(false);
+    }
+  }
+
+  /**
+   * "Voltar o original" (pedido do cliente em 2026-11-01, vídeo + mensagem):
+   * "Classificar pendentes" só roda em documento ainda sem classificação —
+   * se a regra aplicada marcou errado, não tinha como corrigir sem isso.
+   * Depois de reverter, o documento volta a aparecer como "pendente" e
+   * "Classificar pendentes" classifica ele de novo (já com a regra corrigida).
+   */
+  async function handleReverterClassificacao(doc: DocumentoFiscal) {
+    if (!token) return;
+    setRevertendoDocId(doc.id);
+    try {
+      await reverterClassificacao(params.id, doc.id, token);
+      await carregarDocumentosEntrada(token, mesFiltro);
+    } catch {
+      setErro("Não foi possível reverter a classificação agora.");
+    } finally {
+      setRevertendoDocId(null);
     }
   }
 
@@ -1406,11 +1428,22 @@ export default function EmpresaDetalhePage() {
                       <td className="truncate overflow-hidden px-3 py-3 whitespace-nowrap" style={{ color: "var(--paper)" }}>
                         {formatarMoeda(doc.valorTotal)}
                       </td>
-                      <td className="truncate overflow-hidden px-3 py-3 text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                      <td className="px-3 py-3 text-xs" style={{ color: "var(--muted)" }}>
                         {doc.classificadoEm ? (
-                          <span style={{ color: "var(--paper)" }}>
-                            {doc.observacao ?? doc.acumulador ?? doc.cfop}
-                          </span>
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span className="truncate" style={{ color: "var(--paper)", maxWidth: "100%" }}>
+                              {doc.observacao ?? doc.acumulador ?? doc.cfop}
+                            </span>
+                            <button
+                              onClick={() => void handleReverterClassificacao(doc)}
+                              disabled={revertendoDocId === doc.id}
+                              className="font-mono text-[0.625rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-40"
+                              style={{ color: "var(--muted)" }}
+                              title="Desfaz a marcação e volta o documento pra pendente"
+                            >
+                              {revertendoDocId === doc.id ? "revertendo…" : "voltar ao original"}
+                            </button>
+                          </div>
                         ) : doc.cfop ? (
                           "pendente"
                         ) : (

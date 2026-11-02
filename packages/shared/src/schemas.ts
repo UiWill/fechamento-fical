@@ -80,6 +80,10 @@ export const criarRegraFiscalSchema = z.object({
   descricao: z.string().min(1),
   observacao: z.string().optional(),
   acumulador: z.string().optional(),
+  // CST que o item de ENTRADA desse CFOP deveria ter (ex: "60" — ST) e se o
+  // ICMS do item pode virar crédito — ausente/nulo = regra não checa isso.
+  cstEsperado: z.string().optional(),
+  permiteCreditoIcms: z.boolean().optional(),
 });
 export type CriarRegraFiscalInput = z.infer<typeof criarRegraFiscalSchema>;
 
