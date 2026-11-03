@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Post, Query, Req } from "@nestjs/common";
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Query, Req } from "@nestjs/common";
 import { criarRegraFiscalSchema } from "@afe/shared";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { AcessoService } from "../common/acesso/acesso.service";
@@ -59,6 +59,13 @@ export class RegrasFiscaisController {
     await this.acesso.empresaDoUsuario(request, empresaId);
     const periodo = inicio && fim ? { inicio: new Date(inicio), fim: new Date(fim) } : undefined;
     return this.service.classificarPendentes(empresaId, periodo);
+  }
+
+  /** "Exclui" uma regra — na prática desativa (ver comentário no service). */
+  @Delete(":id")
+  async excluir(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    const organizacaoId = this.acesso.organizacaoDoUsuario(request);
+    return this.service.excluir(id, organizacaoId);
   }
 
   /** Desfaz a classificação automática de um documento — volta pro estado "pendente". */

@@ -18,6 +18,25 @@ export class RegrasFiscaisService {
   }
 
   /**
+   * "Excluir" uma regra — na prática desativa (ativa=false) em vez de
+   * apagar a linha de verdade: pedido do cliente em 2026-11-03. Soft
+   * delete porque documentoFiscal.acumulador/observacao já ficam COPIADOS
+   * na nota no momento da classificação (não existe referência viva à
+   * regra depois disso), então apagar a linha não quebra nada — mas
+   * manter o histórico de qual regra existiu/foi usada é melhor pra
+   * auditoria do que perder o registro de vez. listarPorOrganizacao já
+   * filtra ativa=true, então a regra some da lista normal assim que
+   * desativada.
+   */
+  async excluir(id: string, organizacaoId: string) {
+    const regra = await this.prisma.client.regraFiscal.findUnique({ where: { id } });
+    if (!regra || regra.organizacaoId !== organizacaoId) {
+      throw new NotFoundException(`Regra ${id} não encontrada`);
+    }
+    return this.prisma.client.regraFiscal.update({ where: { id }, data: { ativa: false } });
+  }
+
+  /**
    * Resolve a regra aplicável a um CFOP (de entrada ou de saída — o mesmo
    * mecanismo serve pros dois lados, é só o CFOP do documento que muda):
    * prioriza override específico da empresa (empresaId exato); cai pra

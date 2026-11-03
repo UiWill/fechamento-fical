@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import {
   listarRegrasFiscais,
   criarRegraFiscal,
+  excluirRegraFiscal,
   listarEmpresas,
   type RegraFiscal,
   type EmpresaResumo,
   type CondicaoPagamento,
 } from "@/lib/api";
+import { CST_ICMS, rotuloCstIcms } from "@afe/shared";
 import { SeletorAcumulador } from "@/components/SeletorAcumulador";
 
 export default function RegrasFiscaisPage() {
@@ -34,6 +36,7 @@ export default function RegrasFiscaisPage() {
   const [empresaIdsSelecionadas, setEmpresaIdsSelecionadas] = useState<string[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
   const carregar = useCallback(async (orgId: string, t: string) => {
     try {
@@ -141,6 +144,22 @@ export default function RegrasFiscaisPage() {
       setErroForm(err instanceof Error ? err.message : "Não foi possível salvar a regra.");
     } finally {
       setSalvando(false);
+    }
+  }
+
+  async function handleExcluir(regra: RegraFiscal) {
+    if (!token) return;
+    if (!window.confirm(`Excluir a regra "${regra.descricao}" (CFOP ${regra.cfopEntrada})? Ela deixa de ser aplicada em "Classificar pendentes", mas notas já classificadas com ela continuam como estão.`)) {
+      return;
+    }
+    setExcluindoId(regra.id);
+    try {
+      await excluirRegraFiscal(regra.id, token);
+      setRegras((atual) => atual.filter((r) => r.id !== regra.id));
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Não foi possível excluir a regra agora.");
+    } finally {
+      setExcluindoId(null);
     }
   }
 
@@ -265,12 +284,14 @@ export default function RegrasFiscaisPage() {
           <label className="block font-mono text-[0.6875rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
             CST esperado na entrada (opcional)
           </label>
-          <input
-            value={cstEsperado}
-            onChange={(e) => setCstEsperado(e.target.value.replace(/\D/g, "").slice(0, 3))}
-            placeholder="60"
-            className="campo"
-          />
+          <select value={cstEsperado} onChange={(e) => setCstEsperado(e.target.value)} className="campo">
+            <option value="">Não verificar</option>
+            {CST_ICMS.map((cst) => (
+              <option key={cst.codigo} value={cst.codigo}>
+                {rotuloCstIcms(cst)}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-1.5">
@@ -400,6 +421,7 @@ export default function RegrasFiscaisPage() {
                 <th className="px-4 py-3 font-medium">CST esperado</th>
                 <th className="px-4 py-3 font-medium">Crédito ICMS</th>
                 <th className="px-4 py-3 font-medium">Aplicação</th>
+                <th className="px-4 py-3 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -439,6 +461,17 @@ export default function RegrasFiscaisPage() {
                   </td>
                   <td className="px-4 py-3" style={{ color: "var(--muted)" }}>
                     {aplicacaoDaRegra(regra)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => void handleExcluir(regra)}
+                      disabled={excluindoId === regra.id}
+                      className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-40"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      {excluindoId === regra.id && <span className="spinner" />}
+                      {excluindoId === regra.id ? "Excluindo…" : "Excluir"}
+                    </button>
                   </td>
                 </tr>
               ))}

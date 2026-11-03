@@ -570,6 +570,17 @@ export async function criarRegraFiscal(
   return response.json();
 }
 
+export async function excluirRegraFiscal(id: string, token: string): Promise<void> {
+  const response = await apiFetch(`${API_URL}/regras-fiscais/${id}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const corpo = await response.text();
+    throw new Error(corpo || `API respondeu ${response.status}`);
+  }
+}
+
 export interface ClassificacaoResultado {
   total: number;
   classificados: number;

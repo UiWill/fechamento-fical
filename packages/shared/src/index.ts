@@ -1,5 +1,6 @@
 export * from "./enums";
 export * from "./acumuladores-dominio";
+export * from "./cst-icms";
 export * from "./schemas";
 export * from "./cnpj";
 export * from "./chave-acesso";
