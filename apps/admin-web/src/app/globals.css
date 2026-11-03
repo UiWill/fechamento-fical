@@ -321,6 +321,27 @@ code,
   transition: border-color 0.3s var(--ease-out);
 }
 
+/* <select> some do chrome nativo do SO (seta de caixa, moldura) — ele
+   herda o sublinhado do .campo como qualquer outro campo, e ganha uma
+   seta própria desenhada em CSS abaixo, discreta, no mesmo espírito
+   editorial (nunca uma caixa/dropdown Material). */
+select.campo {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 1.4rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a85' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.1rem center;
+  background-size: 0.85rem;
+  transition: border-color 0.3s var(--ease-out), background-image 0.3s var(--ease-out);
+}
+
+:root[data-theme="light"] select.campo {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2378715f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
 /* Reforço explícito para <select> — color-scheme já resolve a maioria dos
    navegadores, mas alguns ainda ignoram estilo de <option> sem isto. */
 select.campo option {
@@ -330,6 +351,14 @@ select.campo option {
 
 .campo:focus {
   border-color: var(--paper);
+}
+
+select.campo:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f5f5f3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+:root[data-theme="light"] select.campo:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1712' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
 
 .botao-principal {
