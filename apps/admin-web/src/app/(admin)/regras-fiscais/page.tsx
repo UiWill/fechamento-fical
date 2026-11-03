@@ -37,6 +37,7 @@ export default function RegrasFiscaisPage() {
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
+  const [explicacaoAberta, setExplicacaoAberta] = useState(false);
 
   const carregar = useCallback(async (orgId: string, t: string) => {
     try {
@@ -177,30 +178,44 @@ export default function RegrasFiscaisPage() {
           acumulador. Escolha "Toda a organização" pra criar a regra padrão (vale pra todo CNPJ
           que não tiver uma regra própria), "Uma empresa" quando o mesmo CFOP precisar de
           tratamento diferente só pra ela, ou "Empresas selecionadas" quando um grupo de
-          empresas (não todas) precisa do mesmo tratamento — prioridade: empresa específica &gt;
-          grupo selecionado &gt; padrão da organização. O "CFOP de saída esperado" alimenta a
-          checagem de divergência nas telas de Apuração do ICMS e Apuração do IBS/CBS (destaca
-          quando o CFOP real de um item não é um dos esperados por nenhuma regra ativa).
+          empresas (não todas) precisa do mesmo tratamento.
         </p>
-        <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
-          A "Condição de pagamento" é opcional e serve pro mesmo CFOP precisar de acumuladores
-          diferentes dependendo se a venda/compra foi à vista ou a prazo (é assim que o Domínio
-          classifica alguns casos) — deixe em "Qualquer" quando o CFOP sempre usa o mesmo
-          acumulador independente disso; uma regra com condição específica tem prioridade sobre
-          uma regra "Qualquer" pro mesmo CFOP.
-        </p>
-        <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
-          O campo "Acumulador" busca no catálogo oficial do Domínio (código + nome) em vez de
-          digitar livre — evita salvar o mesmo acumulador escrito de dois jeitos diferentes em
-          regras distintas.
-        </p>
-        <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
-          "CST esperado" e "Permite crédito de ICMS" são opcionais e só valem pra itens de
-          <strong> entrada</strong> — alimentam a checagem "CST/crédito fora da regra" na
-          Apuração do ICMS (ex: CFOP de substituição tributária não deveria gerar crédito de
-          ICMS, e o item deveria vir com CST 60). Deixe "Não verificar" quando esse CFOP não
-          precisa dessa checagem.
-        </p>
+        <button
+          onClick={() => setExplicacaoAberta((a) => !a)}
+          className="mt-2 font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+          style={{ color: "var(--muted)" }}
+        >
+          {explicacaoAberta ? "ocultar explicação ↑" : "saiba mais sobre cada campo ↓"}
+        </button>
+        {explicacaoAberta && (
+          <div className="entra-suave">
+            <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
+              Prioridade de aplicação: empresa específica &gt; grupo selecionado &gt; padrão da
+              organização. O "CFOP de saída esperado" alimenta a checagem de divergência nas
+              telas de Apuração do ICMS e Apuração do IBS/CBS (destaca quando o CFOP real de um
+              item não é um dos esperados por nenhuma regra ativa).
+            </p>
+            <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
+              A "Condição de pagamento" é opcional e serve pro mesmo CFOP precisar de acumuladores
+              diferentes dependendo se a venda/compra foi à vista ou a prazo (é assim que o Domínio
+              classifica alguns casos) — deixe em "Qualquer" quando o CFOP sempre usa o mesmo
+              acumulador independente disso; uma regra com condição específica tem prioridade sobre
+              uma regra "Qualquer" pro mesmo CFOP.
+            </p>
+            <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
+              O campo "Acumulador" busca no catálogo oficial do Domínio (código + nome) em vez de
+              digitar livre — evita salvar o mesmo acumulador escrito de dois jeitos diferentes em
+              regras distintas.
+            </p>
+            <p className="mt-2 max-w-2xl text-sm" style={{ color: "var(--muted)" }}>
+              "CST esperado" e "Permite crédito de ICMS" são opcionais e só valem pra itens de
+              <strong> entrada</strong> — alimentam a checagem "CST/crédito fora da regra" na
+              Apuração do ICMS (ex: CFOP de substituição tributária não deveria gerar crédito de
+              ICMS, e o item deveria vir com CST 60). Deixe "Não verificar" quando esse CFOP não
+              precisa dessa checagem.
+            </p>
+          </div>
+        )}
       </div>
 
       <form

@@ -18,6 +18,7 @@ import {
   type EmpresaResumo,
   type AgenteInstalacao,
 } from "@/lib/api";
+import { MenuMaisAcoes } from "@/components/MenuMaisAcoes";
 import { mascararCnpj, formatarDataHora, numeroNotaDaChave } from "@/lib/format";
 
 const MINUTOS_PARA_CONSIDERAR_ATRASADO = 10;
@@ -958,39 +959,21 @@ export default function AgentesPage() {
                           {comandoEnviando === `${agente.id}-REINICIAR` ? "Enviando…" : "Reiniciar"}
                         </button>
                       )}
-                      {agente.status === "ATIVO" && (
-                        <button
-                          onClick={() => void handleRevogar(agente.id)}
-                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          Revogar
-                        </button>
-                      )}
-                      {agente.ocultoEm ? (
-                        <button
-                          onClick={() => void handleRestaurar(agente.id)}
-                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          Restaurar
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => void handleOcultar(agente.id)}
-                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          Ocultar
-                        </button>
-                      )}
-                      <button
-                        onClick={() => void handleExcluir(agente.id, agente.nome)}
-                        className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        Excluir
-                      </button>
+                      <MenuMaisAcoes
+                        itens={[
+                          ...(agente.status === "ATIVO"
+                            ? [{ rotulo: "Revogar", onClick: () => void handleRevogar(agente.id) }]
+                            : []),
+                          agente.ocultoEm
+                            ? { rotulo: "Restaurar", onClick: () => void handleRestaurar(agente.id) }
+                            : { rotulo: "Ocultar", onClick: () => void handleOcultar(agente.id) },
+                          {
+                            rotulo: "Excluir",
+                            onClick: () => void handleExcluir(agente.id, agente.nome),
+                            cor: "var(--vermelho, #e08a8a)",
+                          },
+                        ]}
+                      />
                     </div>
                   </td>
                 </tr>

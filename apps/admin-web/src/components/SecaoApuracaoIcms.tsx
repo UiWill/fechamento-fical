@@ -182,6 +182,11 @@ export function SecaoApuracaoIcms({
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [numeracaoFaltando, setNumeracaoFaltando] = useState<NumeroFaltando[]>([]);
   const [numeracaoTruncada, setNumeracaoTruncada] = useState(false);
+  // Recolhido por padrão — a lista de faixas (pode passar de uma dezena de
+  // linhas em empresa com muita nota faltando) empurrava as tabelas de
+  // verdade (resumo por CFOP + itens) pra baixo, antes de a pessoa ver
+  // qualquer dado da apuração. Pedido do cliente em 2026-11-03.
+  const [numeracaoAberta, setNumeracaoAberta] = useState(false);
   // Algumas empresas passam de 15 mil itens num único mês — renderizar tudo
   // de uma vez deixa a página pesada/lenta pra rolar. Mostra em lotes; o
   // resumo por CFOP e os totais do rodapé continuam somando TUDO, só a
@@ -337,6 +342,7 @@ export function SecaoApuracaoIcms({
       setFiltros({});
       setNumeracaoFaltando(numeracao.faltando);
       setNumeracaoTruncada(numeracao.truncado);
+      setNumeracaoAberta(false);
       setErro(null);
     } catch {
       if (idDestaChamada !== idRequisicao.current) return;
@@ -520,25 +526,40 @@ export function SecaoApuracaoIcms({
 
       {!carregando && numeracaoFaltando.length > 0 && (
         <div className="rounded-lg border p-4" style={{ borderColor: "var(--vermelho, #e08a8a)" }}>
-          <p className="text-sm font-medium" style={{ color: "var(--paper)" }}>
-            {numeracaoFaltando.length} número(s) de nota faltando na sequência perto desse período — possível nota
-            que nunca chegou no sistema.
-          </p>
-          <ul className="mt-2 space-y-1 text-xs" style={{ color: "var(--muted)" }}>
-            {agruparFaixas(numeracaoFaltando).map((f, i) => (
-              <li key={i}>
-                {f.tipo} série {f.serie}: {f.gigante ? "faixa grande" : "falta"}{" "}
-                <strong style={{ color: "var(--paper)" }}>
-                  {f.deNumero === f.ateNumero ? f.deNumero : `${f.deNumero} a ${f.ateNumero}`}
-                </strong>{" "}
-                (entre {dataOuDesconhecida(f.anteriorEmitidoEm)} e {dataOuDesconhecida(f.proximoEmitidoEm)})
-              </li>
-            ))}
-          </ul>
-          {numeracaoTruncada && (
-            <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
-              Lista parcial — tem mais números faltando além dos listados aqui.
+          <button
+            onClick={() => setNumeracaoAberta((a) => !a)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <p className="text-sm font-medium" style={{ color: "var(--paper)" }}>
+              {numeracaoFaltando.length} número(s) de nota faltando na sequência perto desse período — possível nota
+              que nunca chegou no sistema.
             </p>
+            <span
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] whitespace-nowrap"
+              style={{ color: "var(--muted)" }}
+            >
+              {numeracaoAberta ? "ocultar ↑" : "ver detalhes ↓"}
+            </span>
+          </button>
+          {numeracaoAberta && (
+            <>
+              <ul className="mt-3 max-h-48 space-y-1 overflow-y-auto text-xs" style={{ color: "var(--muted)" }}>
+                {agruparFaixas(numeracaoFaltando).map((f, i) => (
+                  <li key={i}>
+                    {f.tipo} série {f.serie}: {f.gigante ? "faixa grande" : "falta"}{" "}
+                    <strong style={{ color: "var(--paper)" }}>
+                      {f.deNumero === f.ateNumero ? f.deNumero : `${f.deNumero} a ${f.ateNumero}`}
+                    </strong>{" "}
+                    (entre {dataOuDesconhecida(f.anteriorEmitidoEm)} e {dataOuDesconhecida(f.proximoEmitidoEm)})
+                  </li>
+                ))}
+              </ul>
+              {numeracaoTruncada && (
+                <p className="mt-2 text-xs" style={{ color: "var(--muted)" }}>
+                  Lista parcial — tem mais números faltando além dos listados aqui.
+                </p>
+              )}
+            </>
           )}
         </div>
       )}
