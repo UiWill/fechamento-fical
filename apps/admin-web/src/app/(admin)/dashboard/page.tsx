@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { listarEmpresas, ativarEmpresa, desativarEmpresa, type EmpresaResumo } from "@/lib/api";
+import { listarEmpresas, ativarEmpresa, desativarEmpresa, excluirEmpresa, type EmpresaResumo } from "@/lib/api";
 import { mascararCnpj } from "@/lib/format";
 import { PainelSaude } from "@/components/PainelSaude";
 
@@ -42,6 +42,11 @@ export default function DashboardPage() {
   // ainda) — pedido do cliente em 2026-11-06, pra remover empresa de
   // teste que não devia estar listada.
   const [alterandoId, setAlterandoId] = useState<string | null>(null);
+  // Apaga de vez — só pra empresa sem nenhum histórico fiscal registrado
+  // (backend bloqueia com mensagem explicando, se tiver). Pedido do
+  // cliente em 2026-11-06: "tem que ter como excluir, tem que dar pra
+  // deixar inativa, trazer de volta OU excluir".
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
   // Escondidas por padrão — mesmo padrão já usado em Agentes Desktop
   // ("mostrar ocultados"). Pedido do cliente em 2026-11-06: empresa
   // desativada não devia aparecer misturada com as empresas de verdade.
@@ -87,6 +92,25 @@ export default function DashboardPage() {
       setErro(err instanceof Error ? err.message : "Não foi possível alterar essa empresa agora.");
     } finally {
       setAlterandoId(null);
+    }
+  }
+
+  async function handleExcluir(event: React.MouseEvent, empresa: EmpresaResumo) {
+    event.stopPropagation();
+    if (!sessao) return;
+    const confirmado = window.confirm(
+      `Excluir "${empresa.razaoSocial}" de vez? Isso não pode ser desfeito. Se ela tiver qualquer documento fiscal ou certificado registrado, o sistema bloqueia e avisa — use "Tirar da conta" nesse caso.`
+    );
+    if (!confirmado) return;
+    setExcluindoId(empresa.id);
+    setErro(null);
+    try {
+      await excluirEmpresa(empresa.id, sessao.token);
+      setEmpresas((atual) => atual.filter((e) => e.id !== empresa.id));
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Não foi possível excluir essa empresa agora.");
+    } finally {
+      setExcluindoId(null);
     }
   }
 
@@ -219,19 +243,31 @@ export default function DashboardPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={(event) => void handleAlternarStatus(event, empresa)}
-                        disabled={alterandoId === empresa.id}
-                        className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-40"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        {alterandoId === empresa.id && <span className="spinner" />}
-                        {alterandoId === empresa.id
-                          ? "Alterando…"
-                          : empresa.status === "ATIVA"
-                            ? "Tirar da conta"
-                            : "Trazer de volta"}
-                      </button>
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={(event) => void handleAlternarStatus(event, empresa)}
+                          disabled={alterandoId === empresa.id}
+                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-40"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          {alterandoId === empresa.id && <span className="spinner" />}
+                          {alterandoId === empresa.id
+                            ? "Alterando…"
+                            : empresa.status === "ATIVA"
+                              ? "Tirar da conta"
+                              : "Trazer de volta"}
+                        </button>
+                        <button
+                          onClick={(event) => void handleExcluir(event, empresa)}
+                          disabled={excluindoId === empresa.id}
+                          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-40"
+                          style={{ color: "var(--vermelho, #e08a8a)" }}
+                          title="Só funciona se a empresa não tiver nenhum documento fiscal/certificado registrado"
+                        >
+                          {excluindoId === empresa.id && <span className="spinner" />}
+                          {excluindoId === empresa.id ? "Excluindo…" : "Excluir"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

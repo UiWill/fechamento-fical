@@ -319,6 +319,19 @@ export async function ativarEmpresa(id: string, token: string): Promise<EmpresaD
   return response.json();
 }
 
+export async function excluirEmpresa(id: string, token: string): Promise<void> {
+  const response = await apiFetch(`${API_URL}/empresas/${id}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    // Backend manda {message: "..."} explicando por que bloqueou (ex: tem
+    // histórico fiscal) — mostra essa mensagem, não o JSON cru.
+    const corpo = await response.json().catch(() => null);
+    throw new Error(corpo?.message || "Não foi possível excluir essa empresa agora.");
+  }
+}
+
 export async function alterarDataInicioMonitoramentoEmpresa(
   id: string,
   dataInicioMonitoramento: string,

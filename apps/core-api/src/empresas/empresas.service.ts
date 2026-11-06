@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 import { validarDigitosCnpj, type CriarEmpresaInput, type RegimeTributario } from "@afe/shared";
 import { CODIGO_IBGE_POR_UF } from "./uf";
@@ -103,6 +103,51 @@ export class EmpresasService {
       where: { id },
       data: { status: "INATIVA", desativadaEm: new Date() },
     });
+  }
+
+  /**
+   * Apaga a empresa de vez — pedido do cliente em 2026-11-06: "tem que
+   * ter como excluir, tem que dar para deixar inativa, trazer de volta
+   * ou excluir". Diferente de desativar() (reversível, não perde nada),
+   * isso é definitivo. Só permite quando NÃO existe nenhum documento
+   * fiscal/certificado/manifestação/TXT/CC-e registrado pra essa empresa
+   * — é uma empresa real (anos de nota fiscal, tem obrigação legal de
+   * guarda), apagar de vez destruiria histórico fiscal de cliente de
+   * verdade. Pra esses casos a pessoa tem que usar "desativar". Sem
+   * nenhum desses, só sobra configuração/operacional (token de agente,
+   * controle de NSU, regra fiscal específica) — aí sim é seguro apagar
+   * tudo junto com a empresa.
+   */
+  async excluir(id: string, organizacaoId: string) {
+    await this.empresaDaOrganizacao(id, organizacaoId);
+
+    const [documentos, certificado, manifestacoes, exportacoesTxt, correcaoEventos] = await Promise.all([
+      this.prisma.client.documentoFiscal.count({ where: { empresaId: id } }),
+      this.prisma.client.certificado.findUnique({ where: { empresaId: id } }),
+      this.prisma.client.manifestacaoEvento.count({ where: { empresaId: id } }),
+      this.prisma.client.exportacaoTxt.count({ where: { empresaId: id } }),
+      this.prisma.client.correcaoEvento.count({ where: { empresaId: id } }),
+    ]);
+    const temHistoricoFiscal =
+      documentos > 0 || !!certificado || manifestacoes > 0 || exportacoesTxt > 0 || correcaoEventos > 0;
+    if (temHistoricoFiscal) {
+      throw new BadRequestException(
+        `Essa empresa tem histórico fiscal registrado (${documentos} documento(s)` +
+          `${certificado ? ", certificado" : ""}${manifestacoes > 0 ? `, ${manifestacoes} manifestação(ões)` : ""}) ` +
+          `— excluir apagaria isso de vez, o que pode ser ilegal (guarda fiscal obrigatória). ` +
+          `Use "Tirar da conta" pra desativar sem perder nada.`
+      );
+    }
+
+    await this.prisma.client.$transaction([
+      this.prisma.client.nsuControle.deleteMany({ where: { empresaId: id } }),
+      this.prisma.client.nsuControleCte.deleteMany({ where: { empresaId: id } }),
+      this.prisma.client.agenteInstalacaoToken.deleteMany({ where: { empresaId: id } }),
+      this.prisma.client.regraFiscal.deleteMany({ where: { empresaId: id } }),
+      this.prisma.client.itemFatura.deleteMany({ where: { empresaId: id } }),
+      this.prisma.client.empresa.delete({ where: { id } }),
+    ]);
+    return { ok: true };
   }
 
   /**

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Req } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Req } from "@nestjs/common";
 import { criarEmpresaSchema, REGIME_TRIBUTARIO } from "@afe/shared";
 import type { AuthenticatedRequest } from "../auth/jwt-auth.guard";
 import { EmpresasService } from "./empresas.service";
@@ -47,6 +47,12 @@ export class EmpresasController {
   @Patch(":id/desativar")
   desativar(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
     return this.service.desativar(id, this.organizacaoIdDoUsuario(request));
+  }
+
+  /** Apaga de vez — só permitido sem histórico fiscal registrado (ver comentário no service). */
+  @Delete(":id")
+  excluir(@Param("id") id: string, @Req() request: AuthenticatedRequest) {
+    return this.service.excluir(id, this.organizacaoIdDoUsuario(request));
   }
 
   @Patch(":id/ambiente")
