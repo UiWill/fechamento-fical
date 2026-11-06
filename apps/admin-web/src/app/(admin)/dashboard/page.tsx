@@ -42,6 +42,12 @@ export default function DashboardPage() {
   // ainda) — pedido do cliente em 2026-11-06, pra remover empresa de
   // teste que não devia estar listada.
   const [alterandoId, setAlterandoId] = useState<string | null>(null);
+  // Escondidas por padrão — mesmo padrão já usado em Agentes Desktop
+  // ("mostrar ocultados"). Pedido do cliente em 2026-11-06: empresa
+  // desativada não devia aparecer misturada com as empresas de verdade.
+  const [mostrarInativas, setMostrarInativas] = useState(false);
+  const empresasExibidas = mostrarInativas ? empresas : empresas.filter((e) => e.status === "ATIVA");
+  const quantidadeInativas = empresas.filter((e) => e.status === "INATIVA").length;
 
   useEffect(() => {
     const token = localStorage.getItem("afe_token");
@@ -100,19 +106,48 @@ export default function DashboardPage() {
             CNPJs sob gestão
           </h1>
         </div>
-        <Link
-          href="/empresas/nova"
-          className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
-          style={{ color: "var(--paper)" }}
-        >
-          + Nova empresa
-        </Link>
+        <div className="flex items-center gap-4">
+          {quantidadeInativas > 0 && (
+            <button
+              onClick={() => setMostrarInativas((m) => !m)}
+              className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+              style={{ color: "var(--muted)" }}
+            >
+              {mostrarInativas ? "ocultar inativas" : `mostrar inativas (${quantidadeInativas})`}
+            </button>
+          )}
+          <Link
+            href="/empresas/nova"
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] transition-opacity hover:opacity-70"
+            style={{ color: "var(--paper)" }}
+          >
+            + Nova empresa
+          </Link>
+        </div>
       </div>
 
       {erro && (
         <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
           {erro}
         </p>
+      )}
+
+      {!carregando && !erro && empresas.length > 0 && empresasExibidas.length === 0 && (
+        <div
+          className="entra rounded-lg border border-dashed p-10 text-center"
+          style={{ borderColor: "var(--border)", animationDelay: "80ms" }}
+        >
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            Todas as {quantidadeInativas} empresa(s) dessa conta estão inativas.{" "}
+            <button
+              onClick={() => setMostrarInativas(true)}
+              className="underline underline-offset-4 transition-opacity hover:opacity-70"
+              style={{ color: "var(--paper)" }}
+            >
+              Mostrar inativas
+            </button>
+          </p>
+        </div>
       )}
 
       {!carregando && !erro && empresas.length === 0 && (
@@ -137,7 +172,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {(carregando || empresas.length > 0) && !erro && (
+      {(carregando || empresasExibidas.length > 0) && !erro && (
         <div
           className="entra overflow-hidden rounded-lg border"
           style={{ borderColor: "var(--border)", animationDelay: "80ms" }}
@@ -158,7 +193,7 @@ export default function DashboardPage() {
             <tbody>
               {carregando && <LinhasEsqueleto />}
               {!carregando &&
-                empresas.map((empresa, i) => (
+                empresasExibidas.map((empresa, i) => (
                   <tr
                     key={empresa.id}
                     onClick={() => router.push(`/empresas/${empresa.id}`)}
