@@ -297,6 +297,28 @@ export async function alterarAmbienteEmpresa(
   return response.json();
 }
 
+export async function desativarEmpresa(id: string, token: string): Promise<EmpresaDetalhe> {
+  const response = await apiFetch(`${API_URL}/empresas/${id}/desativar`, {
+    method: "PATCH",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível tirar essa empresa da conta agora.");
+  }
+  return response.json();
+}
+
+export async function ativarEmpresa(id: string, token: string): Promise<EmpresaDetalhe> {
+  const response = await apiFetch(`${API_URL}/empresas/${id}/ativar`, {
+    method: "PATCH",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new Error("Não foi possível reativar essa empresa agora.");
+  }
+  return response.json();
+}
+
 export async function alterarDataInicioMonitoramentoEmpresa(
   id: string,
   dataInicioMonitoramento: string,

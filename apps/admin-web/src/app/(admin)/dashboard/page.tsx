@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { listarEmpresas, type EmpresaResumo } from "@/lib/api";
+import { listarEmpresas, ativarEmpresa, desativarEmpresa, type EmpresaResumo } from "@/lib/api";
 import { mascararCnpj } from "@/lib/format";
 import { PainelSaude } from "@/components/PainelSaude";
 
@@ -24,6 +24,7 @@ function LinhasEsqueleto() {
           <td className="px-4 py-3">
             <div className="skeleton h-5 w-16 rounded-full" />
           </td>
+          <td className="px-4 py-3" />
         </tr>
       ))}
     </>
@@ -36,6 +37,11 @@ export default function DashboardPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [sessao, setSessao] = useState<{ token: string; organizacaoId: string } | null>(null);
+  // Tirar/trazer de volta uma empresa da conta sem apagar nada (status
+  // ATIVA/INATIVA já existia no banco, só não tinha botão nenhum na tela
+  // ainda) — pedido do cliente em 2026-11-06, pra remover empresa de
+  // teste que não devia estar listada.
+  const [alterandoId, setAlterandoId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("afe_token");
@@ -52,6 +58,31 @@ export default function DashboardPage() {
       .catch(() => setErro("Não foi possível carregar os CNPJs agora. Tente atualizar a página."))
       .finally(() => setCarregando(false));
   }, [router]);
+
+  async function handleAlternarStatus(event: React.MouseEvent, empresa: EmpresaResumo) {
+    event.stopPropagation();
+    if (!sessao) return;
+    if (empresa.status === "ATIVA") {
+      const confirmado = window.confirm(
+        `Tirar "${empresa.razaoSocial}" da conta? Ela some da listagem ativa, mas nada é apagado — dá pra trazer de volta depois.`
+      );
+      if (!confirmado) return;
+    }
+    setAlterandoId(empresa.id);
+    try {
+      const atualizada =
+        empresa.status === "ATIVA"
+          ? await desativarEmpresa(empresa.id, sessao.token)
+          : await ativarEmpresa(empresa.id, sessao.token);
+      setEmpresas((atual) =>
+        atual.map((e) => (e.id === empresa.id ? { ...e, status: atualizada.status } : e))
+      );
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Não foi possível alterar essa empresa agora.");
+    } finally {
+      setAlterandoId(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -121,6 +152,7 @@ export default function DashboardPage() {
                 <th className="px-4 py-3 font-medium">Razão social</th>
                 <th className="px-4 py-3 font-medium">UF</th>
                 <th className="px-4 py-3 font-medium">Situação</th>
+                <th className="px-4 py-3 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -150,6 +182,21 @@ export default function DashboardPage() {
                       >
                         {empresa.status === "ATIVA" ? "Ativa" : "Inativa"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={(event) => void handleAlternarStatus(event, empresa)}
+                        disabled={alterandoId === empresa.id}
+                        className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70 disabled:opacity-40"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {alterandoId === empresa.id && <span className="spinner" />}
+                        {alterandoId === empresa.id
+                          ? "Alterando…"
+                          : empresa.status === "ATIVA"
+                            ? "Tirar da conta"
+                            : "Trazer de volta"}
+                      </button>
                     </td>
                   </tr>
                 ))}
