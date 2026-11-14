@@ -138,6 +138,45 @@ function participante(
 }
 
 
+export interface ProdutoParaLayout {
+  codigoProduto: string;
+  descricao: string;
+  ncm: string;
+  unidadeComercial: string;
+  cest: string;
+  /** Mês de referência da exportação — mesmo padrão usado no cadastro de cliente/fornecedor (ver `participante()`). */
+  mesReferencia: Date;
+}
+
+/**
+ * Registro 0100 — cadastro de produto (registro independente, não filho de
+ * nota — um por produto que apareceu em alguma nota do período, não por
+ * ocorrência). Confirmado contra o PDF (págs. 5-12, 90 campos): só os
+ * universais pra mercadoria comum entram — código, descrição, NCM,
+ * unidade de medida, CEST e data de cadastro. Campo 12 ("Tipo do
+ * produto") fixo "O" (Outros) — os únicos outros valores da tabela são
+ * Arma de fogo/Medicamento/Veículos novos, que não se aplicam a este
+ * cliente. O resto dos 90 campos é opt-in por UF (SP/GO/RS/DF/PE/MS/AM/SE)
+ * ou por informativo que a empresa não gera (SPED Fiscal, SPED PIS/COFINS,
+ * DACON, DNF, SCANC, DIEF, Cat 17/99, Sintegra 88ST) — mesmo critério de
+ * exclusão do resto do leiaute (ver comentário no topo do arquivo).
+ */
+export function linha0100(p: ProdutoParaLayout): string {
+  const dataCadastro = formatarDataBR(
+    new Date(Date.UTC(p.mesReferencia.getUTCFullYear(), p.mesReferencia.getUTCMonth(), 1))
+  );
+  return montarLinha(90, {
+    1: "0100",
+    2: p.codigoProduto,
+    3: p.descricao,
+    5: p.ncm,
+    10: p.unidadeComercial,
+    12: "O",
+    75: dataCadastro,
+    89: p.cest,
+  });
+}
+
 /**
  * A nota do fornecedor traz o CFOP DELE (de saída: 5.xxx dentro do estado,
  * 6.xxx fora, 7.xxx exterior). O Domínio espera no registro de entrada o
@@ -185,6 +224,21 @@ export interface NotaEntradaParaLayout {
  * em vez de chutar.
  */
 const MODALIDADE_FRETE_ENTRADA: Record<string, string> = { "0": "C", "1": "F" };
+
+/**
+ * Registro 1010 — informações complementares da nota de ENTRADA (texto de
+ * <infCpl> do XML do fornecedor). Espelho exato do 2010 (saída, já
+ * implementado) — mesma estrutura de 3 campos e mesmo valor "1" (interesse
+ * do fisco), confirmado na pág. 46 do PDF. Só gerado quando a nota traz
+ * esse texto.
+ */
+export function linha1010(informacoesComplementares: string): string {
+  return montarLinha(3, {
+    1: "1010",
+    2: "1",
+    3: informacoesComplementares.slice(0, 300),
+  });
+}
 
 /** Registro 1000 — nota fiscal de entrada. */
 export function linha1000(n: NotaEntradaParaLayout): string {

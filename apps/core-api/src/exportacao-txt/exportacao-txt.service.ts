@@ -11,7 +11,9 @@ import {
   linha0000,
   linha0010,
   linha0020,
+  linha0100,
   linha1000,
+  linha1010,
   linha1020,
   linha1030,
   linha1060,
@@ -23,6 +25,7 @@ import {
   linha2060,
   linha2500,
   type ParticipanteParaLayout,
+  type ProdutoParaLayout,
   type TotalImpostoParaLayout,
 } from "./dominio-layout";
 import { lerNotaSaida, type ItemSaida } from "./saida-xml";
@@ -204,6 +207,10 @@ export class ExportacaoTxtService {
       const documentosIgnorados = totalEntrada - candidatosEntrada.length + (totalSaida - candidatosSaida.length);
 
       const fornecedoresPorCnpj = new Map<string, ParticipanteParaLayout>();
+      // Um 0100 por produto que aparece em alguma nota do período (entrada
+      // ou saída), não por ocorrência — mesmo critério de dedup já usado
+      // pra cliente/fornecedor acima.
+      const produtosPorCodigo = new Map<string, ProdutoParaLayout>();
       const linhasNotas: string[] = [];
 
       for (const doc of documentos) {
@@ -244,6 +251,10 @@ export class ExportacaoTxtService {
           })
         );
 
+        if (nota.informacoesComplementares) {
+          linhasNotas.push(linha1010(nota.informacoesComplementares));
+        }
+
         linhasNotas.push(...totaisImpostos(nota.itens).map(linha1020));
 
         const porNcmEntrada = new Map<string, { produtos: number; ipi: number }>();
@@ -252,6 +263,17 @@ export class ExportacaoTxtService {
           acumuladoNcm.produtos += item.valorProdutos;
           acumuladoNcm.ipi += item.ipi.valor;
           porNcmEntrada.set(item.ncm, acumuladoNcm);
+
+          if (!produtosPorCodigo.has(item.codigoProduto)) {
+            produtosPorCodigo.set(item.codigoProduto, {
+              codigoProduto: item.codigoProduto,
+              descricao: item.nomeProduto,
+              ncm: item.ncm,
+              unidadeComercial: item.unidadeComercial,
+              cest: item.cest,
+              mesReferencia: periodoInicio,
+            });
+          }
 
           linhasNotas.push(
             linha1030({
@@ -351,6 +373,17 @@ export class ExportacaoTxtService {
           acumulado.ipi += item.ipi.valor;
           porNcm.set(item.ncm, acumulado);
 
+          if (!produtosPorCodigo.has(item.codigoProduto)) {
+            produtosPorCodigo.set(item.codigoProduto, {
+              codigoProduto: item.codigoProduto,
+              descricao: item.nomeProduto,
+              ncm: item.ncm,
+              unidadeComercial: item.unidadeComercial,
+              cest: item.cest,
+              mesReferencia: periodoInicio,
+            });
+          }
+
           linhasSaida.push(
             linha2030({
               codigoProduto: item.codigoProduto,
@@ -397,6 +430,7 @@ export class ExportacaoTxtService {
         linha0000(empresa.cnpj),
         ...Array.from(clientesPorDocumento.values()).map(linha0010),
         ...Array.from(fornecedoresPorCnpj.values()).map(linha0020),
+        ...Array.from(produtosPorCodigo.values()).map(linha0100),
         ...linhasNotas,
         ...linhasSaida,
       ];
