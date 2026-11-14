@@ -46,10 +46,18 @@
 import { decodificarChaveAcesso } from "@afe/shared";
 import type { EnderecoEmitente } from "../documentos-fiscais/xml-utils";
 
+// Campos de texto livre do XML (descrição de produto, informações
+// complementares etc.) podem trazer "|" ou quebra de linha — sem
+// sanitizar, isso desalinha os campos da linha ou injeta uma linha nova
+// falsa no arquivo que a Domínio vai importar.
+function sanitizarCampo(valor: string): string {
+  return valor.replace(/[|\r\n]/g, " ");
+}
+
 function montarLinha(tamanho: number, valores: Record<number, string>): string {
   const campos = new Array<string>(tamanho).fill("");
   for (const [indice, valor] of Object.entries(valores)) {
-    campos[Number(indice)] = valor;
+    campos[Number(indice)] = sanitizarCampo(valor);
   }
   return campos.join("|");
 }
