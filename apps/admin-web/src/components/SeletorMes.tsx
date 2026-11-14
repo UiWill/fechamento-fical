@@ -146,7 +146,10 @@ export function SeletorMes({
               position: "fixed",
               top: posicao.top,
               left: posicao.left,
-              zIndex: 50,
+              // Maior que o z-[100] dos modais (ModalManifestacao,
+              // ModalExportacaoDominio) — o seletor pode ser usado dentro
+              // de um modal, e sem isso o calendário abria atrás dele.
+              zIndex: 150,
               background: "var(--surface)",
               borderColor: "var(--border)",
               minWidth: "16rem",
