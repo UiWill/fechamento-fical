@@ -754,12 +754,18 @@ export async function gerarExportacaoTxt(
   return response.json();
 }
 
-/** Baixa o TXT gerado direto pelo navegador (o link precisa do token, então não dá pra ser um <a href> simples). */
+/**
+ * Baixa o TXT gerado direto pelo navegador (o link precisa do token, então
+ * não dá pra ser um <a href> simples). Devolve o nome do arquivo pra quem
+ * chamou poder mostrar uma mensagem de confirmação — o download em si é
+ * silencioso (sem barra de progresso do navegador pra blob), então sem essa
+ * mensagem o usuário não tem como saber que já baixou.
+ */
 export async function baixarExportacaoTxt(
   empresaId: string,
   exportacaoId: string,
   token: string
-): Promise<void> {
+): Promise<string> {
   const response = await apiFetch(
     `${API_URL}/empresas/${empresaId}/exportacoes-txt/${exportacaoId}/arquivo`,
     { headers: { authorization: `Bearer ${token}` } }
@@ -779,6 +785,7 @@ export async function baixarExportacaoTxt(
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+  return nomeArquivo;
 }
 
 // O zip é montado sob demanda no servidor (archiver gerando em stream,

@@ -18,8 +18,6 @@ import {
   previewClassificacao,
   reverterClassificacao,
   type PreviewClassificacaoItem,
-  gerarExportacaoTxt,
-  baixarExportacaoTxt,
   baixarXmlsZip,
   zerarNsu,
   consultarSituacaoDocumento,
@@ -46,6 +44,7 @@ import {
 } from "@/lib/format";
 import { ModalManifestacao } from "@/components/ModalManifestacao";
 import { ModalConfirmarClassificacao } from "@/components/ModalConfirmarClassificacao";
+import { ModalExportacaoDominio } from "@/components/ModalExportacaoDominio";
 import { SecaoCteDistribuicao } from "@/components/SecaoCteDistribuicao";
 import { SecaoApuracaoIcms } from "@/components/SecaoApuracaoIcms";
 import { SecaoApuracaoIbsCbs } from "@/components/SecaoApuracaoIbsCbs";
@@ -515,10 +514,7 @@ export default function EmpresaDetalhePage() {
   const [ordenacaoSaida, setOrdenacaoSaida] = useState<Ordenacao>(ORDENACAO_PADRAO);
   const [filtroTipoSaida, setFiltroTipoSaida] = useState<DocumentoFiscal["tipo"] | "TODOS">("TODOS");
 
-  const [mesExportacaoTxt, setMesExportacaoTxt] = useState(mesAtual());
-  const [gerandoTxt, setGerandoTxt] = useState(false);
-  const [resultadoTxt, setResultadoTxt] = useState<string | null>(null);
-  const [erroTxt, setErroTxt] = useState<string | null>(null);
+  const [modalDominioAberto, setModalDominioAberto] = useState(false);
 
   const carregarTudo = useCallback(
     async (t: string) => {
@@ -831,49 +827,6 @@ export default function EmpresaDetalhePage() {
     }
   }
 
-  async function handleGerarExportacaoTxt() {
-    if (!token) return;
-    setGerandoTxt(true);
-    setResultadoTxt(null);
-    setErroTxt(null);
-    try {
-      const { inicio, fim } = limitesDoMes(mesExportacaoTxt);
-      const resultado = await gerarExportacaoTxt(params.id, inicio, fim, token);
-
-      if (resultado.status === "ERRO") {
-        setErroTxt(resultado.erro ?? "Não foi possível gerar o TXT.");
-        return;
-      }
-
-      const partes = [`${resultado.totalDocumentos} nota(s) incluída(s)`];
-      if (resultado.documentosIgnorados) {
-        partes.push(`${resultado.documentosIgnorados} ignorada(s) por falta de CFOP`);
-      }
-      if (resultado.documentosSemAcumulador) {
-        partes.push(
-          `${resultado.documentosSemAcumulador} sem acumulador (classifique as notas em "Classificar pendentes" — precisa haver uma regra fiscal cadastrada pro CFOP)`
-        );
-      }
-      if (resultado.documentosNaoConsultados) {
-        partes.push(
-          `${resultado.documentosNaoConsultados} ainda não consultada(s) na SEFAZ (use "Consultar pendentes" — só nota autorizada entra no TXT)`
-        );
-      }
-      if (resultado.documentosNaoAutorizados) {
-        partes.push(`${resultado.documentosNaoAutorizados} com situação diferente de autorizada (cancelada/denegada/duplicidade)`);
-      }
-      setResultadoTxt(partes.join(" · "));
-
-      if (resultado.totalDocumentos > 0) {
-        await baixarExportacaoTxt(params.id, resultado.id, token);
-      }
-    } catch (err) {
-      setErroTxt(err instanceof Error ? err.message : "Não foi possível gerar o TXT agora.");
-    } finally {
-      setGerandoTxt(false);
-    }
-  }
-
   const diasVencimentoCertificado = certificado ? diasAte(certificado.validoAte) : null;
   const certificadoAtencao = diasVencimentoCertificado !== null && diasVencimentoCertificado <= 30;
 
@@ -1023,13 +976,24 @@ export default function EmpresaDetalhePage() {
   return (
     <div className="space-y-10">
       <div className="entra">
-        <Link
-          href="/dashboard"
-          className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] transition-opacity hover:opacity-70"
-          style={{ color: "var(--muted)" }}
-        >
-          ← Carteira de clientes
-        </Link>
+        <div className="flex items-start justify-between gap-4">
+          <Link
+            href="/dashboard"
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] transition-opacity hover:opacity-70"
+            style={{ color: "var(--muted)" }}
+          >
+            ← Carteira de clientes
+          </Link>
+          <button
+            type="button"
+            onClick={() => setModalDominioAberto(true)}
+            className="font-mono text-[0.6875rem] uppercase tracking-[0.1em] underline underline-offset-4 transition-opacity hover:opacity-70"
+            style={{ color: "var(--paper)" }}
+            title="Gerar TXT de entrada e saída do mês pra importar no Domínio Sistemas"
+          >
+            Domínio Sistemas
+          </button>
+        </div>
         <div className="mt-3 flex items-baseline gap-3">
           <h1 className="font-display text-2xl" style={{ color: "var(--paper)" }}>
             {empresa.razaoSocial}
@@ -1748,56 +1712,13 @@ export default function EmpresaDetalhePage() {
         />
       )}
 
-      <section className="space-y-3">
-        <h2
-          className="font-mono text-[0.6875rem] uppercase tracking-[0.15em]"
-          style={{ color: "var(--muted)" }}
-        >
-          Exportação para o Domínio Sistemas
-        </h2>
-
-        <div
-          className="entra flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <div className="flex items-center gap-3">
-            <label
-              className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
-              style={{ color: "var(--muted)" }}
-            >
-              Entrada e saída · mês
-            </label>
-            <SeletorMes value={mesExportacaoTxt} onChange={setMesExportacaoTxt} />
-          </div>
-
-          <button
-            onClick={handleGerarExportacaoTxt}
-            disabled={gerandoTxt}
-            className="botao-principal"
-            style={{ width: "auto", paddingInline: "1.25rem" }}
-          >
-            {gerandoTxt && <span className="spinner" />}
-            {gerandoTxt ? "Gerando…" : "Gerar TXT"}
-          </button>
-        </div>
-
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          Gera o TXT do mês com as notas de entrada e de saída (NF-e e
-          NFC-e) pra importar no Domínio Sistemas. CT-e não entra nesse
-          arquivo.
-        </p>
-
-        {resultadoTxt && (
-          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
-            {resultadoTxt}
-          </p>
-        )}
-        {erroTxt && (
-          <p className="entra-suave text-sm" style={{ color: "var(--paper)" }}>
-            {erroTxt}
-          </p>
-        )}
-      </section>
+      {modalDominioAberto && token && (
+        <ModalExportacaoDominio
+          empresaId={empresa.id}
+          token={token}
+          onFechar={() => setModalDominioAberto(false)}
+        />
+      )}
     </div>
   );
 }
