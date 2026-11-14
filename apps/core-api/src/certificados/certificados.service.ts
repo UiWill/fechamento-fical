@@ -134,7 +134,13 @@ export class CertificadosService {
     const limite = new Date();
     limite.setDate(limite.getDate() + dias);
     return this.prisma.client.certificado.findMany({
-      where: { validoAte: { lte: limite }, alertaVencimentoEnviado: false, empresa: { organizacaoId } },
+      // empresa inativa (tirada da conta) nao deve gerar alerta de saude —
+      // quem desativou nao quer mais acompanhar certificado dela.
+      where: {
+        validoAte: { lte: limite },
+        alertaVencimentoEnviado: false,
+        empresa: { organizacaoId, status: "ATIVA" },
+      },
       include: { empresa: true },
     });
   }

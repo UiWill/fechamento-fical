@@ -42,7 +42,11 @@ export class SistemaService {
       this.certificados.listarVencendoEm(DIAS_PARA_ALERTAR_CERTIFICADO, organizacaoId),
       this.prisma.client.agenteInstalacaoToken.findMany({
         where: {
-          OR: [{ organizacaoId }, { empresa: { organizacaoId } }],
+          // Mesmo raciocínio do certificado: empresa inativa não deve
+          // gerar alerta de "agente offline" — quem desativou não quer
+          // mais acompanhar isso dela. Token sem empresa vinculada ainda
+          // (organizacaoId direto) passa normal.
+          OR: [{ organizacaoId }, { empresa: { organizacaoId, status: "ATIVA" } }],
           status: "ATIVO",
           ocultoEm: null,
         },
