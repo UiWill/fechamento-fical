@@ -1715,6 +1715,7 @@ export default function EmpresaDetalhePage() {
       {modalDominioAberto && token && (
         <ModalExportacaoDominio
           empresaId={empresa.id}
+          empresaNome={empresa.razaoSocial}
           token={token}
           onFechar={() => setModalDominioAberto(false)}
         />

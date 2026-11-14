@@ -12,7 +12,14 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": true,
-    "sourceMap": true,
-    "incremental": true
+    "sourceMap": true
+    // "incremental" removido de propósito: o cache (.tsbuildinfo) sobrevive
+    // entre builds, mas "nest build" sempre apaga a pasta "dist" primeiro
+    // (deleteOutDir, ver nest-cli.json) — o tsc então confia no cache e
+    // pula reemitir arquivo que "já tinha sido gerado", mesmo tendo sido
+    // apagado do disco. Resultado: build "passa" sem erro mas o dist fica
+    // incompleto (viu isso em produção mais de uma vez — 2026-11-14).
+    // "nest start --watch" não perde nada com isso, o watch mode do tsc
+    // mantém o próprio estado em memória, independente dessa flag.
   }
 }

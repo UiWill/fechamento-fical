@@ -21,10 +21,12 @@ import { SeletorMes } from "@/components/SeletorMes";
  */
 export function ModalExportacaoDominio({
   empresaId,
+  empresaNome,
   token,
   onFechar,
 }: {
   empresaId: string;
+  empresaNome: string;
   token: string;
   onFechar: () => void;
 }) {
@@ -139,11 +141,11 @@ export function ModalExportacaoDominio({
             Exportação para o Domínio Sistemas
           </p>
           <h2 className="font-display text-xl" style={{ color: "var(--paper)" }}>
-            Gerar TXT do mês
+            {empresaNome}
           </h2>
           <p className="text-xs" style={{ color: "var(--muted)" }}>
-            Um arquivo só, com as notas de entrada e de saída (NF-e e NFC-e) do mês escolhido. CT-e não entra nesse
-            arquivo.
+            Gera um arquivo só, com as notas de entrada e de saída (NF-e e NFC-e) do mês escolhido. CT-e não entra
+            nesse arquivo.
           </p>
         </div>
 

@@ -29,6 +29,18 @@ import { lerNotaSaida, type ItemSaida } from "./saida-xml";
 
 const CRLF = "\r\n";
 
+/** Nome de empresa -> pedaço seguro pra nome de arquivo (sem acento/espaço). */
+function slugEmpresa(razaoSocial: string): string {
+  return (
+    razaoSocial
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "empresa"
+  );
+}
+
 const CST_ICMS_ISENTAS = new Set(["30", "40", "41", "50"]);
 const CST_IPI_ISENTAS = new Set(["01", "02", "03", "04", "05", "51", "52", "53", "54", "55"]);
 
@@ -429,8 +441,14 @@ export class ExportacaoTxtService {
       throw new BadRequestException(`Exportação ainda não concluída (status: ${registro.status})`);
     }
 
+    const empresa = await this.prisma.client.empresa.findUnique({
+      where: { id: empresaId },
+      select: { razaoSocial: true },
+    });
+
     const buffer = await this.storage.getObject(BUCKET_EXPORTACOES_TXT, registro.objetoStorageTxt);
     const periodo = registro.periodoInicio.toISOString().slice(0, 7);
-    return { buffer, nomeArquivo: `exportacao-dominio-${periodo}.txt` };
+    const nomeEmpresa = slugEmpresa(empresa?.razaoSocial ?? "empresa");
+    return { buffer, nomeArquivo: `exportacao-dominio-${nomeEmpresa}-${periodo}.txt` };
   }
 }
