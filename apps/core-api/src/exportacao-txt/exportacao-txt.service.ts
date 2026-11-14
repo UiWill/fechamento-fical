@@ -12,6 +12,10 @@ import {
   linha0010,
   linha0020,
   linha1000,
+  linha1020,
+  linha1030,
+  linha1060,
+  linha1500,
   linha2000,
   linha2010,
   linha2020,
@@ -29,10 +33,12 @@ const CST_ICMS_ISENTAS = new Set(["30", "40", "41", "50"]);
 const CST_IPI_ISENTAS = new Set(["01", "02", "03", "04", "05", "51", "52", "53", "54", "55"]);
 
 /**
- * Totalizadores 2020 da nota: um par (ICMS tipo 1 + IPI tipo 2) por
- * combinação de classificação de ICMS e de IPI dos itens — é o que o modelo
- * mostra (ex.: dois itens a 18% de ICMS mas com IPI classificado diferente
- * geram duas linhas de cada tipo). Itens de Simples (CSOSN) não geram nada.
+ * Totalizadores 2020 (saída) OU 1020 (entrada) da nota: um par (ICMS tipo 1
+ * + IPI tipo 2) por combinação de classificação de ICMS e de IPI dos itens
+ * — é o que o modelo mostra (ex.: dois itens a 18% de ICMS mas com IPI
+ * classificado diferente geram duas linhas de cada tipo). Itens de Simples
+ * (CSOSN) não geram nada. Mesma função pras duas direções — `lerNotaSaida`
+ * é reaproveitado pra entrada também (ver comentário em saida-xml.ts).
  */
 function totaisImpostos(itens: ItemSaida[]): TotalImpostoParaLayout[] {
   const grupos = new Map<string, ItemSaida[]>();
@@ -199,6 +205,12 @@ export class ExportacaoTxtService {
           });
         }
 
+        // lerNotaSaida serve pros dois sentidos (ver comentário em
+        // saida-xml.ts) — aqui dá os itens/duplicatas/totais do XML do
+        // FORNECEDOR, que faltavam pros registros 1020/1030/1500.
+        const nota = lerNotaSaida(xmlTexto);
+        const dataEmissao = doc.emitidoEm ?? doc.recebidoEm;
+
         linhasNotas.push(
           linha1000({
             chaveAcesso: doc.chaveAcesso,
@@ -207,7 +219,65 @@ export class ExportacaoTxtService {
             dataEmissao: doc.emitidoEm ?? doc.recebidoEm,
             dataRecebimento: doc.recebidoEm,
             acumulador: doc.acumulador,
+            totaisXml: {
+              modalidadeFrete: nota.modalidadeFrete,
+              valorProdutos: nota.valorProdutos,
+              valorFrete: nota.valorFrete,
+              valorSeguro: nota.valorSeguro,
+              valorDespesas: nota.valorDespesas,
+            },
           })
+        );
+
+        linhasNotas.push(...totaisImpostos(nota.itens).map(linha1020));
+
+        const porNcmEntrada = new Map<string, { produtos: number; ipi: number }>();
+        for (const item of nota.itens) {
+          const acumuladoNcm = porNcmEntrada.get(item.ncm) ?? { produtos: 0, ipi: 0 };
+          acumuladoNcm.produtos += item.valorProdutos;
+          acumuladoNcm.ipi += item.ipi.valor;
+          porNcmEntrada.set(item.ncm, acumuladoNcm);
+
+          linhasNotas.push(
+            linha1030({
+              codigoProduto: item.codigoProduto,
+              quantidade: item.quantidade,
+              unidadeComercial: item.unidadeComercial,
+              cest: item.cest,
+              valorIpi: item.ipi.valor,
+              baseCalculoIcms: item.icms?.base ?? 0,
+              dataEmissao,
+              cstIcms: item.icms?.cst ?? "",
+              valorBrutoProduto: item.valorProdutos,
+              valorDesconto: item.valorDesconto,
+              baseCalculoIcmsSt: item.icms?.baseSt ?? 0,
+              aliquotaIcms: item.icms?.aliquota ?? 0,
+              aliquotaIcmsSt: item.icms?.aliquotaSt ?? 0,
+              valorIcms: item.icms?.valor ?? 0,
+              valorIcmsSt: item.icms?.valorSt ?? 0,
+              valorFrete: item.valorFrete,
+              valorSeguro: item.valorSeguro,
+              valorDespesas: item.valorDespesas,
+              valorUnitario: item.valorUnitario,
+              cstIpi: item.ipi.cst,
+              aliquotaIpi: item.ipi.aliquota,
+              cstPis: item.pis.cst,
+              baseCalculoPis: item.pis.base,
+              aliquotaPis: item.pis.aliquota,
+              valorPis: item.pis.valor,
+              cstCofins: item.cofins.cst,
+              baseCalculoCofins: item.cofins.base,
+              aliquotaCofins: item.cofins.aliquota,
+              valorCofins: item.cofins.valor,
+              valorContabil: item.valorContabil,
+              cfop: item.cfop,
+            })
+          );
+        }
+        for (const [ncm, v] of porNcmEntrada) linhasNotas.push(linha1060(ncm, v.produtos, v.ipi));
+
+        nota.duplicatas.forEach((d, i) =>
+          linhasNotas.push(linha1500(d.vencimento, d.valor, nota.numero, i + 1))
         );
       }
 
@@ -270,6 +340,8 @@ export class ExportacaoTxtService {
             linha2030({
               codigoProduto: item.codigoProduto,
               quantidade: item.quantidade,
+              unidadeComercial: item.unidadeComercial,
+              cest: item.cest,
               valorIpi: item.ipi.valor,
               baseCalculoIcms: item.icms?.base ?? 0,
               dataEmissao,
@@ -278,8 +350,12 @@ export class ExportacaoTxtService {
               valorDesconto: item.valorDesconto,
               baseCalculoIcmsSt: item.icms?.baseSt ?? 0,
               aliquotaIcms: item.icms?.aliquota ?? 0,
+              aliquotaIcmsSt: item.icms?.aliquotaSt ?? 0,
               valorIcms: item.icms?.valor ?? 0,
               valorIcmsSt: item.icms?.valorSt ?? 0,
+              valorFrete: item.valorFrete,
+              valorSeguro: item.valorSeguro,
+              valorDespesas: item.valorDespesas,
               valorUnitario: item.valorUnitario,
               cstIpi: item.ipi.cst,
               aliquotaIpi: item.ipi.aliquota,

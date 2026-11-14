@@ -1,14 +1,22 @@
 /**
- * Leitura do XML de uma NF-e de SAÍDA (emitida pela própria empresa) só com
- * o que o TXT de importação do Domínio precisa: destinatário, totais,
- * ICMS/IPI agrupados, itens, PIS/COFINS e duplicatas. Regex simples sobre o
- * XML (mesma abordagem de xml-utils.ts) — a NF-e tem estrutura previsível e
- * não vale trazer um parser XML só pra isso.
+ * Leitura de XML de NF-e só com o que o TXT de importação do Domínio
+ * precisa: destinatário, totais, ICMS/IPI agrupados, itens, PIS/COFINS e
+ * duplicatas. Regex simples sobre o XML (mesma abordagem de xml-utils.ts) —
+ * a NF-e tem estrutura previsível e não vale trazer um parser XML só pra
+ * isso.
+ *
+ * Apesar do nome (`lerNotaSaida`), a estrutura de <det>/itens/impostos/
+ * duplicatas de uma NF-e é a mesma independente de quem a está lendo — por
+ * isso a exportação de ENTRADA também usa esta função sobre o XML do
+ * fornecedor (o campo `destinatario`, que seria a própria empresa, é
+ * simplesmente ignorado nesse caso). Evita duplicar o parser.
  *
  * Campos mapeados 1:1 com a especificação oficial da Domínio Sistemas
- * ("Leiaute: Domínio Sistemas com Separador", registros 2000/2010/2020/2030 —
- * suporte.dominioatendimento.com, código 672), não mais por engenharia
- * reversa: o PDF baixado dessa página tem a tabela de campo completa.
+ * ("Leiaute: Domínio Sistemas com Separador" — Importação_com_separador.pdf,
+ * 653523320-Layout-Dominio-Sistemas-Separador.pdf na raiz do projeto,
+ * documento de 22/05/2019), cruzados campo a campo com o arquivo-modelo
+ * (ExportacaoDominio-ENDURO-08-2026.txt) pra confirmar o formato exato
+ * usado na prática.
  */
 
 function texto(bloco: string, tag: string): string {
@@ -71,12 +79,22 @@ export interface ItemSaida {
   ncm: string;
   cfop: string;
   quantidade: number;
+  /** <uCom> — unidade comercializada (ex.: "UN", "KG", "CX"). */
+  unidadeComercial: string;
+  /** <CEST> — Código Especificador da Substituição Tributária; vazio quando o item não tem. */
+  cest: string;
   valorUnitario: number;
   /** vProd - vDesc + frete + seguro + outras despesas + IPI: o "valor contábil" do item (registro 2000 campo 62). */
   valorContabil: number;
   valorProdutos: number;
   valorDesconto: number;
-  icms: { comCst: boolean; cst: string; base: number; baseSt: number; valorSt: number; aliquota: number; valor: number } | null;
+  /** <prod><vFrete>/<vSeg>/<vOutro> do item — já somados em valorContabil, expostos também em separado (registros 2030/1030 campos 19-21). */
+  valorFrete: number;
+  valorSeguro: number;
+  valorDespesas: number;
+  icms:
+    | { comCst: boolean; cst: string; base: number; baseSt: number; valorSt: number; aliquota: number; aliquotaSt: number; valor: number }
+    | null;
   ipi: { tributado: boolean; cst: string; base: number; aliquota: number; valor: number };
   pis: TributoItem;
   cofins: TributoItem;
@@ -94,6 +112,12 @@ export interface NotaSaidaLida {
   crt: string;
   valorNota: number;
   valorIpi: number;
+  /** <ICMSTot><vProd> — total dos produtos da nota (sem frete/seguro/desconto/IPI), usado no registro 1000 campo 39 (entrada). */
+  valorProdutos: number;
+  /** <ICMSTot><vFrete>/<vSeg>/<vOutro> — totais da nota, usados no registro 1000 campos 26/27/28 (entrada). */
+  valorFrete: number;
+  valorSeguro: number;
+  valorDespesas: number;
   /** Código NFe de <modFrete> (0..9) — convertido pro código de letra da Domínio na hora de montar a linha 2000. */
   modalidadeFrete: string;
   /** <infCpl> — vira o registro 2010 (Informações Complementares) quando presente. */
@@ -134,8 +158,10 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
     const vIpi = numero(ipiBloco, "vIPI");
     const valorProdutos = numero(prod, "vProd");
     const valorDesconto = numero(prod, "vDesc");
-    const valorContabil =
-      valorProdutos - valorDesconto + numero(prod, "vFrete") + numero(prod, "vSeg") + numero(prod, "vOutro") + vIpi;
+    const valorFreteItem = numero(prod, "vFrete");
+    const valorSeguroItem = numero(prod, "vSeg");
+    const valorDespesasItem = numero(prod, "vOutro");
+    const valorContabil = valorProdutos - valorDesconto + valorFreteItem + valorSeguroItem + valorDespesasItem + vIpi;
 
     const cstIcms = texto(icmsBloco, "CST");
     const icms = icmsBloco
@@ -146,6 +172,7 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
           baseSt: numero(icmsBloco, "vBCST"),
           valorSt: numero(icmsBloco, "vICMSST"),
           aliquota: numero(icmsBloco, "pICMS"),
+          aliquotaSt: numero(icmsBloco, "pICMSST"),
           valor: numero(icmsBloco, "vICMS"),
         }
       : null;
@@ -196,10 +223,15 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
       ncm: texto(prod, "NCM"),
       cfop: texto(prod, "CFOP"),
       quantidade: numero(prod, "qCom"),
+      unidadeComercial: texto(prod, "uCom"),
+      cest: texto(prod, "CEST"),
       valorUnitario: numero(prod, "vUnCom"),
       valorContabil,
       valorProdutos: valorProdutos - valorDesconto,
       valorDesconto,
+      valorFrete: valorFreteItem,
+      valorSeguro: valorSeguroItem,
+      valorDespesas: valorDespesasItem,
       icms,
       ipi: {
         tributado: ipiTributado,
@@ -236,6 +268,10 @@ export function lerNotaSaida(xml: string): NotaSaidaLida {
     crt: texto(emit, "CRT"),
     valorNota: numero(totais, "vNF"),
     valorIpi: numero(totais, "vIPI"),
+    valorProdutos: numero(totais, "vProd"),
+    valorFrete: numero(totais, "vFrete"),
+    valorSeguro: numero(totais, "vSeg"),
+    valorDespesas: numero(totais, "vOutro"),
     modalidadeFrete: texto(transp, "modFrete"),
     informacoesComplementares: texto(infAdic, "infCpl"),
     destinatario: {
