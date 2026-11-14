@@ -1765,7 +1765,7 @@ export default function EmpresaDetalhePage() {
               className="font-mono text-[0.6875rem] uppercase tracking-[0.14em]"
               style={{ color: "var(--muted)" }}
             >
-              Notas de entrada · mês
+              Entrada e saída · mês
             </label>
             <SeletorMes value={mesExportacaoTxt} onChange={setMesExportacaoTxt} />
           </div>
@@ -1782,10 +1782,9 @@ export default function EmpresaDetalhePage() {
         </div>
 
         <p className="text-xs" style={{ color: "var(--muted)" }}>
-          Gera o TXT de notas de entrada do mês pra importar no Domínio
-          Sistemas. Exportação de notas de saída para o Domínio ainda não
-          existe — hoje elas ficam disponíveis pra conferência em PDF/Excel
-          na seção acima.
+          Gera o TXT do mês com as notas de entrada e de saída (NF-e e
+          NFC-e) pra importar no Domínio Sistemas. CT-e não entra nesse
+          arquivo.
         </p>
 
         {resultadoTxt && (

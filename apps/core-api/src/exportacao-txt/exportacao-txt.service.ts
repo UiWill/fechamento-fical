@@ -152,11 +152,14 @@ export class ExportacaoTxtService {
         direcao: "ENTRADA" as const,
         ...filtroPeriodoPorDirecao("ENTRADA", periodoInicio, periodoFim),
       };
-      // Saída: só NF-e (modelo 55) por enquanto — NFC-e/cupom (2081/2082) e CT-e ficam de fora.
+      // Saída: NF-e (modelo 55) e NFC-e (modelo 65) — mesma estrutura de
+      // <det>/<imposto> no XML, lerNotaSaida funciona pra ambas sem
+      // distinção. CT-e fica de fora (estrutura de item diferente, sem
+      // essa tributação por item).
       const filtroSaida = {
         empresaId,
         direcao: "SAIDA" as const,
-        tipo: "NFE" as const,
+        tipo: { in: ["NFE", "NFCE"] as ("NFE" | "NFCE")[] },
         ...filtroPeriodoPorDirecao("SAIDA", periodoInicio, periodoFim),
       };
 

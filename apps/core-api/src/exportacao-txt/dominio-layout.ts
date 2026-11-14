@@ -450,6 +450,15 @@ export function linha2000(n: NotaSaidaParaLayout): string {
   }
   const data = formatarDataBR(n.dataEmissao);
 
+  // Campo 2 ("Código da espécie"): o PDF documenta uma tabela onde NF-e
+  // (código 55) seria índice "31" e NFC-e (código 65) seria índice "43" —
+  // mas o arquivo-modelo real (só tinha NF-e) sempre grava "36" (que na
+  // tabela do PDF é "Conhecimento de Transporte de Cargas Avulso", nada a
+  // ver). Ou seja, essa tabela do PDF já está comprovadamente errada pra
+  // esse campo (mesma situação do registro 2060). Sem nenhum
+  // arquivo-modelo real com NFC-e de saída pra confirmar, mantemos "36"
+  // também pra NFC-e em vez de arriscar o índice "43" do PDF, que já se
+  // mostrou não confiável nesse campo especificamente.
   if (n.cancelada) {
     return montarLinha(79, {
       1: "2000",
@@ -476,7 +485,7 @@ export function linha2000(n: NotaSaidaParaLayout): string {
 
   return montarLinha(79, {
     1: "2000",
-    2: "36", // constante observada no arquivo-modelo, significado nao confirmado (Codigo da especie)
+    2: "36", // ver comentario acima (Codigo da especie)
     3: n.documentoDestinatario,
     4: n.acumulador ?? "",
     5: n.cfop,
