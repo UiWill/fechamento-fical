@@ -24,7 +24,16 @@ async function bootstrap() {
   // (diferente do pacote "cors" do Express) — sem isso, toda rota
   // DELETE/PUT/PATCH (ex: excluir agente) falha no preflight do navegador
   // mesmo existindo e funcionando certinho no backend.
-  app.enableCors({ methods: "GET,HEAD,PUT,PATCH,POST,DELETE" });
+  //
+  // exposedHeaders libera "Content-Disposition" pra leitura via JS no
+  // navegador — sem isso, `response.headers.get("content-disposition")`
+  // sempre volta null no front mesmo o header chegando de verdade (visível
+  // só no inspetor de rede do DevTools, que tem acesso privilegiado). É o
+  // que dá o nome real do arquivo em downloads como o da exportação TXT.
+  app.enableCors({
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    exposedHeaders: "Content-Disposition",
+  });
 
   const port = Number(process.env.CORE_API_PORT ?? 3000);
   await app.listen(port, "0.0.0.0");
